@@ -18,6 +18,7 @@ import {
   saveConfig,
   updateConfigFormValue,
   removeConfigFormValue,
+  dismissUpdate,
 } from "./controllers/config.ts";
 import {
   loadCronRuns,
@@ -315,7 +316,13 @@ export function renderApp(state: AppViewState) {
                 class="btn btn--sm update-banner__btn"
                 ?disabled=${state.updateRunning || !state.connected}
                 @click=${() => runUpdate(state)}
-              >${state.updateRunning ? "Updating…" : "Update now"}</button>
+              >${state.updateRunning ? "正在升级…" : "现在升级"}</button>
+
+              <button
+                class="btn btn--sm update-banner__btn"
+                ?disabled=${state.updateRunning || !state.connected}
+                @click=${() => dismissUpdate(state)}
+              >忽略这个升级</button>
             </div>`
             : nothing
         }

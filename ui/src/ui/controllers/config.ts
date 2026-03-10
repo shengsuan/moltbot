@@ -1,3 +1,4 @@
+import { AppViewState } from "../app-view-state.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { ConfigSchemaResponse, ConfigSnapshot, ConfigUiHints } from "../types.ts";
 import type { JsonSchema } from "../views/config-form.shared.ts";
@@ -215,5 +216,14 @@ export function removeConfigFormValue(state: ConfigState, path: Array<string | n
   state.configFormDirty = true;
   if (state.configFormMode === "form") {
     state.configRaw = serializeConfigForm(base);
+  }
+}
+
+export function dismissUpdate(state: AppViewState) {
+  if (state.updateAvailable) {
+    state.updateAvailable = {
+      ...state.updateAvailable,
+      latestVersion: state.updateAvailable.currentVersion,
+    };
   }
 }
