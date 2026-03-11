@@ -132,19 +132,14 @@ function supportsVision(model: ShengSuanYunModel): boolean {
 }
 
 // Default models shown before API discovery (e.g., during onboarding)
-const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
+export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
   {
     id: "google/gemini-3-flash",
     name: "Gemini 3 Flash Preview",
     reasoning: false,
     api: "openai-completions",
     input: ["text", "image"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
+    cost: SHENGSUANYUN_DEFAULT_COST,
     contextWindow: 1048576,
     maxTokens: 65535,
   },
@@ -154,12 +149,7 @@ const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     reasoning: false,
     api: "openai-completions",
     input: ["text", "image"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
+    cost: SHENGSUANYUN_DEFAULT_COST,
     contextWindow: 200000,
     maxTokens: 64000,
   },
@@ -169,12 +159,7 @@ const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     reasoning: true,
     api: "openai-completions",
     input: ["text", "image"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
+    cost: SHENGSUANYUN_DEFAULT_COST,
     contextWindow: 200000,
     maxTokens: 64000,
   },
@@ -184,12 +169,7 @@ const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     reasoning: false,
     api: "openai-completions",
     input: ["text", "image"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
+    cost: SHENGSUANYUN_DEFAULT_COST,
     contextWindow: 200000,
     maxTokens: 64000,
   },
@@ -199,12 +179,7 @@ const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     reasoning: false,
     api: "openai-completions",
     input: ["text", "image"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
+    cost: SHENGSUANYUN_DEFAULT_COST,
     contextWindow: 200000,
     maxTokens: 64000,
   },
@@ -214,12 +189,7 @@ const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     reasoning: true,
     api: "openai-completions",
     input: ["text", "image"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
+    cost: SHENGSUANYUN_DEFAULT_COST,
     contextWindow: 200000,
     maxTokens: 64000,
   },
@@ -229,12 +199,7 @@ const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     reasoning: false,
     api: "openai-completions",
     input: ["text"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
+    cost: SHENGSUANYUN_DEFAULT_COST,
     contextWindow: 1000000,
     maxTokens: 128000,
   },
@@ -244,29 +209,9 @@ const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     reasoning: false,
     api: "openai-completions",
     input: ["text"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
+    cost: SHENGSUANYUN_DEFAULT_COST,
     contextWindow: 200000,
     maxTokens: 64000,
-  },
-  {
-    id: "openai/gpt-5-nano",
-    name: "GPT-5-Nano",
-    reasoning: false,
-    api: "openai-completions",
-    input: ["text", "image"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
-    contextWindow: 400000,
-    maxTokens: 128000,
   },
   {
     id: "anthropic/claude-opus-4",
@@ -274,12 +219,7 @@ const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     reasoning: false,
     api: "openai-completions",
     input: ["text", "image"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
+    cost: SHENGSUANYUN_DEFAULT_COST,
     contextWindow: 200000,
     maxTokens: 32000,
   },
@@ -289,25 +229,20 @@ const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     reasoning: false,
     api: "openai-completions",
     input: ["text", "image"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
+    cost: SHENGSUANYUN_DEFAULT_COST,
     contextWindow: 200000,
     maxTokens: 32000,
   },
 ];
 
-export async function getShengSuanYunModels(): Promise<ModelDefinitionConfig[]> {
+export async function discoverShengSuanYunModels(): Promise<ModelDefinitionConfig[]> {
   // Skip API network discovery in test environment
   if (process.env.NODE_ENV === "test" || process.env.VITEST) {
     return DEFAULT_SHENGSUANYUN_MODELS;
   }
   try {
     const res = await fetch(`${SHENGSUANYUN_BASE_URL}/models`, {
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(50000),
     });
     if (!res.ok) {
       // Return default models if API call fails

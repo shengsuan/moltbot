@@ -202,7 +202,7 @@ export async function promptRemoteGatewayConfig(
       explicitMode: options?.secretInputMode,
       copy: {
         modeMessage: "您想如何提供此网关密码?",
-        plaintextLabel: "输入 password now",
+        plaintextLabel: "现在输入密码",
         plaintextHint: "密码保存到 OpenClaw 配置文件中",
       },
     });

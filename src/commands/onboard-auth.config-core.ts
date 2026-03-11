@@ -11,7 +11,6 @@ import {
   QIANFAN_DEFAULT_MODEL_ID,
   XIAOMI_DEFAULT_MODEL_ID,
 } from "../agents/models-config.providers.js";
-import { SHENGSUANYUN_BASE_URL } from "../agents/shengsuanyun-models.js";
 import {
   buildSyntheticModelDefinition,
   SYNTHETIC_BASE_URL,
@@ -307,7 +306,7 @@ export function applyVeniceProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
   const models = { ...cfg.agents?.defaults?.models };
   models[VENICE_DEFAULT_MODEL_REF] = {
     ...models[VENICE_DEFAULT_MODEL_REF],
-    alias: models[VENICE_DEFAULT_MODEL_REF]?.alias ?? "Llama 3.3 70B",
+    alias: models[VENICE_DEFAULT_MODEL_REF]?.alias ?? "Kimi K2.5",
   };
 
   const veniceModels = VENICE_MODEL_CATALOG.map(buildVeniceModelDefinition);
@@ -329,32 +328,27 @@ export function applyVeniceConfig(cfg: OpenClawConfig): OpenClawConfig {
   return applyAgentDefaultModelPrimary(next, VENICE_DEFAULT_MODEL_REF);
 }
 
-/**
- * Apply ShengSuanYun provider configuration only (adds to models.providers).
- */
+// export function applyShengSuanYunProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+//   const models = { ...cfg.agents?.defaults?.models };
+//   models[SHENGSUANYUN_DEFAULT_MODEL_REF] = {
+//     ...models[SHENGSUANYUN_DEFAULT_MODEL_REF],
+//     alias: models[SHENGSUANYUN_DEFAULT_MODEL_REF]?.alias ?? "anthropic/claude-sonnet-4.6",
+//   };
+
+//   return applyProviderConfigWithModelCatalog(cfg, {
+//     agentModels: models,
+//     providerId: "shengsuanyun",
+//     api: "openai-completions",
+//     baseUrl: SHENGSUANYUN_BASE_URL,
+//     catalogModels: DEFAULT_SHENGSUANYUN_MODELS,
+//   });
+// }
+
 export function applyShengSuanYunProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
   const models = { ...cfg.agents?.defaults?.models };
   models[SHENGSUANYUN_DEFAULT_MODEL_REF] = {
     ...models[SHENGSUANYUN_DEFAULT_MODEL_REF],
-    alias: models[SHENGSUANYUN_DEFAULT_MODEL_REF]?.alias ?? "ShengSuanYun",
-  };
-
-  const providers = { ...cfg.models?.providers };
-  const existingProvider = providers.shengsuanyun;
-  const { apiKey: existingApiKey, ...existingProviderRest } = (existingProvider ?? {}) as Record<
-    string,
-    unknown
-  > as { apiKey?: string };
-  const resolvedApiKey = typeof existingApiKey === "string" ? existingApiKey : undefined;
-  const normalizedApiKey = resolvedApiKey?.trim();
-
-  providers.shengsuanyun = {
-    ...existingProviderRest,
-    baseUrl: SHENGSUANYUN_BASE_URL,
-    api: "openai-completions",
-    ...(normalizedApiKey ? { apiKey: normalizedApiKey } : {}),
-    // Models will be discovered automatically by resolveImplicitProviders
-    models: [],
+    alias: models[SHENGSUANYUN_DEFAULT_MODEL_REF]?.alias ?? "胜算云",
   };
 
   return {
@@ -366,35 +360,13 @@ export function applyShengSuanYunProviderConfig(cfg: OpenClawConfig): OpenClawCo
         models,
       },
     },
-    models: {
-      mode: cfg.models?.mode ?? "merge",
-      providers,
-    },
   };
 }
 
 export function applyShengSuanYunConfig(cfg: OpenClawConfig): OpenClawConfig {
   const next = applyShengSuanYunProviderConfig(cfg);
-  const existingModel = next.agents?.defaults?.model;
-  return {
-    ...next,
-    agents: {
-      ...next.agents,
-      defaults: {
-        ...next.agents?.defaults,
-        model: {
-          ...(existingModel && "fallbacks" in (existingModel as Record<string, unknown>)
-            ? {
-                fallbacks: (existingModel as { fallbacks?: string[] }).fallbacks,
-              }
-            : undefined),
-          primary: SHENGSUANYUN_DEFAULT_MODEL_REF,
-        },
-      },
-    },
-  };
+  return applyAgentDefaultModelPrimary(next, SHENGSUANYUN_DEFAULT_MODEL_REF);
 }
-
 /**
  * Apply Together provider configuration without changing the default model.
  * Registers Together models and sets up the provider, but preserves existing model selection.

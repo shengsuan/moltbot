@@ -10,6 +10,7 @@ import {
   DEFAULT_GATEWAY_DAEMON_RUNTIME,
   GATEWAY_DAEMON_RUNTIME_OPTIONS,
 } from "../commands/daemon-runtime.js";
+import { resolveGatewayInstallToken } from "../commands/gateway-install-token.js";
 import { formatHealthCheckFailure } from "../commands/health-format.js";
 import { healthCommand } from "../commands/health.js";
 import {
@@ -161,24 +162,40 @@ export async function finalizeOnboardingWizard(
       const progress = prompter.progress("网关服务");
       let installError: string | null = null;
       try {
-        progress.update("正在准备网关服务…");
-        const { programArguments, workingDirectory, environment } = await buildGatewayInstallPlan({
-          env: process.env,
-          port: settings.port,
-          token: settings.gatewayToken,
-          runtime: daemonRuntime,
-          warn: (message, title) => prompter.note(message, title),
+        progress.update("正在准备 Gateway 服务");
+        const tokenResolution = await resolveGatewayInstallToken({
           config: nextConfig,
-        });
-
-        progress.update("正在安装网关服务…");
-        await service.install({
           env: process.env,
-          stdout: process.stdout,
-          programArguments,
-          workingDirectory,
-          environment,
         });
+        for (const warning of tokenResolution.warnings) {
+          await prompter.note(warning, "Gateway service");
+        }
+        if (tokenResolution.unavailableReason) {
+          installError = [
+            "Gateway install blocked:",
+            tokenResolution.unavailableReason,
+            "Fix gateway auth config/token input and rerun onboarding.",
+          ].join(" ");
+        } else {
+          const { programArguments, workingDirectory, environment } = await buildGatewayInstallPlan(
+            {
+              env: process.env,
+              port: settings.port,
+              runtime: daemonRuntime,
+              warn: (message, title) => prompter.note(message, title),
+              config: nextConfig,
+            },
+          );
+
+          progress.update("Installing Gateway service…");
+          await service.install({
+            env: process.env,
+            stdout: process.stdout,
+            programArguments,
+            workingDirectory,
+            environment,
+          });
+        }
       } catch (err) {
         installError = err instanceof Error ? err.message : String(err);
       } finally {
@@ -324,8 +341,8 @@ export async function finalizeOnboardingWizard(
 
     await prompter.note(
       [
-        "网关令牌: 网关 + 控制 UI 的共享认证。",
-        "存储在: ~/.openclaw/openclaw.json (gateway.auth.token) 或 OPENCLAW_GATEWAY_TOKEN。",
+        "Gateway 令牌: 为 Gateway 和用户界面共享认证信息.",
+        "保存在: ~/.openclaw/openclaw.json (gateway.auth.token) 或 OPENCLAW_GATEWAY_TOKEN.",
         `查看令牌: ${formatCliCommand("openclaw config get gateway.auth.token")}`,
         `生成令牌: ${formatCliCommand("openclaw doctor --generate-gateway-token")}`,
         "Web UI 在此浏览器的 localStorage (openclaw.control.settings.v1) 中存储副本。",
@@ -445,39 +462,86 @@ export async function finalizeOnboardingWizard(
     );
   }
 
-  const webSearchProvider = nextConfig.tools?.web?.search?.provider ?? "brave";
-  const webSearchKey =
-    webSearchProvider === "perplexity"
-      ? (nextConfig.tools?.web?.search?.perplexity?.apiKey ?? "").trim()
-      : (nextConfig.tools?.web?.search?.apiKey ?? "").trim();
-  const webSearchEnv =
-    webSearchProvider === "perplexity"
-      ? (process.env.PERPLEXITY_API_KEY ?? "").trim()
-      : (process.env.BRAVE_API_KEY ?? "").trim();
-  const hasWebSearchKey = Boolean(webSearchKey || webSearchEnv);
-  await prompter.note(
-    hasWebSearchKey
-      ? [
-          "网络搜索已启用，因此您的代理可以在需要时在线查找信息。",
+  const webSearchProvider = nextConfig.tools?.web?.search?.provider;
+  const webSearchEnabled = nextConfig.tools?.web?.search?.enabled;
+  if (webSearchProvider) {
+    const { SEARCH_PROVIDER_OPTIONS, resolveExistingKey, hasExistingKey, hasKeyInEnv } =
+      await import("../commands/onboard-search.js");
+    const entry = SEARCH_PROVIDER_OPTIONS.find((e) => e.value === webSearchProvider);
+    const label = entry?.label ?? webSearchProvider;
+    const storedKey = resolveExistingKey(nextConfig, webSearchProvider);
+    const keyConfigured = hasExistingKey(nextConfig, webSearchProvider);
+    const envAvailable = entry ? hasKeyInEnv(entry) : false;
+    const hasKey = keyConfigured || envAvailable;
+    const keySource = storedKey
+      ? "API key: 保存到配置文件中。"
+      : keyConfigured
+        ? "API key: 通过密钥引用进行配置。"
+        : envAvailable
+          ? `API key: 通过 ${entry?.envKeys.join(" / ")} 环境变量提供。`
+          : undefined;
+    if (webSearchEnabled !== false && hasKey) {
+      await prompter.note(
+        [
+          "网络搜索功能已启用，因此您的代理人可以在需要时在线查找信息。",
           "",
-          `提供商: ${webSearchProvider === "perplexity" ? "Perplexity Search" : "Brave Search"}`,
-          webSearchKey
-            ? `API 密钥: 存储在配置中 (tools.web.search.${webSearchProvider === "perplexity" ? "perplexity.apiKey" : "apiKey"})。`
-            : `API 密钥: 通过 ${webSearchProvider === "perplexity" ? "PERPLEXITY_API_KEY" : "BRAVE_API_KEY"} 环境变量提供（网关环境）。`,
-          "文档: https://docs.openclaw.ai/tools/web",
-        ].join("\n")
-      : [
-          "要启用网络搜索，您的代理需要 Perplexity Search 或 Brave Search 的 API 密钥。",
-          "",
-          "交互式设置:",
-          `- 运行: ${formatCliCommand("openclaw configure --section web")}`,
-          "- 选择提供商并粘贴您的 API 密钥",
-          "",
-          "备选方案: 在网关环境中设置 PERPLEXITY_API_KEY 或 BRAVE_API_KEY（无需更改配置）。",
-          "文档: https://docs.openclaw.ai/tools/web",
+          `供应商: ${label}`,
+          ...(keySource ? [keySource] : []),
+          "Docs: https://docs.openclaw.ai/tools/web",
         ].join("\n"),
-    "网络搜索（可选）",
-  );
+        "网络搜索",
+      );
+    } else if (!hasKey) {
+      await prompter.note(
+        [
+          `供应商 ${label} 被选中但未找到 API key.`,
+          "web_search 将不会工作直到添加密钥。",
+          `  ${formatCliCommand("openclaw configure --section web")}`,
+          "",
+          `在以下位置获取您的 API key: ${entry?.signupUrl ?? "https://docs.openclaw.ai/tools/web"}`,
+          "Docs: https://docs.openclaw.ai/tools/web",
+        ].join("\n"),
+        "网络搜索",
+      );
+    } else {
+      await prompter.note(
+        [
+          `网络搜索 (${label}) 已配置但已禁用。`,
+          `重新启用: ${formatCliCommand("openclaw configure --section web")}`,
+          "",
+          "Docs: https://docs.openclaw.ai/tools/web",
+        ].join("\n"),
+        "网络搜索",
+      );
+    }
+  } else {
+    // Legacy configs may have a working key (e.g. apiKey or BRAVE_API_KEY) without
+    // an explicit provider. Runtime auto-detects these, so avoid saying "skipped".
+    const { SEARCH_PROVIDER_OPTIONS, hasExistingKey, hasKeyInEnv } =
+      await import("../commands/onboard-search.js");
+    const legacyDetected = SEARCH_PROVIDER_OPTIONS.find(
+      (e) => hasExistingKey(nextConfig, e.value) || hasKeyInEnv(e),
+    );
+    if (legacyDetected) {
+      await prompter.note(
+        [
+          `网络搜索可通过 ${legacyDetected.label} 使用（自动检测）。`,
+          "Docs: https://docs.openclaw.ai/tools/web",
+        ].join("\n"),
+        "网络搜索",
+      );
+    } else {
+      await prompter.note(
+        [
+          "网络搜索被跳过。您可以稍后启用它:",
+          `  ${formatCliCommand("openclaw configure --section web")}`,
+          "",
+          "Docs: https://docs.openclaw.ai/tools/web",
+        ].join("\n"),
+        "网络搜索",
+      );
+    }
+  }
 
   await prompter.note(
     '接下来做什么: https://openclaw.ai/showcase ("人们正在构建什么")。',
@@ -486,10 +550,10 @@ export async function finalizeOnboardingWizard(
 
   await prompter.outro(
     controlUiOpened
-      ? "入门完成。仪表板已打开；保留该标签页以控制 OpenClaw。"
+      ? "配置完成。仪表板已打开；保留该标签页以控制 OpenClaw。"
       : seededInBackground
-        ? "入门完成。Web UI 已在后台初始化；随时使用上面的仪表板链接打开它。"
-        : "入门完成。使用上面的仪表板链接控制 OpenClaw。",
+        ? "配置完成。Web UI 已在后台初始化；随时使用上面的仪表板链接打开它。"
+        : "配置完成。使用上面的仪表板链接控制 OpenClaw。",
   );
 
   return { launchedTui };

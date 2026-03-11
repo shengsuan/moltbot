@@ -216,9 +216,9 @@ export async function promptDefaultModel(
       catalog,
       defaultProvider: DEFAULT_PROVIDER,
     });
+    console.log("可选模--------------型数量：", allowedCatalog, catalog);
     models = allowedCatalog.length > 0 ? allowedCatalog : catalog;
   }
-
   if (models.length === 0) {
     return promptManualModel({
       prompter: params.prompter,
@@ -432,7 +432,7 @@ export async function promptModelAllowlist(params: {
   }
 
   const selection = await params.prompter.multiselect({
-    message: params.message ?? "/model picker 中的模型（多选）",
+    message: params.message ?? "/model 中的模型（多选）",
     options,
     initialValues: initialKeys.length > 0 ? initialKeys : undefined,
     searchable: true,

@@ -63,7 +63,8 @@ function resolveApiKeySecretInput(
   if (inlineEnvRef) {
     return inlineEnvRef;
   }
-  if (options?.secretInputMode === "ref") {
+  const useSecretRefMode = options?.secretInputMode === "ref"; // pragma: allowlist secret
+  if (useSecretRefMode) {
     return resolveProviderDefaultEnvSecretRef(provider);
   }
   return normalized;
@@ -435,7 +436,7 @@ export async function setOpencodeZenApiKey(
   });
 }
 
-export const SHENGSUANYUN_DEFAULT_MODEL_REF = "shengsuanyun/openai/gpt-5-nano";
+export const SHENGSUANYUN_DEFAULT_MODEL_REF = "anthropic/claude-sonnet-4.6";
 export async function setShengSuanYunApiKey(
   key: SecretInput,
   agentDir?: string,

@@ -11,6 +11,7 @@ import {
 import { sanitizeToolResultImages } from "../../tool-images.ts";
 import type { AnyAgentTool } from "../common.ts";
 import { readStringParam, readStringArrayParam, readNumberParam } from "../common.ts";
+import { toolDescriptionMap } from "./meta.ts";
 import { saveMediaToWorkspace } from "./save-media.ts";
 
 export const APP_HEADERS: Record<string, string> = {
@@ -119,9 +120,7 @@ async function loadShengSuanYunTools(opts?: {
   for (const model of models) {
     const label = `${model.company_name} ${model.model_name} Generate tool`;
     const name = sanitizeToolName(model.api_name);
-    const description =
-      model.desc +
-      "\n\n 注意： 生成成功后我将把它下载保存到工作文件夹的 media_save 目录中。需要向用户返回这个文件链接。";
+    const description = toolDescriptionMap[model.api_name] || model.desc;
     let inputSchema: JsonSchema = {};
     try {
       inputSchema = JSON.parse(model.input_schema) as JsonSchema;
@@ -136,12 +135,15 @@ async function loadShengSuanYunTools(opts?: {
       console.error(`[shengsuanyun-generate] generateTypebox error for ${model.model_name}:`, e);
       continue;
     }
+    // console.log(`[shengsuanyun-generate] ${name}\n`);
+    // console.log(`${description}\n\n`);
     tools.push({
       label,
       name,
       description,
       parameters: parameters,
       execute: async (_toolCallId, args) => {
+        console.log(`[shengsuanyun-generate] Executing tool ${name} with args:`, args);
         const cfg = opts?.config ?? loadConfig();
         const resolved = await resolveApiKeyForProvider({ provider: "shengsuanyun", cfg });
         if (!resolved.apiKey) {
@@ -221,6 +223,26 @@ async function loadShengSuanYunTools(opts?: {
     });
   }
   console.log(`[shengsuanyun-generate] Loaded ${tools.length} dynamic tools`);
+
+  // Save api_name -> tool name mapping to workspace dir for external reference
+  // if (opts?.workspaceDir) {
+  //   const a2n: Record<string, string> = {};
+  //   for (const model of models) {
+  //     a2n[model.api_name] = sanitizeToolName(model.api_name);
+  //   }
+  //   try {
+  //     const { writeFile, mkdir } = await import("node:fs/promises");
+  //     await mkdir(opts.workspaceDir, { recursive: true });
+  //     await writeFile(
+  //       `${opts.workspaceDir}/a2n.json`,
+  //       JSON.stringify(a2n, null, 2),
+  //       "utf-8",
+  //     );
+  //   } catch (err) {
+  //     console.error("[shengsuanyun-generate] Failed to write a2n.json:", err);
+  //   }
+  // }
+
   return tools;
 }
 
@@ -347,6 +369,9 @@ export async function preloadShengSuanYunTools(opts?: {
   config?: OpenClawConfig;
   workspaceDir?: string;
 }): Promise<void> {
+  console.log(
+    `[shengsuanyun-generate] preloadShengSuanYunTools() called, cachedTools: ${cachedTools ? `${cachedTools.length} tools` : "null"}`,
+  );
   if (cachedTools !== null) {
     return;
   }
@@ -357,6 +382,7 @@ export async function preloadShengSuanYunTools(opts?: {
   }
   loadPromise = loadShengSuanYunTools(opts)
     .then((tools) => {
+      cachedTools = tools;
       return tools;
     })
     .catch((err) => {
