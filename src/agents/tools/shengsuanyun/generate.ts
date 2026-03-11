@@ -222,7 +222,7 @@ async function loadShengSuanYunTools(opts?: {
       },
     });
   }
-  console.log(`[shengsuanyun-generate] Loaded ${tools.length} dynamic tools`);
+  // console.log(`[shengsuanyun-generate] Loaded ${tools.length} dynamic tools`);
 
   // Save api_name -> tool name mapping to workspace dir for external reference
   // if (opts?.workspaceDir) {
@@ -369,9 +369,9 @@ export async function preloadShengSuanYunTools(opts?: {
   config?: OpenClawConfig;
   workspaceDir?: string;
 }): Promise<void> {
-  console.log(
-    `[shengsuanyun-generate] preloadShengSuanYunTools() called, cachedTools: ${cachedTools ? `${cachedTools.length} tools` : "null"}`,
-  );
+  // console.log(
+  //   `[shengsuanyun-generate] preloadShengSuanYunTools() called, cachedTools: ${cachedTools ? `${cachedTools.length} tools` : "null"}`,
+  // );
   if (cachedTools !== null) {
     return;
   }
@@ -399,16 +399,16 @@ export function createGenerateTools(opts?: {
   config?: OpenClawConfig;
   workspaceDir?: string;
 }): AnyAgentTool[] {
-  console.log(
-    `[shengsuanyun-generate] createGenerateTools() called, cachedTools: ${cachedTools ? `${cachedTools.length} tools` : "null"}`,
-  );
+  // console.log(
+  //   `[shengsuanyun-generate] createGenerateTools() called, cachedTools: ${cachedTools ? `${cachedTools.length} tools` : "null"}`,
+  // );
   if (cachedTools !== null) {
-    console.log(`[shengsuanyun-generate] Returning ${cachedTools.length} cached tools`);
+    // console.log(`[shengsuanyun-generate] Returning ${cachedTools.length} cached tools`);
     return cachedTools;
   }
-  console.log(
-    "[shengsuanyun-generate] cachedTools is null, starting background preload and returning fallback tools",
-  );
+  // console.log(
+  //   "[shengsuanyun-generate] cachedTools is null, starting background preload and returning fallback tools",
+  // );
   preloadShengSuanYunTools(opts).catch((err) => {
     console.error("[shengsuanyun-generate] Background preload failed:", err);
   });

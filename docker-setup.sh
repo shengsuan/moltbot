@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMPOSE_FILE="$ROOT_DIR/docker-compose.yml"
 EXTRA_COMPOSE_FILE="$ROOT_DIR/docker-compose.extra.yml"
-IMAGE_NAME="${OPENCLAW_IMAGE:-openclaw:local}"
+IMAGE_NAME="${OPENCLAW_IMAGE:-openclaw:latest}"
 EXTRA_MOUNTS="${OPENCLAW_EXTRA_MOUNTS:-}"
 HOME_VOLUME_NAME="${OPENCLAW_HOME_VOLUME:-}"
 RAW_SANDBOX_SETTING="${OPENCLAW_SANDBOX:-}"
@@ -224,6 +223,7 @@ export OPENCLAW_HOME_VOLUME="$HOME_VOLUME_NAME"
 export OPENCLAW_ALLOW_INSECURE_PRIVATE_WS="${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}"
 export OPENCLAW_SANDBOX="$SANDBOX_ENABLED"
 export OPENCLAW_DOCKER_SOCKET="$DOCKER_SOCKET_PATH"
+export OPENCLAW_INSTALL_BROWSER="${OPENCLAW_INSTALL_BROWSER:-1}"
 
 # Detect Docker socket GID for sandbox group_add.
 DOCKER_GID=""
@@ -408,14 +408,16 @@ upsert_env "$ENV_FILE" \
   OPENCLAW_DOCKER_SOCKET \
   DOCKER_GID \
   OPENCLAW_INSTALL_DOCKER_CLI \
+  OPENCLAW_INSTALL_BROWSER \
   OPENCLAW_ALLOW_INSECURE_PRIVATE_WS
 
-if [[ "$IMAGE_NAME" == "openclaw:local" ]]; then
+if [[ "$IMAGE_NAME" == "openclaw:latest" ]]; then
   echo "==> 构建 Docker 镜像：$IMAGE_NAME"
   docker build \
     --build-arg "OPENCLAW_DOCKER_APT_PACKAGES=${OPENCLAW_DOCKER_APT_PACKAGES}" \
     --build-arg "OPENCLAW_EXTENSIONS=${OPENCLAW_EXTENSIONS}" \
     --build-arg "OPENCLAW_INSTALL_DOCKER_CLI=${OPENCLAW_INSTALL_DOCKER_CLI:-}" \
+    --build-arg "OPENCLAW_INSTALL_BROWSER=${OPENCLAW_INSTALL_BROWSER:-}" \
     -t "$IMAGE_NAME" \
     -f "$ROOT_DIR/Dockerfile" \
     "$ROOT_DIR"

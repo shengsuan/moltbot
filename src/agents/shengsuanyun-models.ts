@@ -306,10 +306,10 @@ async function loadCachedModalities(): Promise<MModel[] | null> {
     const cacheData = fs.readFileSync(cachePath, "utf-8");
     const cache = JSON.parse(cacheData) as ModalitiesCache;
     if (Date.now() - cache.timestamp < CACHE_TTL_MS) {
-      console.log(`[shengsuanyun-models] Loaded ${cache.models.length} modality models from cache`);
+      // console.log(`[shengsuanyun-models] Loaded ${cache.models.length} modality models from cache`);
       return cache.models;
     }
-    console.log(`[shengsuanyun-models] Cache expired, will fetch fresh data`);
+    // console.log(`[shengsuanyun-models] Cache expired, will fetch fresh data`);
     return null;
   } catch (err) {
     console.log(`[shengsuanyun-models] Failed to load cache:`, err);
@@ -352,16 +352,16 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
       },
     );
     if (!res.ok) {
-      console.log(
-        `[shengsuanyun-models] Modalities list fetch failed: ${res.status} ${res.statusText}`,
-      );
+      // console.log(
+      //   `[shengsuanyun-models] Modalities list fetch failed: ${res.status} ${res.statusText}`,
+      // );
       return [];
     }
     const data = (await res.json()) as ShengSuanYunModalitiesResponse;
     if (data.code !== 0 || !Array.isArray(data.data.infos) || data.data.infos.length === 0) {
-      console.log(
-        `[shengsuanyun-models] Invalid response: code=${data.code}, infos=${data.data?.infos?.length ?? 0}`,
-      );
+      // console.log(
+      //   `[shengsuanyun-models] Invalid response: code=${data.code}, infos=${data.data?.infos?.length ?? 0}`,
+      // );
       return [];
     }
     const batchSize = 10;
@@ -399,7 +399,7 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
       }
     }
 
-    console.log(`[shengsuanyun-models] Loaded ${results.length} modality models total`);
+    // console.log(`[shengsuanyun-models] Loaded ${results.length} modality models total`);
     if (results.length > 0) {
       await saveCachedModalities(results);
     }

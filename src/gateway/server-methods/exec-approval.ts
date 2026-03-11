@@ -237,11 +237,7 @@ export function createExecApprovalHandlers(
       }
       const decisionPromise = manager.awaitDecision(id);
       if (!decisionPromise) {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "approval expired or not found"),
-        );
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "未知或过期的批准"));
         return;
       }
       // Capture snapshot before await (entry may be deleted after grace period)
@@ -276,16 +272,12 @@ export function createExecApprovalHandlers(
       const p = params as { id: string; decision: string };
       const decision = p.decision as ExecApprovalDecision;
       if (decision !== "allow-once" && decision !== "allow-always" && decision !== "deny") {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid decision"));
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "无效的选择"));
         return;
       }
       const resolvedId = manager.lookupPendingId(p.id);
       if (resolvedId.kind === "none") {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "unknown or expired approval id"),
-        );
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "未知或过期的批准id"));
         return;
       }
       if (resolvedId.kind === "ambiguous") {
@@ -306,11 +298,7 @@ export function createExecApprovalHandlers(
       const resolvedBy = client?.connect?.client?.displayName ?? client?.connect?.client?.id;
       const ok = manager.resolve(approvalId, decision, resolvedBy ?? null);
       if (!ok) {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "unknown or expired approval id"),
-        );
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "未知或过期的批准id"));
         return;
       }
       context.broadcast(
