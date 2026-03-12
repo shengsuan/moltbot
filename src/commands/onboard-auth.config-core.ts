@@ -328,22 +328,6 @@ export function applyVeniceConfig(cfg: OpenClawConfig): OpenClawConfig {
   return applyAgentDefaultModelPrimary(next, VENICE_DEFAULT_MODEL_REF);
 }
 
-// export function applyShengSuanYunProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
-//   const models = { ...cfg.agents?.defaults?.models };
-//   models[SHENGSUANYUN_DEFAULT_MODEL_REF] = {
-//     ...models[SHENGSUANYUN_DEFAULT_MODEL_REF],
-//     alias: models[SHENGSUANYUN_DEFAULT_MODEL_REF]?.alias ?? "anthropic/claude-sonnet-4.6",
-//   };
-
-//   return applyProviderConfigWithModelCatalog(cfg, {
-//     agentModels: models,
-//     providerId: "shengsuanyun",
-//     api: "openai-completions",
-//     baseUrl: SHENGSUANYUN_BASE_URL,
-//     catalogModels: DEFAULT_SHENGSUANYUN_MODELS,
-//   });
-// }
-
 export function applyShengSuanYunProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
   const models = { ...cfg.agents?.defaults?.models };
   models[SHENGSUANYUN_DEFAULT_MODEL_REF] = {

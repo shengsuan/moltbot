@@ -436,7 +436,7 @@ export async function setOpencodeZenApiKey(
   });
 }
 
-export const SHENGSUANYUN_DEFAULT_MODEL_REF = "anthropic/claude-sonnet-4.6";
+export const SHENGSUANYUN_DEFAULT_MODEL_REF = "shengsuanyun/anthropic/claude-sonnet-4.6";
 export async function setShengSuanYunApiKey(
   key: SecretInput,
   agentDir?: string,
