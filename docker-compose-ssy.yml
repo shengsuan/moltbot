@@ -1,29 +1,4 @@
 services:
-  # sandbox-browser:
-  #   image: ${OPENCLAW_SANDBOX_IMAGE:-openclaw-sandbox-browser:latest}
-  #   ports:
-  #     - "${SANDBOX_NOVNC_PORT:-6080}:6080"
-  #     - "${SANDBOX_VNC_PORT:-5900}:5900"
-  #     - "9222:9222"
-  #   expose:
-  #     - "9222"
-  #   environment:
-  #     DISPLAY: ":1"
-  #   init: true
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test:
-  #       [
-  #         "CMD",
-  #         "curl",
-  #         "-sf",
-  #         "http://127.0.0.1:9222/json/version",
-  #       ]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 8
-  #     start_period: 15s
-
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw:latest}
     environment:
@@ -59,6 +34,7 @@ services:
         node dist/index.js config set browser.enabled true
         node dist/index.js config set browser.evaluateEnabled true
         node dist/index.js config set browser.headless true
+        node dist/index.js config set browser.noSandbox true
         node dist/index.js config set tools.profile 'full'
         node dist/index.js config set tools.exec.security 'full'
         node dist/index.js config set tools.elevated.enabled true

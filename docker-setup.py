@@ -291,6 +291,7 @@ chown_script = (
     "[ -d /home/node/.openclaw/workspace/.openclaw ] && chown -R node:node /home/node/.openclaw/workspace/.openclaw || true"
 )
 run_compose(compose_args, "run", "--rm", "--user", "root", "--entrypoint", "sh", "openclaw-cli", "-c", chown_script)
+# run_compose(compose_args, "run", "--rm", "openclaw-cli", "onboard", "--mode", "local", "--no-install-daemon")
 
 print("\n==> 引导（交互式）")
 print("Docker 设置将网关模式固定为本地。")
@@ -299,8 +300,6 @@ print(f"当前运行时绑定：{OPENCLAW_GATEWAY_BIND}")
 print(f"网关令牌：{OPENCLAW_GATEWAY_TOKEN}")
 print("Tailscale 暴露：关闭（单独使用主机级 tailnet/Tailscale 设置）。")
 print("安装网关守护进程：否（由 Docker Compose 管理）\n")
-
-# run_compose(compose_args, "run", "--rm", "openclaw-cli", "onboard", "--mode", "local", "--no-install-daemon")
 
 print("\n==> Docker 网关默认值")
 run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "gateway.mode", "local", check=False)
@@ -330,5 +329,3 @@ print("文档：https://docs.openclaw.ai/channels")
 
 print("\n==> 启动网关")
 run_compose(compose_args, "up", "-d", "openclaw-gateway")
-
-run_compose(compose_args, "run", "--rm", "openclaw-cli", "onboard", "--mode", "local", "--no-install-daemon")
