@@ -1,4 +1,29 @@
 services:
+  sandbox-browser:
+    image: ${OPENCLAW_SANDBOX_IMAGE:-openclaw-sandbox-browser:latest}
+    environment:
+      DISPLAY: ":99"
+    ports:
+      - "${SANDBOX_NOVNC_PORT:-6080}:6080"   # noVNC Web UI（可选，调试用）
+      - "${SANDBOX_VNC_PORT:-5900}:5900"      # VNC（可选，调试用）
+      - "9222:9222" # 9222 (CDP) 不对外暴露，仅供内部访问
+    expose:
+      - "9222"   # Chrome DevTools Protocol，供 openclaw-gateway 调用
+    init: true
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-sf",
+          "http://127.0.0.1:9222/json/version",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
+
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw:latest}
     environment:
