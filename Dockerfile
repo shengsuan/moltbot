@@ -169,15 +169,17 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
       node /app/node_modules/playwright-core/cli.js install-deps chromium && \
       node /app/node_modules/playwright-core/cli.js install chromium && \
-      chown -R node:node /home/node/.cache && \ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright -type f -name chrome | grep chrome-linux | head -n 1) && \
+      chown -R node:node /home/node/.cache && \
+      ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright -type f -name chrome | grep chrome-linux | head -n 1) && \
       for TARGET in /usr/bin/chromium \
-                    /usr/bin/chromium-browser \
-                    /usr/bin/google-chrome \
-                    /usr/bin/google-chrome-stable \
-                    /usr/bin/msedge \
-                    /usr/bin/brave-browser \
-                    /snap/bin/chromium; do \
+          /usr/bin/chromium-browser \
+          /usr/bin/google-chrome \
+          /usr/bin/google-chrome-stable \
+          /usr/bin/msedge \
+          /usr/bin/brave-browser \
+          /snap/bin/chromium; do \
         mkdir -p $(dirname "$TARGET") && ln -sf "$ACTUAL_CHROME" "$TARGET"; \
+      done; \
     fi
 
 # Optionally install Docker CLI for sandbox container management.
