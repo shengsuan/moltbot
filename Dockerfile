@@ -170,14 +170,15 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       node /app/node_modules/playwright-core/cli.js install-deps chromium && \
       node /app/node_modules/playwright-core/cli.js install chromium && \
       chown -R node:node /home/node/.cache && \
-      ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright -type f -name chrome | grep chrome-linux | head -n 1) && \
+      ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright /root/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
+      if [ -z "$ACTUAL_CHROME" ]; then echo "Browser executable not found" >&2; exit 1; fi; \
       for TARGET in /usr/bin/chromium \
-          /usr/bin/chromium-browser \
-          /usr/bin/google-chrome \
-          /usr/bin/google-chrome-stable \
-          /usr/bin/msedge \
-          /usr/bin/brave-browser \
-          /snap/bin/chromium; do \
+                    /usr/bin/chromium-browser \
+                    /usr/bin/google-chrome \
+                    /usr/bin/google-chrome-stable \
+                    /usr/bin/msedge \
+                    /usr/bin/brave-browser \
+                    /snap/bin/chromium; do \
         mkdir -p $(dirname "$TARGET") && ln -sf "$ACTUAL_CHROME" "$TARGET"; \
       done; \
     fi
