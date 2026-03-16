@@ -166,11 +166,12 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
       mkdir -p /home/node/.cache/ms-playwright && \
-      PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright \
+      export PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright && \
       node /app/node_modules/playwright-core/cli.js install-deps chromium && \
       node /app/node_modules/playwright-core/cli.js install chromium && \
       chown -R node:node /home/node/.cache && \
-      ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright -type f -name chrome | grep chrome-linux | head -n 1) && \
+      ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
+      if [ -z "$ACTUAL_CHROME" ]; then echo "Browser binary not found" >&2; exit 1; fi; \
       for TARGET in /usr/bin/chromium \
           /usr/bin/chromium-browser \
           /usr/bin/google-chrome \
