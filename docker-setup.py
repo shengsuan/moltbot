@@ -291,7 +291,7 @@ chown_script = (
     "[ -d /home/node/.openclaw/workspace/.openclaw ] && chown -R node:node /home/node/.openclaw/workspace/.openclaw || true"
 )
 run_compose(compose_args, "run", "--rm", "--user", "root", "--entrypoint", "sh", "openclaw-cli", "-c", chown_script)
-# run_compose(compose_args, "run", "--rm", "openclaw-cli", "onboard", "--mode", "local", "--no-install-daemon")
+run_compose(compose_args, "run", "--rm", "openclaw-cli", "onboard", "--mode", "local", "--no-install-daemon")
 
 print("\n==> 引导（交互式）")
 print("Docker 设置将网关模式固定为本地。")
