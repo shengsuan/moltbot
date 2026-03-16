@@ -272,14 +272,24 @@ upsert_env(ENV_FILE, [
 # ==========================================
 # 构建 gateway 镜像并启动服务
 # ==========================================
+
 if IMAGE_NAME == "openclaw:latest":
     print(f"==> 构建 Docker 镜像：{IMAGE_NAME}")
-    build_cmd = ["docker", "build"]
-    for arg in ["OPENCLAW_DOCKER_APT_PACKAGES", "OPENCLAW_EXTENSIONS", "OPENCLAW_INSTALL_DOCKER_CLI", "OPENCLAW_INSTALL_BROWSER"]:
-        if os.environ.get(arg):
-            build_cmd.extend(["--build-arg", f"{arg}={os.environ[arg]}"])
-    build_cmd.extend(["-t", IMAGE_NAME, "-f", str(ROOT_DIR / "Dockerfile"), str(ROOT_DIR)])
-    subprocess.run(build_cmd, check=True)
+    #corss build support for amd64 on x86_64
+    if os.environ.get("DOCKER_BUILDX_AMD64") == "1":
+        build_cmd = ["docker", "buildx", "build"]
+        for arg in ["OPENCLAW_DOCKER_APT_PACKAGES", "OPENCLAW_EXTENSIONS", "OPENCLAW_INSTALL_DOCKER_CLI", "OPENCLAW_INSTALL_BROWSER"]:
+            if os.environ.get(arg):
+                build_cmd.extend(["--build-arg", f"{arg}={os.environ[arg]}"])
+        build_cmd.extend(["--platform", "linux/amd64", "-t", "openclaw:amd64-latest", "-f", str(ROOT_DIR / "Dockerfile"), str(ROOT_DIR)])
+        subprocess.run(build_cmd, check=True)
+    else:
+        build_cmd = ["docker", "build"]
+        for arg in ["OPENCLAW_DOCKER_APT_PACKAGES", "OPENCLAW_EXTENSIONS", "OPENCLAW_INSTALL_DOCKER_CLI", "OPENCLAW_INSTALL_BROWSER"]:
+            if os.environ.get(arg):
+                build_cmd.extend(["--build-arg", f"{arg}={os.environ[arg]}"])
+        build_cmd.extend(["-t", IMAGE_NAME, "-f", str(ROOT_DIR / "Dockerfile"), str(ROOT_DIR)])
+        subprocess.run(build_cmd, check=True)
 else:
     print(f"==> 拉取 Docker 镜像：{IMAGE_NAME}")
     if subprocess.run(["docker", "pull", IMAGE_NAME]).returncode != 0:
