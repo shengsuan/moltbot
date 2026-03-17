@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/shengsuanyun-provider",
+  "version": "2026.3.14",
+  "private": true,
+  "description": "OpenClaw 胜算云模型提供插件",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

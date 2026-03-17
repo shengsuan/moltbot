@@ -2,6 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { resolveStateDir } from "../config/paths.js";
 import type { ModelApi, ModelDefinitionConfig } from "../config/types.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
+
+const log = createSubsystemLogger("agents/shengsuanyun");
 
 export const SHENGSUANYUN_BASE_URL = "https://router.shengsuanyun.com/api/v1";
 export const SHENGSUANYUN_MODALITIES_BASE_URL = "https://api.shengsuanyun.com/modelrouter";
@@ -279,7 +282,7 @@ export async function discoverShengSuanYunModels(): Promise<ModelDefinitionConfi
     // If API returned models, use them; otherwise fallback to defaults
     return models.length > 0 ? models : DEFAULT_SHENGSUANYUN_MODELS;
   } catch (error) {
-    console.warn(`[shengsuanyun-models] failed: ${String(error)}`);
+    log.warn(`Failed to discover ShengSuanYun models: ${String(error)}`);
     // Return default models if fetch throws
     return DEFAULT_SHENGSUANYUN_MODELS;
   }
@@ -312,7 +315,7 @@ async function loadCachedModalities(): Promise<MModel[] | null> {
     // console.log(`[shengsuanyun-models] Cache expired, will fetch fresh data`);
     return null;
   } catch (err) {
-    console.log(`[shengsuanyun-models] Failed to load cache:`, err);
+    log.warn(`Failed to load modalities cache: ${String(err)}`);
     return null;
   }
 }
@@ -330,9 +333,9 @@ async function saveCachedModalities(models: MModel[]): Promise<void> {
       models,
     };
     fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2), "utf-8");
-    console.log(`[shengsuanyun-models] Cached ${models.length} modality models to ${cachePath}`);
+    log.debug(`cached ${models.length} modality models to ${cachePath}`);
   } catch (err) {
-    console.error(`[shengsuanyun-models] Failed to save cache:`, err);
+    log.error(`failed to save modalities cache: ${String(err)}`);
   }
 }
 
@@ -386,7 +389,7 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
           }
           return { ...data.data, api: "shengsuanyun-modality" } as MModel;
         } catch (err) {
-          console.error(`[shengsuanyun-models] Failed to fetch model ${model.id}:`, err);
+          log.warn(`failed to fetch modality model ${model.id}: ${String(err)}`);
           return null;
         }
       });
@@ -405,7 +408,7 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
     }
     return results;
   } catch (err) {
-    console.error("[shengsuanyun-models] Error fetching modality models:", err);
+    log.error(`failed to fetch modality models: ${String(err)}`);
     return [];
   }
 }

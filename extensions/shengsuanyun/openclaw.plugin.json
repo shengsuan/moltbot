@@ -1,0 +1,27 @@
+{
+  "id": "shengsuanyun",
+  "providers": ["shengsuanyun"],
+  "providerAuthEnvVars": {
+    "shengsuanyun": ["SHENGSUANYUN_API_KEY"]
+  },
+  "providerAuthChoices": [
+    {
+      "provider": "shengsuanyun",
+      "method": "api-key",
+      "choiceId": "shengsuanyun-api-key",
+      "choiceLabel": "胜算云 API key",
+      "groupId": "shengsuanyun",
+      "groupLabel": "胜算云",
+      "groupHint": "API key",
+      "optionKey": "shengsuanyunApiKey",
+      "cliFlag": "--shengsuanyun-api-key",
+      "cliOption": "--shengsuanyun-api-key <key>",
+      "cliDescription": "胜算云 API key"
+    }
+  ],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

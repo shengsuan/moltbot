@@ -1,7 +1,7 @@
 import {
   DISCORD_DEFAULT_INBOUND_WORKER_TIMEOUT_MS,
   DISCORD_DEFAULT_LISTENER_TIMEOUT_MS,
-} from "../discord/monitor/timeouts.js";
+} from "../plugin-sdk-internal/discord.js";
 import { MEDIA_AUDIO_FIELD_HELP } from "./media-audio-field-metadata.js";
 import { IRC_FIELD_HELP } from "./schema.irc.js";
 import { describeTalkSilenceTimeoutDefaults } from "./talk-defaults.js";
@@ -20,17 +20,17 @@ export const FIELD_HELP: Record<string, string> = {
   "env.vars":
     "显式键/值环境变量覆盖，合并到 OpenClaw 的运行时进程环境中。使用此方法进行确定性环境配置，而不是仅依赖 shell 配置文件的副作用。",
   wizard:
-    "设置向导状态跟踪字段，记录最近一次引导式入门运行的详情。保持这些字段以用于可观察性和跨升级的设置流程故障排除。",
+    "Setup wizard state tracking fields that record the most recent guided setup run details. Keep these fields for observability and troubleshooting of setup flows across upgrades.",
   "wizard.lastRunAt":
-    "设置向导最近在此主机上完成的 ISO 时间戳。使用此信息在支持和运营审计期间确认入门的新近性。",
+    "ISO timestamp for when the setup wizard most recently completed on this host. Use this to confirm setup recency during support and operational audits.",
   "wizard.lastRunVersion":
-    "此配置上最近一次向导运行时记录的 OpenClaw 版本。诊断跨版本入门变更时使用此字段。",
+    "OpenClaw version recorded at the time of the most recent wizard run on this config. Use this when diagnosing behavior differences across version-to-version setup changes.",
   "wizard.lastRunCommit":
-    "在开发构建中为最后一次向导执行记录的源提交标识符。使用此信息在调试时将入门行为与确切的源状态关联。",
+    "Source commit identifier recorded for the last wizard execution in development builds. Use this to correlate setup behavior with exact source state during debugging.",
   "wizard.lastRunCommand":
-    "为最新向导运行记录的命令调用以保存执行上下文。使用此信息在验证设置回归时重现入门步骤。",
+    "Command invocation recorded for the latest wizard run to preserve execution context. Use this to reproduce setup steps when verifying setup regressions.",
   "wizard.lastRunMode":
-    '最近一次入门流程中记录的向导执行模式为"local"或"remote"。使用此信息了解设置是针对直接本地运行时还是远程网关拓扑。',
+    'Wizard execution mode recorded as "local" or "remote" for the most recent setup flow. Use this to understand whether setup targeted direct local runtime or remote gateway topology.',
   diagnostics:
     "诊断控制，用于在调试期间进行有针对性的追踪、遥测导出和缓存检查。生产中保持基线诊断最少，仅在调查问题时启用更深层的信号。",
   "diagnostics.otel":
@@ -99,7 +99,11 @@ export const FIELD_HELP: Record<string, string> = {
   "gateway.tools.deny":
     "显式网关级别工具拒绝列表，即使下层政策允许也会阻止风险工具。使用拒绝规则进行紧急响应和纵深防卫加固。",
   "gateway.channelHealthCheckMinutes":
-    "自动通道健康探测和状态更新的间隔（分钟）。使用较低的间隔以进行更快的检测，或使用较高的间隔以减少定期探测噪音。",
+    "Interval in minutes for automatic channel health probing and status updates. Use lower intervals for faster detection, or higher intervals to reduce periodic probe noise.",
+  "gateway.channelStaleEventThresholdMinutes":
+    "How many minutes a connected channel can go without receiving any event before the health monitor treats it as a stale socket and triggers a restart. Default: 30.",
+  "gateway.channelMaxRestartsPerHour":
+    "Maximum number of health-monitor-initiated channel restarts allowed within a rolling one-hour window. Once hit, further restarts are skipped until the window expires. Default: 10.",
   "gateway.tailscale":
     "Tailscale 集成设置，用于 Serve/Funnel 暴露和网关启动/退出时的生命周期处理。除非您的部署有意依赖 Tailscale 入口，否则保持关闭。",
   "gateway.tailscale.mode":
@@ -228,9 +232,7 @@ export const FIELD_HELP: Record<string, string> = {
   "browser.cdpPortRangeStart":
     "用于自动分配的浏览器配置文件端口的启动本地 CDP 端口。当主机级端口默认值与其他本地服务冲突时增加此项。",
   "browser.defaultProfile":
-    "调用者未显式选择配置文件时选择的默认浏览器配置文件名称。使用稳定的低特权配置文件作为默认值，以减少意外的跨上下文状态使用。",
-  "browser.relayBindHost":
-    "Chrome 扩展中继侦听器的绑定 IP 地址。保持未设置以进行仅环回访问，或设置显式非环回 IP（如 0.0.0.0）仅在中继必须跨网络命名空间（例如 WSL2）可达且周围网络已受信任时。",
+    "Default browser profile name selected when callers do not explicitly choose a profile. Use a stable low-privilege profile as the default to reduce accidental cross-context state use.",
   "browser.profiles":
     "命名的浏览器配置文件连接映射，用于显式路由到 CDP 端口或 URL，带有可选的元数据。保持配置文件名称一致，并避免重叠的端点定义。",
   "browser.profiles.*.cdpPort":
@@ -238,7 +240,7 @@ export const FIELD_HELP: Record<string, string> = {
   "browser.profiles.*.cdpUrl":
     "按配置文件显式远程浏览器路由的 CDP websocket URL。当配置文件连接终止于远程主机或隧道时使用此项。",
   "browser.profiles.*.driver":
-    '按配置文件浏览器驱动模式："openclaw"（或遗留 "clawd"）或 "extension"，取决于连接/运行时策略。使用与您的浏览器控制堆栈匹配的驱动程序以避免协议不匹配。',
+    'Per-profile browser driver mode. Use "openclaw" (or legacy "clawd") for CDP-based profiles, or use "existing-session" for host-local Chrome MCP attachment.',
   "browser.profiles.*.attachOnly":
     "按配置文件仅附件覆盖，跳过本地浏览器启动并仅附加到现有 CDP 端点。当一个配置文件由外部管理但其他配置文件在本地启动时有用。",
   "browser.profiles.*.color":
@@ -270,7 +272,9 @@ export const FIELD_HELP: Record<string, string> = {
   "discovery.wideArea":
     "广域发现配置分组，用于在本地链接范围之外暴露发现信号。仅在部署有意需要跨站点网关存在聚合时启用。",
   "discovery.wideArea.enabled":
-    "当您的环境需要非本地网关发现时启用广域发现信号。除非跨网络发现在运营上是必需的，否则保持禁用。",
+    "Enables wide-area discovery signaling when your environment needs non-local gateway discovery. Keep disabled unless cross-network discovery is operationally required.",
+  "discovery.wideArea.domain":
+    "Optional unicast DNS-SD domain for wide-area discovery, such as openclaw.internal. Use this when you intentionally publish gateway discovery beyond local mDNS scopes.",
   "discovery.mdns":
     "mDNS 发现配置分组，用于本地网络广告和发现行为调整。在常规 LAN 发现中保持最小模式，除非需要额外元数据。",
   tools:
@@ -360,7 +364,17 @@ export const FIELD_HELP: Record<string, string> = {
   "gateway.controlUi.allowInsecureAuth":
     "当您必须运行非标准设置时，松散对控制 UI 的严格浏览器认证检查。除非您信任您的网络和代理路径，否则保持此关闭，因为模拟风险更高。",
   "gateway.controlUi.dangerouslyDisableDeviceAuth":
-    "禁用控制 UI 设备身份检查并仅依赖令牌/密码。仅用于受信任网络上的短期调试，然后立即关闭。",
+    "Disables Control UI device identity checks and relies on token/password only. Use only for short-lived debugging on trusted networks, then turn it off immediately.",
+  "gateway.push":
+    "Push-delivery settings used by the gateway when it needs to wake or notify paired devices. Configure relay-backed APNs here for official iOS builds; direct APNs auth remains env-based for local/manual builds.",
+  "gateway.push.apns":
+    "APNs delivery settings for iOS devices paired to this gateway. Use relay settings for official/TestFlight builds that register through the external push relay.",
+  "gateway.push.apns.relay":
+    "External relay settings for relay-backed APNs sends. The gateway uses this relay for push.test, wake nudges, and reconnect wakes after a paired official iOS build publishes a relay-backed registration.",
+  "gateway.push.apns.relay.baseUrl":
+    "Base HTTPS URL for the external APNs relay service used by official/TestFlight iOS builds. Keep this aligned with the relay URL baked into the iOS build so registration and send traffic hit the same deployment.",
+  "gateway.push.apns.relay.timeoutMs":
+    "Timeout in milliseconds for relay send requests from the gateway to the APNs relay (default: 10000). Increase for slower relays or networks, or lower to fail wake attempts faster.",
   "gateway.http.endpoints.chatCompletions.enabled":
     "启用 OpenAI 兼容的 `POST /v1/chat/completions` 端点（默认：false）。",
   "gateway.http.endpoints.chatCompletions.maxBodyBytes":
@@ -384,8 +398,10 @@ export const FIELD_HELP: Record<string, string> = {
   "gateway.http.endpoints.chatCompletions.images.timeoutMs":
     "`image_url` URL 获取的超时（毫秒）（默认：10000）。",
   "gateway.reload.mode":
-    '控制配置编辑如何应用："off" 忽略实时编辑、"restart" 始终重启、"hot" 应用进程内、"hybrid" 尝试 hot 然后在需要时重启。为最安全的例行更新保持 "hybrid"。',
-  "gateway.reload.debounceMs": "应用配置更改之前的防抖窗口（毫秒）。",
+    'Controls how config edits are applied: "off" ignores live edits, "restart" always restarts, "hot" applies in-process, and "hybrid" tries hot then restarts if required. Keep "hybrid" for safest routine updates.',
+  "gateway.reload.debounceMs": "Debounce window (ms) before applying config changes.",
+  "gateway.reload.deferralTimeoutMs":
+    "Maximum time (ms) to wait for in-flight operations to complete before forcing a SIGUSR1 restart. Default: 300000 (5 minutes). Lower values risk aborting active subagent LLM calls.",
   "gateway.nodes.browser.mode":
     '节点浏览器路由（"auto" = 选择单个连接的浏览器节点、"manual" = 需要节点参数、"off" = 禁用）。',
   "gateway.nodes.browser.node": "将浏览器路由固定到特定节点 id 或名称（可选）。",
@@ -610,13 +626,17 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.message.broadcast.enabled": "启用广播操作(默认值：true)。",
   "tools.web.search.enabled": "启用 web_search 工具(需要提供商 API 密钥)。",
   "tools.web.search.provider":
-    '搜索提供商 ("brave"、"gemini"、"grok"、"kimi" 或 "perplexity")。如果省略，将从可用 API 密钥中自动检测。',
-  "tools.web.search.apiKey": "Brave Search API 密钥(回退：BRAVE_API_KEY 环境变量)。",
-  "tools.web.search.maxResults": "返回结果数 (1-10)。",
-  "tools.web.search.timeoutSeconds": "web_search 请求的超时时间（秒）。",
-  "tools.web.search.cacheTtlMinutes": "web_search 结果的缓存 TTL（分钟）。",
+    'Search provider ("brave", "firecrawl", "gemini", "grok", "kimi", or "perplexity"). Auto-detected from available API keys if omitted.',
+  "tools.web.search.apiKey": "Brave Search API key (fallback: BRAVE_API_KEY env var).",
+  "tools.web.search.maxResults": "Number of results to return (1-10).",
+  "tools.web.search.timeoutSeconds": "Timeout in seconds for web_search requests.",
+  "tools.web.search.cacheTtlMinutes": "Cache TTL in minutes for web_search results.",
   "tools.web.search.brave.mode":
-    'Brave Search 模式："web"(URL 结果)或 "llm-context"(为 LLM 接地预提取的页面内容)。',
+    'Brave Search mode: "web" (URL results) or "llm-context" (pre-extracted page content for LLM grounding).',
+  "tools.web.search.firecrawl.apiKey":
+    "Firecrawl API key for web search (fallback: FIRECRAWL_API_KEY env var).",
+  "tools.web.search.firecrawl.baseUrl":
+    'Firecrawl Search base URL override (default: "https://api.firecrawl.dev").',
   "tools.web.search.gemini.apiKey":
     "用于 Google 搜索接地的 Gemini API 密钥(回退：GEMINI_API_KEY 环境变量)。",
   "tools.web.search.gemini.model": 'Gemini 模型覆盖(默认："gemini-2.5-flash")。',
@@ -727,13 +747,23 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.sources":
     '选择哪些源被索引："memory" 读取 MEMORY.md + 内存文件，"sessions" 包括转录历史。除非您需要来自先前聊天转录的召回，否则保持 ["memory"]。',
   "agents.defaults.memorySearch.extraPaths":
-    "向内存索引添加超出默认内存文件的额外目录或 .md 文件。当关键参考文档位于您的回购中的其他地方时使用此项；保持路径小和有意以避免嘈杂的召回。",
+    "Adds extra directories or .md files to the memory index beyond default memory files. Use this when key reference docs live elsewhere in your repo; when multimodal memory is enabled, matching image/audio files under these paths are also eligible for indexing.",
+  "agents.defaults.memorySearch.multimodal":
+    'Optional multimodal memory settings for indexing image and audio files from configured extra paths. Keep this off unless your embedding model explicitly supports cross-modal embeddings, and set `memorySearch.fallback` to "none" while it is enabled. Matching files are uploaded to the configured remote embedding provider during indexing.',
+  "agents.defaults.memorySearch.multimodal.enabled":
+    "Enables image/audio memory indexing from extraPaths. This currently requires Gemini embedding-2, keeps the default memory roots Markdown-only, disables memory-search fallback providers, and uploads matching binary content to the configured remote embedding provider.",
+  "agents.defaults.memorySearch.multimodal.modalities":
+    'Selects which multimodal file types are indexed from extraPaths: "image", "audio", or "all". Keep this narrow to avoid indexing large binary corpora unintentionally.',
+  "agents.defaults.memorySearch.multimodal.maxFileBytes":
+    "Sets the maximum bytes allowed per multimodal file before it is skipped during memory indexing. Use this to cap upload cost and indexing latency, or raise it for short high-quality audio clips.",
   "agents.defaults.memorySearch.experimental.sessionMemory":
     "将会话转录索引到内存搜索中，以便响应可以参考先前的聊天转轮。除非需要转录召回并且您接受更大的索引变化，否则将此保持关闭。",
   "agents.defaults.memorySearch.provider":
     '选择用于构建/查询内存向量的嵌入后端："openai"、"gemini"、"voyage"、"mistral"、"ollama" 或 "local"。在此保持您最可靠的提供商并配置回退以获得弹性。',
   "agents.defaults.memorySearch.model":
-    "当需要非默认模型时由选定的内存提供商使用的嵌入模型覆盖。仅在需要超出提供商默认值的显式召回质量/成本调整时设置此项。",
+    "Embedding model override used by the selected memory provider when a non-default model is required. Set this only when you need explicit recall quality/cost tuning beyond provider defaults.",
+  "agents.defaults.memorySearch.outputDimensionality":
+    "Gemini embedding-2 only: chooses the output vector size for memory embeddings. Use 768, 1536, or 3072 (default), and expect a full reindex when you change it because stored vector dimensions must stay consistent.",
   "agents.defaults.memorySearch.remote.baseUrl":
     "覆盖嵌入 API 端点，如 OpenAI 兼容代理或自定义 Gemini 基本 URL。仅在通过您自己的网关或供应商端点进行路由时使用此项；否则保持提供商默认值。",
   "agents.defaults.memorySearch.remote.apiKey":
@@ -858,8 +888,10 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.sync.sessions.deltaBytes":
     "会话记录更改触发重新索引之前，至少需要添加这么多新字节（默认值：100000）。增加此值可减少频繁的小幅重新索引，降低此值可加快记录更新速度。",
   "agents.defaults.memorySearch.sync.sessions.deltaMessages":
-    "至少需要添加这么多转录消息才能触发重新索引（默认值：50）。降低此值可实现近乎实时的转录召回，提高此值可减少索引变更。",
-  ui: "用于设置控制面板中显示的强调效果和助手标识的 UI 呈现方式。可利用此功能进行品牌和可读性自定义，而无需更改运行时行为。",
+    "Requires at least this many appended transcript messages before reindex is triggered (default: 50). Lower this for near-real-time transcript recall, or raise it to reduce indexing churn.",
+  "agents.defaults.memorySearch.sync.sessions.postCompactionForce":
+    "Forces a session memory-search reindex after compaction-triggered transcript updates (default: true). Keep enabled when compacted summaries must be immediately searchable, or disable to reduce write-time indexing pressure.",
+  ui: "UI presentation settings for accenting and assistant identity shown in control surfaces. Use this for branding and readability customization without changing runtime behavior.",
   "ui.seamColor":
     "用于用户界面表面强调、徽章和视觉识别提示的主要强调/接缝颜色。使用高对比度值，确保在浅色/深色主题下仍清晰可读。",
   "ui.assistant":
@@ -898,20 +930,33 @@ export const FIELD_HELP: Record<string, string> = {
   "plugins.entries.*.env":
     "每个插件的环境变量映射仅注入到该插件的运行时上下文中。使用此功能可以将提供程序凭据限定于单个插件，而不是共享全局进程环境。",
   "plugins.entries.*.config":
-    "插件定义的配置有效负载由该插件自身的架构和验证规则进行解析。仅使用插件文档中已记录的字段，以防止设置被忽略或无效。",
-  "plugins.installs": "CLI 管理的安装元数据（由 `openclaw plugins update` 用于查找安装源）。",
-  "plugins.installs.*.source": '安装源 ("npm", "archive", or "path").',
-  "plugins.installs.*.spec": "用于安装的原始 npm 规范（如果源是 npm）。",
-  "plugins.installs.*.sourcePath": "安装时使用的原始归档文件/路径（如有）。",
-  "plugins.installs.*.installPath": "解析后的安装目录（通常是 ~/.openclaw/extensions/<id>）。",
-  "plugins.installs.*.version": "安装时记录的版本（如果可用）。",
-  "plugins.installs.*.resolvedName": "从获取的工件中解析出的 npm 包名称。",
-  "plugins.installs.*.resolvedVersion": "从获取的工件中解析出的 npm 包版本（对未固定规格很有用）。",
-  "plugins.installs.*.resolvedSpec": "从获取的工件中解析出精确的 npm 规范（<name>@<version>）。",
-  "plugins.installs.*.integrity": "已解析获取的构件的 npm 分发完整性哈希值（如果 npm 报告）。",
-  "plugins.installs.*.shasum": "已解析获取的构件的 npm dist shasum（如果 npm 报告）。",
-  "plugins.installs.*.resolvedAt": "此安装记录中 npm 包元数据上次解析时的 ISO 时间戳。",
-  "plugins.installs.*.installedAt": "上次安装/更新的 ISO 时间戳。",
+    "Plugin-defined configuration payload interpreted by that plugin's own schema and validation rules. Use only documented fields from the plugin to prevent ignored or invalid settings.",
+  "plugins.installs":
+    "CLI-managed install metadata (used by `openclaw plugins update` to locate install sources).",
+  "plugins.installs.*.source": 'Install source ("npm", "archive", or "path").',
+  "plugins.installs.*.spec": "Original npm spec used for install (if source is npm).",
+  "plugins.installs.*.sourcePath": "Original archive/path used for install (if any).",
+  "plugins.installs.*.installPath":
+    "Resolved install directory (usually ~/.openclaw/extensions/<id>).",
+  "plugins.installs.*.version": "Version recorded at install time (if available).",
+  "plugins.installs.*.resolvedName": "Resolved npm package name from the fetched artifact.",
+  "plugins.installs.*.resolvedVersion":
+    "Resolved npm package version from the fetched artifact (useful for non-pinned specs).",
+  "plugins.installs.*.resolvedSpec":
+    "Resolved exact npm spec (<name>@<version>) from the fetched artifact.",
+  "plugins.installs.*.integrity":
+    "Resolved npm dist integrity hash for the fetched artifact (if reported by npm).",
+  "plugins.installs.*.shasum":
+    "Resolved npm dist shasum for the fetched artifact (if reported by npm).",
+  "plugins.installs.*.resolvedAt":
+    "ISO timestamp when npm package metadata was last resolved for this install record.",
+  "plugins.installs.*.installedAt": "ISO timestamp of last install/update.",
+  "plugins.installs.*.marketplaceName":
+    "Marketplace display name recorded for marketplace-backed plugin installs (if available).",
+  "plugins.installs.*.marketplaceSource":
+    "Original marketplace source used to resolve the install (for example a repo path or Git URL).",
+  "plugins.installs.*.marketplacePlugin":
+    "Plugin entry name inside the source marketplace, used for later updates.",
   "agents.list.*.identity.avatar":
     "Agent avatar (workspace-relative path, http(s) URL, or data URI).",
   "agents.defaults.model.primary": "主模型(提供商/模型)。",
@@ -950,9 +995,13 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.compaction.qualityGuard.enabled":
     "启用摘要质量审核和再生重试以进行保护压缩。默认值：false，因此仅保护模式不会触发重试行为。",
   "agents.defaults.compaction.qualityGuard.maxRetries":
-    "在 failed safeguard summary quality audit 后的最大再生重试次数。使用较小的值来限制额外的延迟和代币成本。",
+    "Maximum number of regeneration retries after a failed safeguard summary quality audit. Use small values to bound extra latency and token cost.",
+  "agents.defaults.compaction.postIndexSync":
+    'Controls post-compaction session memory reindex mode: "off", "async", or "await" (default: "async"). Use "await" for strongest freshness, "async" for lower compaction latency, and "off" only when session-memory sync is handled elsewhere.',
   "agents.defaults.compaction.postCompactionSections":
-    "AGENTS.md 文件中的 H2/H3 节名称会在压缩后重新注入，以便代理程序重新运行关键的启动指南。如果未设置，则使用“会话启动”/“红线”模式，并在必要时回退到“每个会话”/“安全”模式；设置为 [] 则完全禁用重新注入。",
+    'AGENTS.md H2/H3 section names re-injected after compaction so the agent reruns critical startup guidance. Leave unset to use "Session Startup"/"Red Lines" with legacy fallback to "Every Session"/"Safety"; set to [] to disable reinjection entirely.',
+  "agents.defaults.compaction.timeoutSeconds":
+    "Maximum time in seconds allowed for a single compaction operation before it is aborted (default: 900). Increase this for very large sessions that need more time to summarize, or decrease it to fail faster on unresponsive models.",
   "agents.defaults.compaction.model":
     "可选的提供程序/模型覆盖，仅用于压缩摘要。如果您希望压缩在与会话默认模型不同的模型上运行，请设置此项；如果希望继续使用主代理模型，则不要设置此项。",
   "agents.defaults.compaction.memoryFlush":
@@ -1252,7 +1301,7 @@ export const FIELD_HELP: Record<string, string> = {
   "messages.groupChat":
     "群组消息处理控制，包括提及触发和历史记录窗口大小。保持提及模式窄范围以便群组频道不会在每条消息上触发。",
   "messages.groupChat.mentionPatterns":
-    "用于在群组聊天中检测显式提及/触发短语的类正则表达式模式。使用精确的模式来减少高流量频道中的误报。",
+    "Safe case-insensitive regex patterns used to detect explicit mentions/trigger phrases in group chats. Use precise patterns to reduce false positives in high-volume channels; invalid or unsafe nested-repetition patterns are ignored.",
   "messages.groupChat.historyLimit":
     "每转加载为群组会话上下文的最大先前群组消息数。使用较高的值来获得更丰富的连续性，或使用较低的值来加快和获得更便宜的响应。",
   "messages.queue":
@@ -1340,9 +1389,13 @@ export const FIELD_HELP: Record<string, string> = {
   "channels.slack.userToken":
     "用于需要超出机器人权限的用户上下文 API 访问的工作流的可选 Slack 用户令牌。谨慎使用并审计作用域，因为此令牌可能具有更广泛的权限。",
   "channels.slack.userTokenReadOnly":
-    "当为真时，尽可能将配置的 Slack 用户令牌使用视为仅读取助手行为。如果仅需要补充读取而不需要用户上下文写入，则保持启用。",
-  "channels.mattermost.configWrites": "允许 Mattermost 响应频道事件/命令写入配置(默认值：true)。",
-  "channels.discord.configWrites": "允许 Discord 响应频道事件/命令写入配置(默认值：true)。",
+    "When true, treat configured Slack user token usage as read-only helper behavior where possible. Keep enabled if you only need supplemental reads without user-context writes.",
+  "channels.slack.capabilities.interactiveReplies":
+    "Enable agent-authored Slack interactive reply directives (`[[slack_buttons: ...]]`, `[[slack_select: ...]]`). Default: false.",
+  "channels.mattermost.configWrites":
+    "Allow Mattermost to write config in response to channel events/commands (default: true).",
+  "channels.discord.configWrites":
+    "Allow Discord to write config in response to channel events/commands (default: true).",
   "channels.discord.token":
     "用于此提供商帐户的网关和 REST API 身份验证的 Discord 机器人令牌。保持此秘密在已提交配置之外并在任何泄露后立即轮换。",
   "channels.discord.allowBots":
@@ -1382,7 +1435,7 @@ export const FIELD_HELP: Record<string, string> = {
   "messages.statusReactions.enabled":
     '为 Telegram 启用生命周期状态反应。启用后，ack 反应变成初始"queued"(排队)状态并自动进行思考、工具、完成/错误。默认值：false。',
   "messages.statusReactions.emojis":
-    "覆盖默认状态反应表情符号。键：thinking(思考)、tool(工具)、coding(编码)、web(网络)、done(完成)、error(错误)、stallSoft(软停顿)、stallHard(硬停顿)。必须是有效的 Telegram 反应表情符号。",
+    "Override default status reaction emojis. Keys: thinking, compacting, tool, coding, web, done, error, stallSoft, stallHard. Must be valid Telegram reaction emojis.",
   "messages.statusReactions.timing":
     "覆盖默认计时。键：debounceMs(700)、stallSoftMs(25000)、stallHardMs(60000)、doneHoldMs(1500)、errorHoldMs(2500)。",
   "messages.inbound.debounceMs": "去抖动窗口(毫秒)，用于从同一发件人批处理快速入站消息(0 禁用)。",

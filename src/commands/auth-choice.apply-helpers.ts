@@ -8,6 +8,8 @@ import {
 import { encodeJsonPointerToken } from "../secrets/json-pointer.js";
 import { PROVIDER_ENV_VARS } from "../secrets/provider-env-vars.js";
 import {
+  formatExecSecretRefIdValidationMessage,
+  isValidExecSecretRefId,
   isValidFileSecretRefId,
   resolveDefaultSecretProviderAlias,
 } from "../secrets/ref-contract.js";
@@ -30,7 +32,7 @@ export type SecretInputModePromptCopy = {
   refHint?: string;
 };
 
-export type SecretRefOnboardingPromptCopy = {
+export type SecretRefSetupPromptCopy = {
   sourceMessage?: string;
   envVarMessage?: string;
   envVarPlaceholder?: string;
@@ -70,12 +72,14 @@ function resolveRefFallbackInput(params: {
   const fallbackEnvVar = params.preferredEnvVar ?? resolveDefaultProviderEnvVar(params.provider);
   if (!fallbackEnvVar) {
     throw new Error(
-      `未找到提供商"${params.provider}"的默认环境变量映射。设置特定于提供商的环境变量，或在交互式终端中重新运行引导以配置引用。`,
+      `No default environment variable mapping found for provider "${params.provider}". Set a provider-specific env var, or re-run setup in an interactive terminal to configure a ref.`,
     );
   }
   const value = process.env[fallbackEnvVar]?.trim();
   if (!value) {
-    throw new Error(`非交互式引导中的 --secret-input-mode ref 需要环境变量"{fallbackEnvVar}"。`);
+    throw new Error(
+      `Environment variable "${fallbackEnvVar}" is required for --secret-input-mode ref in non-interactive setup.`,
+    );
   }
   return {
     ref: {
@@ -89,12 +93,12 @@ function resolveRefFallbackInput(params: {
   };
 }
 
-export async function promptSecretRefForOnboarding(params: {
+export async function promptSecretRefForSetup(params: {
   provider: string;
   config: OpenClawConfig;
   prompter: WizardPrompter;
   preferredEnvVar?: string;
-  copy?: SecretRefOnboardingPromptCopy;
+  copy?: SecretRefSetupPromptCopy;
 }): Promise<{ ref: SecretRef; resolvedValue: string }> {
   const defaultEnvVar =
     params.preferredEnvVar ?? resolveDefaultProviderEnvVar(params.provider) ?? "";
@@ -233,6 +237,9 @@ export async function promptSecretRefForOnboarding(params: {
           candidate !== "value"
         ) {
           return 'singleValue 模式需要 ID "value"。';
+        }
+        if (providerEntry.source === "exec" && !isValidExecSecretRefId(candidate)) {
+          return formatExecSecretRefIdValidationMessage();
         }
         return undefined;
       },
@@ -495,7 +502,7 @@ export async function ensureApiKeyFromEnvOrPrompt(params: {
       await params.setCredential(fallback.ref, selectedMode);
       return fallback.resolvedValue;
     }
-    const resolved = await promptSecretRefForOnboarding({
+    const resolved = await promptSecretRefForSetup({
       provider: params.provider,
       config: params.config,
       prompter: params.prompter,

@@ -6,13 +6,16 @@ import { defaultRuntime } from "../runtime.js";
 import { resolveUserPath } from "../utils.js";
 import { isDeprecatedAuthChoice, normalizeLegacyOnboardAuthChoice } from "./auth-choice-legacy.js";
 import { DEFAULT_WORKSPACE, handleReset } from "./onboard-helpers.js";
-import { runInteractiveOnboarding } from "./onboard-interactive.js";
-import { runNonInteractiveOnboarding } from "./onboard-non-interactive.js";
+import { runInteractiveSetup } from "./onboard-interactive.js";
+import { runNonInteractiveSetup } from "./onboard-non-interactive.js";
 import type { OnboardOptions, ResetScope } from "./onboard-types.js";
 
 const VALID_RESET_SCOPES = new Set<ResetScope>(["config", "config+creds+sessions", "full"]);
 
-export async function onboardCommand(opts: OnboardOptions, runtime: RuntimeEnv = defaultRuntime) {
+export async function setupWizardCommand(
+  opts: OnboardOptions,
+  runtime: RuntimeEnv = defaultRuntime,
+) {
   assertSupportedRuntime(runtime);
   const originalAuthChoice = opts.authChoice;
   const normalizedAuthChoice = normalizeLegacyOnboardAuthChoice(originalAuthChoice);
@@ -56,9 +59,9 @@ export async function onboardCommand(opts: OnboardOptions, runtime: RuntimeEnv =
   if (normalizedOpts.nonInteractive && normalizedOpts.acceptRisk !== true) {
     runtime.error(
       [
-        "非交互式入门需要明确的风险确认。",
-        "请阅读：https://docs.openclaw.ai/security",
-        `重新运行命令：${formatCliCommand("openclaw onboard --non-interactive --accept-risk ...")}`,
+        "非交互式设置需要明确告知风险。",
+        "阅读: https://docs.openclaw.ai/security",
+        `重新运行命令: ${formatCliCommand("openclaw onboard --non-interactive --accept-risk ...")}`,
       ].join("\n"),
     );
     runtime.exit(1);
@@ -77,20 +80,23 @@ export async function onboardCommand(opts: OnboardOptions, runtime: RuntimeEnv =
   if (process.platform === "win32") {
     runtime.log(
       [
-        "检测到 Windows 系统 — OpenClaw 在 WSL2 上运行良好！",
-        "原生 Windows 可能会有些棘手。",
-        "快速设置：wsl --install（一条命令，一次重启）",
-        "指南：https://docs.openclaw.ai/windows",
+        "检测到 Windows 系统 - OpenClaw 在 WSL2 上运行良好！",
+        "原生 Windows 系统可能比较棘手。",
+        "快速安装：wsl --install（一条命令，一次重启）",
+        "指南: https://docs.openclaw.ai/windows",
       ].join("\n"),
     );
   }
 
   if (normalizedOpts.nonInteractive) {
-    await runNonInteractiveOnboarding(normalizedOpts, runtime);
+    await runNonInteractiveSetup(normalizedOpts, runtime);
     return;
   }
 
-  await runInteractiveOnboarding(normalizedOpts, runtime);
+  await runInteractiveSetup(normalizedOpts, runtime);
 }
 
+export const onboardCommand = setupWizardCommand;
+
 export type { OnboardOptions } from "./onboard-types.js";
+export type { OnboardOptions as SetupWizardOptions } from "./onboard-types.js";

@@ -10,8 +10,8 @@ import { defaultRuntime } from "../runtime.js";
 import { note } from "../terminal/note.js";
 import { resolveUserPath } from "../utils.js";
 import { createClackPrompter } from "../wizard/clack-prompter.js";
-import { resolveOnboardingSecretInputString } from "../wizard/onboarding.secret-input.js";
 import { WizardCancelledError } from "../wizard/prompts.js";
+import { resolveSetupSecretInputString } from "../wizard/setup.secret-input.js";
 import { removeChannelConfigWizard } from "./configure.channels.js";
 import { maybeInstallDaemon } from "./configure.daemon.js";
 import { promptAuthConfig } from "./configure.gateway-auth.js";
@@ -54,7 +54,7 @@ async function resolveGatewaySecretInputForWizard(params: {
   path: string;
 }): Promise<string | undefined> {
   try {
-    return await resolveOnboardingSecretInputString({
+    return await resolveSetupSecretInputString({
       config: params.cfg,
       value: params.value,
       path: params.path,
@@ -174,6 +174,10 @@ async function promptWebToolsConfig(
     hasKeyInEnv,
   } = await import("./onboard-search.js");
   type SP = (typeof SEARCH_PROVIDER_OPTIONS)[number]["value"];
+  const defaultProvider = SEARCH_PROVIDER_OPTIONS[0]?.value;
+  if (!defaultProvider) {
+    throw new Error("No web search providers are registered.");
+  }
 
   const hasKeyForProvider = (provider: string): boolean => {
     const entry = SEARCH_PROVIDER_OPTIONS.find((e) => e.value === provider);
@@ -183,29 +187,28 @@ async function promptWebToolsConfig(
     return hasExistingKey(nextConfig, provider as SP) || hasKeyInEnv(entry);
   };
 
-  const existingProvider: string = (() => {
+  const existingProvider: SP = (() => {
     const stored = existingSearch?.provider;
     if (stored && SEARCH_PROVIDER_OPTIONS.some((e) => e.value === stored)) {
-      return stored;
+      return stored as SP;
     }
     return (
-      SEARCH_PROVIDER_OPTIONS.find((e) => hasKeyForProvider(e.value))?.value ??
-      SEARCH_PROVIDER_OPTIONS[0].value
+      SEARCH_PROVIDER_OPTIONS.find((e) => hasKeyForProvider(e.value))?.value ?? defaultProvider
     );
   })();
 
   note(
     [
-      "Web search lets your agent look things up online using the `web_search` tool.",
-      "Choose a provider and paste your API key.",
-      "Docs: https://docs.openclaw.ai/tools/web",
+      "网络搜索功能允许您的代理人使用 `web_search` 工具在线查找信息。",
+      "选择服务提供商并粘贴您的 API 密钥。",
+      "文档: https://docs.openclaw.ai/tools/web",
     ].join("\n"),
-    "Web search",
+    "网络搜索",
   );
 
   const enableSearch = guardCancel(
     await confirm({
-      message: "Enable web_search?",
+      message: "启用网络搜索？",
       initialValue:
         existingSearch?.enabled ?? SEARCH_PROVIDER_OPTIONS.some((e) => hasKeyForProvider(e.value)),
     }),
@@ -229,7 +232,7 @@ async function promptWebToolsConfig(
 
     const providerChoice = guardCancel(
       await select({
-        message: "Choose web search provider",
+        message: "选择网络搜索提供商",
         options: providerOptions,
         initialValue: existingProvider,
       }),
@@ -267,19 +270,19 @@ async function promptWebToolsConfig(
     } else {
       note(
         [
-          "No key stored yet — web_search won't work until a key is available.",
-          `Store a key here or set ${envVarNames} in the Gateway environment.`,
-          `Get your API key at: ${entry.signupUrl}`,
-          "Docs: https://docs.openclaw.ai/tools/web",
+          "尚未存储密钥——在密钥可用之前，web_search 将无法工作。",
+          `在此处存储密钥或在 Gateway 环境中设置 ${envVarNames}。`,
+          `获取您的 API 密钥: ${entry.signupUrl}`,
+          "文档: https://docs.openclaw.ai/tools/web",
         ].join("\n"),
-        "Web search",
+        "网络搜索",
       );
     }
   }
 
   const enableFetch = guardCancel(
     await confirm({
-      message: "Enable web_fetch (keyless HTTP fetch)?",
+      message: "启用 web_fetch (无密钥 HTTP 获取)？",
       initialValue: existingFetch?.enabled ?? true,
     }),
     runtime,
