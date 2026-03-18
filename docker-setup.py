@@ -264,10 +264,10 @@ upsert_env(ENV_FILE, [
 # ==========================================
 # 沙盒浏览器
 # ==========================================
-# docker build -f Dockerfile.sandbox-browser -t openclaw-browser .
-# OPENCLAW_SANDBOX_IMAGE = os.environ.get("OPENCLAW_SANDBOX_IMAGE", "openclaw-sandbox-browser:latest")
-# build_cmd = ["docker", "build"]
-# subprocess.run([*build_cmd, "-f", "Dockerfile.sandbox-browser", "-t", OPENCLAW_SANDBOX_IMAGE, "."], check=True)
+docker build -f Dockerfile.sandbox-browser -t openclaw-browser .
+OPENCLAW_SANDBOX_IMAGE = os.environ.get("OPENCLAW_BROWSER_IMAGE", "openclaw-browser:latest")
+build_cmd = ["docker", "build"]
+subprocess.run([*build_cmd, "-f", "Dockerfile.sandbox-browser", "-t", OPENCLAW_SANDBOX_IMAGE, "."], check=True)
 
 # ==========================================
 # 构建 gateway 镜像并启动服务

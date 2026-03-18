@@ -1,0 +1,20 @@
+services:
+  openclaw-browser:
+    image: ${OPENCLAW_BROWSER_IMAGE:-openclaw-browser:latest}
+    container_name: openclaw-browser-service
+    user: root 
+    security_opt:
+      - seccomp: unconfined 
+      - shm_size: '2gb' 
+    ports:
+      - "9222:9222"  
+      - "6080:6080"  
+      - "5900:5900"  
+    environment:
+      - OPENCLAW_BROWSER_NO_SANDBOX=1               # 必须为 1，解决 Zygote 报错
+      - OPENCLAW_BROWSER_HEADLESS=0                 # 设置为 1 启用无头模式，0 则通过 VNC 可见
+      - OPENCLAW_BROWSER_CDP_PORT=9222  
+      - OPENCLAW_BROWSER_ENABLE_NOVNC=1             # 开启 Web 版 VNC
+      - OPENCLAW_BROWSER_NOVNC_PASSWORD=openclaw    # 设置 VNC 密码，留空则随机生成
+      - OPENCLAW_BROWSER_RENDERER_PROCESS_LIMIT=2   # 限制渲染进程数，节省内存
+    restart: unless-stopped
