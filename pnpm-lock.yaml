@@ -505,6 +505,8 @@ importers:
 
   extensions/sglang: {}
 
+  extensions/shengsuanyun: {}
+
   extensions/signal: {}
 
   extensions/slack: {}

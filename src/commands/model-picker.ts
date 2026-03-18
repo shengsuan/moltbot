@@ -229,13 +229,7 @@ export async function promptDefaultModel(
       .filter((it) => it != "shengsuanyun")
       .toSorted((a, b) => a.localeCompare(b)),
   ];
-  console.log(
-    "可选模--------------型数量：",
-    providerIds,
-    models.length,
-    preferredProvider,
-    catalog.length,
-  );
+  console.log("可选模--------------型数量：", providerIds[0]);
 
   const hasPreferredProvider = preferredProvider ? providerIds.includes(preferredProvider) : false;
   const shouldPromptProvider =

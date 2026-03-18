@@ -187,7 +187,6 @@ export async function loadModelCatalog(params?: {
             };
       })(authStorage, join(agentDir, "models.json"));
       const entries = Array.isArray(registry) ? registry : registry.getAll();
-      console.log("从模型注册表发现的模型数量：", entries.length);
       for (const entry of entries) {
         const id = String(entry?.id ?? "").trim();
         if (!id) {

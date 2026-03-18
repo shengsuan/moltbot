@@ -1,12 +1,17 @@
 import { emptyPluginConfigSchema, type OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import { buildShengSuanYunProvider } from "../../src/agents/models-config.providers.discovery.js";
+import {
+  createOpenRouterSystemCacheWrapper,
+  createOpenRouterWrapper,
+  isProxyReasoningUnsupported,
+} from "../../src/agents/pi-embedded-runner/proxy-stream-wrappers.ts";
 import { SHENGSUANYUN_DEFAULT_MODEL_REF } from "../../src/commands/onboard-auth.credentials.js";
 import { applyShengSuanYunConfig } from "../../src/commands/onboard-auth.js";
 import { createProviderApiKeyAuthMethod } from "../../src/plugins/provider-api-key-auth.js";
 
 const PROVIDER_ID = "shengsuanyun";
 
-const shengsuanyunPlugin = {
+const shengSuanYunPlugin = {
   id: PROVIDER_ID,
   name: "胜算云",
   description: "添加胜算云模型提供插件",
@@ -54,8 +59,18 @@ const shengsuanyunPlugin = {
           };
         },
       },
+
+      wrapStreamFn: (ctx) => {
+        let streamFn = ctx.streamFn;
+        const skipReasoningInjection =
+          ctx.modelId === "auto" || isProxyReasoningUnsupported(ctx.modelId);
+        const openRouterThinkingLevel = skipReasoningInjection ? undefined : ctx.thinkingLevel;
+        streamFn = createOpenRouterWrapper(streamFn, openRouterThinkingLevel);
+        streamFn = createOpenRouterSystemCacheWrapper(streamFn);
+        return streamFn;
+      },
     });
   },
 };
 
-export default shengsuanyunPlugin;
+export default shengSuanYunPlugin;

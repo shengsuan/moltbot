@@ -23,7 +23,7 @@ import perplexityPlugin from "../../../extensions/perplexity/index.js";
 import qianfanPlugin from "../../../extensions/qianfan/index.js";
 import qwenPortalPlugin from "../../../extensions/qwen-portal-auth/index.js";
 import sglangPlugin from "../../../extensions/sglang/index.js";
-import shengsuanyunPlugin from "../../../extensions/shengsuanyun/index.ts";
+import shengSuanYunPlugin from "../../../extensions/shengsuanyun/index.ts";
 import syntheticPlugin from "../../../extensions/synthetic/index.js";
 import togetherPlugin from "../../../extensions/together/index.js";
 import venicePlugin from "../../../extensions/venice/index.js";
@@ -60,7 +60,7 @@ type PluginRegistrationContractEntry = {
 };
 
 const bundledProviderPlugins: RegistrablePlugin[] = [
-  shengsuanyunPlugin,
+  shengSuanYunPlugin,
   anthropicPlugin,
   byteplusPlugin,
   cloudflareAiGatewayPlugin,

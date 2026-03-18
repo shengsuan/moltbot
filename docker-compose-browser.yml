@@ -3,9 +3,9 @@ services:
     image: ${OPENCLAW_BROWSER_IMAGE:-openclaw-browser:latest}
     container_name: openclaw-browser-service
     user: root 
+    shm_size: "2gb"
     security_opt:
-      - seccomp: unconfined 
-      - shm_size: '2gb' 
+      - "seccomp:unconfined" 
     ports:
       - "9222:9222"  
       - "6080:6080"  
