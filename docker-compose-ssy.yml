@@ -31,6 +31,10 @@ services:
       - "-c"
       - |
         echo "==> Applying elevated tools configuration..."
+        node dist/index.js config set auth.profiles '{"shengsuanyun:default":{"provider":"shengsuanyun","mode":"api_key"}}'
+        node dist/index.js onboard --non-interactive --accept-risk --auth-choice shengsuanyun-api-key --shengsuanyun-api-key "${SHENGSUANYUN_API_KEY}"
+        node dist/index.js config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+        node dist/index.js config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback true
         node dist/index.js config set browser.enabled true
         node dist/index.js config set browser.evaluateEnabled true
         node dist/index.js config set browser.headless true

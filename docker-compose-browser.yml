@@ -1,7 +1,7 @@
 services:
   openclaw-browser:
     image: ${OPENCLAW_BROWSER_IMAGE:-openclaw-browser:latest}
-    container_name: openclaw-browser-service
+    container_name: openclaw-browser
     user: root 
     shm_size: "2gb"
     security_opt:

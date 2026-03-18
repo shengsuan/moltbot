@@ -274,7 +274,7 @@ if OPENCLAW_BROWSER_IMAGE:
 # 构建 gateway 镜像并启动服务
 # ==========================================
 
-if IMAGE_NAME == "openclaw:latest":
+if IMAGE_NAME:
     print(f"==> 构建 Docker 镜像：{IMAGE_NAME}")
     #corss build support for amd64 on x86_64
     if os.environ.get("DOCKER_BUILDX_AMD64") == "1":
@@ -291,10 +291,6 @@ if IMAGE_NAME == "openclaw:latest":
                 build_cmd.extend(["--build-arg", f"{arg}={os.environ[arg]}"])
         build_cmd.extend(["-t", IMAGE_NAME, "-f", str(ROOT_DIR / "Dockerfile"), str(ROOT_DIR)])
         subprocess.run(build_cmd, check=True)
-else:
-    print(f"==> 拉取 Docker 镜像：{IMAGE_NAME}")
-    if subprocess.run(["docker", "pull", IMAGE_NAME]).returncode != 0:
-        fail(f"拉取镜像 {IMAGE_NAME} 失败。请检查镜像名称和您的访问权限。")
 
 print("\n==> 修复数据目录权限")
 chown_script = (
@@ -302,7 +298,7 @@ chown_script = (
     "[ -d /home/node/.openclaw/workspace/.openclaw ] && chown -R node:node /home/node/.openclaw/workspace/.openclaw || true"
 )
 run_compose(compose_args, "run", "--rm", "--user", "root", "--entrypoint", "sh", "openclaw-cli", "-c", chown_script)
-run_compose(compose_args, "run", "--rm", "openclaw-cli", "onboard", "--mode", "local", "--no-install-daemon")
+# run_compose(compose_args, "run", "--rm", "openclaw-cli", "onboard", "--mode", "local", "--no-install-daemon")
 
 print("\n==> 引导（交互式）")
 print("Docker 设置将网关模式固定为本地。")
