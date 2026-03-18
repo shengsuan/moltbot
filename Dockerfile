@@ -181,7 +181,7 @@ ARG OPENCLAW_INSTALL_BROWSER=""
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     set -e; \
-    if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
+    if [ "$OPENCLAW_INSTALL_BROWSER" = "1" ] || [ "$OPENCLAW_INSTALL_BROWSER" = "true" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
       mkdir -p /home/node/.cache/ms-playwright && \

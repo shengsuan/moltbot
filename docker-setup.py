@@ -262,15 +262,6 @@ upsert_env(ENV_FILE, [
 ])
 
 # ==========================================
-# 沙盒浏览器
-# ==========================================
-OPENCLAW_BROWSER_IMAGE = os.environ.get("OPENCLAW_BROWSER_IMAGE")
-if OPENCLAW_BROWSER_IMAGE:
-    build_cmd = ["docker", "build"]
-    subprocess.run([*build_cmd, "-f", "Dockerfile.sandbox-browser", "-t", OPENCLAW_BROWSER_IMAGE, "."], check=True)
-    print("\n==> 启动沙盒浏览器")
-    run_compose(compose_args, "-f", "docker-compose-browser.yml", "up", "-d", "openclaw-browser")
-# ==========================================
 # 构建 gateway 镜像并启动服务
 # ==========================================
 
@@ -336,3 +327,17 @@ print("文档：https://docs.openclaw.ai/channels")
 
 print("\n==> 启动网关")
 run_compose(compose_args, "up", "-d", "openclaw-gateway")
+
+
+# ==========================================
+# 沙盒浏览器
+# ==========================================
+OPENCLAW_BROWSER_IMAGE = os.environ.get("OPENCLAW_BROWSER_IMAGE")
+if OPENCLAW_BROWSER_IMAGE:
+    build_cmd = ["docker", "build"]
+    subprocess.run([*build_cmd, "-f", "Dockerfile.sandbox-browser", "-t", OPENCLAW_BROWSER_IMAGE, "."], check=True)
+    print("\n==> 启动沙盒浏览器")
+    run_compose(compose_args, "-f", "docker-compose-browser.yml", "up", "-d", "openclaw-browser")
+    port = os.environ.get("OPENCLAW_BROWSER_CDP_PORT", "9222")
+    run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "browser.cdpUrl", f"ws://192.168.97.2:{port}", check=False)
+    run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "browser.attachOnly", "true", check=False)
