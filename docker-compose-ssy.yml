@@ -1,6 +1,7 @@
 services:
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
+    container_name: openclaw-gateway
     environment:
       HOME: /home/node
       TERM: xterm-256color
@@ -32,6 +33,7 @@ services:
       - |
         echo "==> Applying elevated tools configuration..."
         node dist/index.js config set auth.profiles '{"shengsuanyun:default":{"provider":"shengsuanyun","mode":"api_key"}}'
+        node dist/index.js config set auth.cooldowns.failureWindowHours 0.018  
         node dist/index.js onboard --non-interactive --accept-risk --auth-choice shengsuanyun-api-key --shengsuanyun-api-key "${SHENGSUANYUN_API_KEY}"
         node dist/index.js config set gateway.controlUi.dangerouslyDisableDeviceAuth true
         node dist/index.js config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback true
@@ -39,6 +41,8 @@ services:
         node dist/index.js config set browser.evaluateEnabled true
         node dist/index.js config set browser.headless true
         node dist/index.js config set browser.noSandbox true
+        node dist/index.js config set browser.attachOnly true
+        node dist/index.js config set browser.cdpUrl 'ws://${OPENCLAW_BROWSER_CDP_HOST:-localhost}:${OPENCLAW_BROWSER_CDP_PORT:-9222}'
         node dist/index.js config set tools.profile 'full'
         node dist/index.js config set tools.exec.security 'full'
         node dist/index.js config set tools.elevated.enabled true
