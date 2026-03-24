@@ -18,10 +18,15 @@
 
 它可以通过您常用的渠道（WhatsApp、Telegram、Slack、Discord、Google Chat、Signal、iMessage、BlueBubbles、IRC、Microsoft Teams、Matrix、飞书、LINE、Mattermost、Nextcloud Talk、Nostr、Synology Chat、Tlon、Twitch、Zalo、Zalo Personal、WebChat）回复您。它支持macOS/iOS/Android平台，并可渲染由您控制的实时画布。网关只是控制平台，产品本身才是真正的助手。
 
-如果你想要一个感觉本地化、快速响应且始终在线的个人单用户助手，那就是它了。
+[Website](https://openclaw.ai) · [Docs](https://docs.openclaw.ai) · [Vision](VISION.md) · [DeepWiki](https://deepwiki.com/openclaw/openclaw) · [Getting Started](https://docs.openclaw.ai/start/getting-started) · [Updating](https://docs.openclaw.ai/install/updating) · [Showcase](https://docs.openclaw.ai/start/showcase) · [FAQ](https://docs.openclaw.ai/help/faq) · [Onboarding](https://docs.openclaw.ai/start/wizard) · [Nix](https://github.com/openclaw/nix-openclaw) · [Docker](https://docs.openclaw.ai/install/docker) · [Discord](https://discord.gg/clawd)
 
-[官方网站](https://openclaw.ai) · [文档](https://docs.openclaw.ai) · [DeepWiki](https://deepwiki.com/openclaw/openclaw) · [入门指南](https://docs.openclaw.ai/start/getting-started) · [更新指南](https://docs.openclaw.ai/install/updating) · [功能展示](https://docs.openclaw.ai/start/showcase) · [常见问题](https://docs.openclaw.ai/start/faq) · [向导](https://docs.openclaw.ai/start/wizard) · [Nix](https://github.com/openclaw/nix-openclaw) · [Docker](https://docs.openclaw.ai/install/docker) · [Discord](https://discord.gg/clawd)
+推荐设置：在终端运行 `openclaw onboard`。
 
+OpenClaw Onboard 会引导您逐步完成网关、工作区、通道和技能的设置。这是推荐的命令行设置方式，可在 macOS、Linux 和 Windows（通过 WSL2；强烈推荐）上运行。
+
+支持 npm、pnpm 或 bun。
+
+全新安装？请从这里开始：[入门指南](https://docs.openclaw.ai/start/getting-started)
 **推荐设置**：在终端中运行引导向导 (`openclaw onboard`)。
 该向导将逐步指导你完成网关、工作区、渠道和技能的设置。CLI 向导是推荐方式，适用于 macOS、Linux 和 Windows（通过 WSL2；强烈推荐）。
 
@@ -43,9 +48,7 @@
 - 模型配置与 CLI：[Models](https://docs.openclaw.ai/concepts/models)
 - 认证配置文件轮换（OAuth vs API 密钥）及备用方案：[Model failover](https://docs.openclaw.ai/concepts/model-failover)
 
-### 安装（推荐方式）
-
-**运行环境**：Node.js ≥ 22。
+运行环境: **Node 24 (recommended) or Node 22.16+**.
 
 ```bash
 npm install -g @coohu/openclaw@latest
@@ -54,11 +57,12 @@ npm install -g @coohu/openclaw@latest
 openclaw onboard --install-daemon
 ```
 
-向导会安装网关守护进程（launchd/systemd 用户服务），使其保持运行。
+OpenClaw Onboard 会安装 Gateway 守护进程（launchd/systemd 用户服务），使其保持运行状态。
 
 ### 快速开始（TL;DR）
 
-**运行环境**：Node.js ≥ 22。
+Runtime: **Node 24 (recommended) or Node 22.16+**.
+
 完整新手指南（认证、配对、渠道）：[Getting started](https://docs.openclaw.ai/start/getting-started)
 
 ```bash
@@ -290,7 +294,7 @@ ClawHub 是一个极简的技能注册表。启用 ClawHub 后，智能体可以
 
 **注意**：为了使 macOS 权限在重建后依然有效，需要签名的构建（参见 `docs/mac/permissions.md`）。
 
-#### iOS 节点（可选）
+注意：需要签名构建才能使 macOS 权限在重新构建后仍然有效（请参阅 [macOS 权限](https://docs.openclaw.ai/platforms/mac/permissions)）。
 
 - 通过 Bridge 作为节点配对。
 - 语音触发转发 + 画布界面。
@@ -361,8 +365,9 @@ ClawHub 是一个极简的技能注册表。启用 ClawHub 后，智能体可以
 
 ### 高级文档（发现与控制）
 
-- Set `DISCORD_BOT_TOKEN` 或 `channels.discord.token` (env wins).
-- Optional: set `commands.native`, `commands.text`, 或 `commands.useAccessGroups`, 加 `channels.discord.allowFrom`, `channels.discord.guilds`, 或 `channels.discord.mediaMaxMb` 根据实际需要.
+- 设置 `DISCORD_BOT_TOKEN` 或 `channels.discord.token`。
+
+- 可选：根据需要设置 `commands.native`、`commands.text` 或 `commands.useAccessGroups`，以及 `channels.discord.allowFrom`、`channels.discord.guilds` 或 `channels.discord.mediaMaxMb`。
 
 ### 运维与故障排除
 
@@ -399,10 +404,32 @@ OpenClaw 是为 Molty（一只太空龙虾 AI 助手）而构建的。🦞
 有关贡献指南、维护者信息以及如何提交 PR，请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
 欢迎 AI/氛围编码（vibe-coded）的 PR！🤖
 
-特别感谢 [Mario Zechner](https://mariozechner.at/) 的支持以及他的 [pi-mono](https://github.com/badlogic/pi-mono)。
-特别感谢 Adam Doppelt 对 lobster.bot 的贡献。
+- [首先查看文档索引，了解导航和“各项功能所在位置”。](https://docs.openclaw.ai)
 
-感谢这些开发者的贡献：
+- [阅读网关+协议模型的架构概述。](https://docs.openclaw.ai/concepts/architecture)
+
+- [需要所有密钥和示例时，请使用完整的配置参考。](https://docs.openclaw.ai/gateway/configuration)
+
+- [按照操作手册操作网关。](https://docs.openclaw.ai/gateway)
+
+- [了解控制 UI/Web 界面的工作原理以及如何安全地公开它们。](https://docs.openclaw.ai/web)
+
+- [了解如何通过 SSH 隧道或尾网进行远程访问。](https://docs.openclaw.ai/gateway/remote)
+
+- [按照 OpenClaw Onboard 的引导进行设置。](https://docs.openclaw.ai/start/wizard)
+
+- [连接外部触发器通过 Webhook 界面。](https://docs.openclaw.ai/automation/webhook)
+
+- [设置 Gmail 发布/订阅触发器。](https://docs.openclaw.ai/automation/gmail-pubsub)
+
+- [了解 macOS 菜单栏助手详情。](https://docs.openclaw.ai/platforms/mac/menu-bar)
+
+- [平台指南：Windows (WSL2)](https://docs.openclaw.ai/platforms/windows)、[Linux](https://docs.openclaw.ai/platforms/linux)、[macOS](https://docs.openclaw.ai/platforms/macos)、[iOS](https://docs.openclaw.ai/platforms/ios)、[Android](https://docs.openclaw.ai/platforms/android)
+
+- [使用故障排除工具调试常见故障。](https://docs.openclaw.ai/platforms/android)指南。](https://docs.openclaw.ai/channels/troubleshooting)
+
+- [在公开任何内容之前，请先查看安全指南。](https://docs.openclaw.ai/gateway/security)
+  感谢这些开发者的贡献：
 
 <p align="left">
   <a href="https://github.com/steipete"><img src="https://avatars.githubusercontent.com/u/58493?v=4&s=48" width="48" height="48" alt="steipete" title="steipete"/></a> <a href="https://github.com/vincentkoc"><img src="https://avatars.githubusercontent.com/u/25068?v=4&s=48" width="48" height="48" alt="vincentkoc" title="vincentkoc"/></a> <a href="https://github.com/vignesh07"><img src="https://avatars.githubusercontent.com/u/1436853?v=4&s=48" width="48" height="48" alt="vignesh07" title="vignesh07"/></a> <a href="https://github.com/obviyus"><img src="https://avatars.githubusercontent.com/u/22031114?v=4&s=48" width="48" height="48" alt="obviyus" title="obviyus"/></a> <a href="https://github.com/mbelinky"><img src="https://avatars.githubusercontent.com/u/132747814?v=4&s=48" width="48" height="48" alt="Mariano Belinky" title="Mariano Belinky"/></a> <a href="https://github.com/sebslight"><img src="https://avatars.githubusercontent.com/u/19554889?v=4&s=48" width="48" height="48" alt="sebslight" title="sebslight"/></a> <a href="https://github.com/gumadeiras"><img src="https://avatars.githubusercontent.com/u/5599352?v=4&s=48" width="48" height="48" alt="gumadeiras" title="gumadeiras"/></a> <a href="https://github.com/Takhoffman"><img src="https://avatars.githubusercontent.com/u/781889?v=4&s=48" width="48" height="48" alt="Takhoffman" title="Takhoffman"/></a> <a href="https://github.com/thewilloftheshadow"><img src="https://avatars.githubusercontent.com/u/35580099?v=4&s=48" width="48" height="48" alt="thewilloftheshadow" title="thewilloftheshadow"/></a> <a href="https://github.com/cpojer"><img src="https://avatars.githubusercontent.com/u/13352?v=4&s=48" width="48" height="48" alt="cpojer" title="cpojer"/></a>

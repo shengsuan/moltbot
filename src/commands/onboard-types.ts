@@ -1,4 +1,5 @@
 import type { ChannelId } from "../channels/plugins/types.js";
+import type { SecretInputMode } from "../plugins/provider-auth-types.js";
 import type { GatewayDaemonRuntime } from "./daemon-runtime.js";
 
 export type OnboardMode = "local" | "remote";
@@ -9,6 +10,7 @@ export type BuiltInAuthChoice =
   | "claude-cli"
   | "token"
   | "chutes"
+  | "deepseek-api-key"
   | "openai-codex"
   | "openai-api-key"
   | "openrouter-api-key"
@@ -48,6 +50,8 @@ export type BuiltInAuthChoice =
   | "volcengine-api-key"
   | "byteplus-api-key"
   | "qianfan-api-key"
+  | "modelstudio-standard-api-key-cn"
+  | "modelstudio-standard-api-key"
   | "modelstudio-api-key-cn"
   | "modelstudio-api-key"
   | "custom-api-key"
@@ -58,6 +62,7 @@ export type BuiltInAuthChoiceGroupId =
   | "openai"
   | "anthropic"
   | "chutes"
+  | "deepseek"
   | "google"
   | "copilot"
   | "openrouter"
@@ -92,7 +97,7 @@ export type NodeManagerChoice = "npm" | "pnpm" | "bun";
 export type ChannelChoice = ChannelId;
 // Legacy alias (pre-rename).
 export type ProviderChoice = ChannelChoice;
-export type SecretInputMode = "plaintext" | "ref"; // pragma: allowlist secret
+export type { SecretInputMode } from "../plugins/provider-auth-types.js";
 
 export type OnboardOptions = {
   mode?: OnboardMode;
@@ -116,6 +121,7 @@ export type OnboardOptions = {
   /** API key persistence mode for setup flows (default: plaintext). */
   secretInputMode?: SecretInputMode;
   anthropicApiKey?: string;
+  deepseekApiKey?: string;
   openaiApiKey?: string;
   mistralApiKey?: string;
   openrouterApiKey?: string;
@@ -143,6 +149,8 @@ export type OnboardOptions = {
   byteplusApiKey?: string;
   qianfanApiKey?: string;
   shengsuanyunApiKey?: string;
+  modelstudioStandardApiKeyCn?: string;
+  modelstudioStandardApiKey?: string;
   modelstudioApiKeyCn?: string;
   modelstudioApiKey?: string;
   customBaseUrl?: string;

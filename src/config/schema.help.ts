@@ -1,7 +1,7 @@
 import {
   DISCORD_DEFAULT_INBOUND_WORKER_TIMEOUT_MS,
   DISCORD_DEFAULT_LISTENER_TIMEOUT_MS,
-} from "../plugin-sdk-internal/discord.js";
+} from "../../extensions/discord/timeouts.js";
 import { MEDIA_AUDIO_FIELD_HELP } from "./media-audio-field-metadata.js";
 import { IRC_FIELD_HELP } from "./schema.irc.js";
 import { describeTalkSilenceTimeoutDefaults } from "./talk-defaults.js";
@@ -197,7 +197,13 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults":
     "由 agents.list 中的条目继承的共享默认设置，除非被覆盖。使用默认值强制实施一致的基线行为并减少重复的各代理配置。",
   "agents.list":
-    "显式配置的代理列表，带有 ID 和模型、工具、身份和工作区的可选覆盖。保持 ID 稳定，以便绑定、批准和会话路由保持确定性。",
+    "Explicit list of configured agents with IDs and optional overrides for model, tools, identity, and workspace. Keep IDs stable over time so bindings, approvals, and session routing remain deterministic.",
+  "agents.list[].thinkingDefault":
+    "Optional per-agent default thinking level. Overrides agents.defaults.thinkingDefault for this agent when no per-message or session override is set.",
+  "agents.list[].reasoningDefault":
+    "Optional per-agent default reasoning visibility (on|off|stream). Applies when no per-message or session reasoning override is set.",
+  "agents.list[].fastModeDefault":
+    "Optional per-agent default for fast mode. Applies when no per-message or session fast-mode override is set.",
   "agents.list[].runtime":
     "此代理的可选运行时描述符。使用嵌入式获得默认 OpenClaw 执行或 acp 获得外部 ACP 工具默认值。",
   "agents.list[].runtime.type":
@@ -238,9 +244,11 @@ export const FIELD_HELP: Record<string, string> = {
   "browser.profiles.*.cdpPort":
     "按配置文件连接到浏览器实例时使用的本地 CDP 端口。为每个配置文件使用唯一端口以避免连接冲突。",
   "browser.profiles.*.cdpUrl":
-    "按配置文件显式远程浏览器路由的 CDP websocket URL。当配置文件连接终止于远程主机或隧道时使用此项。",
+    "Per-profile CDP websocket URL used for explicit remote browser routing by profile name. Use this when profile connections terminate on remote hosts or tunnels.",
+  "browser.profiles.*.userDataDir":
+    "Per-profile Chromium user data directory for existing-session attachment through Chrome DevTools MCP. Use this for host-local Brave, Edge, Chromium, or non-default Chrome profiles when the built-in auto-connect path would pick the wrong browser data directory.",
   "browser.profiles.*.driver":
-    'Per-profile browser driver mode. Use "openclaw" (or legacy "clawd") for CDP-based profiles, or use "existing-session" for host-local Chrome MCP attachment.',
+    'Per-profile browser driver mode. Use "openclaw" (or legacy "clawd") for CDP-based profiles, or use "existing-session" for host-local Chrome DevTools MCP attachment.',
   "browser.profiles.*.attachOnly":
     "按配置文件仅附件覆盖，跳过本地浏览器启动并仅附加到现有 CDP 端点。当一个配置文件由外部管理但其他配置文件在本地启动时有用。",
   "browser.profiles.*.color":
@@ -358,7 +366,7 @@ export const FIELD_HELP: Record<string, string> = {
   "gateway.controlUi.basePath": "提供控制 UI 的可选 URL 前缀（例如 /openclaw）。",
   "gateway.controlUi.root": "控制 UI 资产的可选文件系统根（默认为 dist/control-ui）。",
   "gateway.controlUi.allowedOrigins":
-    "控制 UI/WebChat websocket 连接允许的浏览器源（仅完整源，例如 https://control.example.com）。非环回控制 UI 部署所需，除非危险的 Host 标头回退被明确启用。",
+    'Allowed browser origins for Control UI/WebChat websocket connections (full origins only, e.g. https://control.example.com). Required for non-loopback Control UI deployments unless dangerous Host-header fallback is explicitly enabled. Setting ["*"] means allow any browser origin and should be avoided outside tightly controlled local testing.',
   "gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback":
     "危险切换，为控制 UI/WebChat websocket 检查启用基于 Host 标头的源回退。当您的部署有意依赖 Host 标头源政策时支持此模式；显式 gateway.controlUi.allowedOrigins 仍是推荐的加固默认值。",
   "gateway.controlUi.allowInsecureAuth":
@@ -386,9 +394,9 @@ export const FIELD_HELP: Record<string, string> = {
   "gateway.http.endpoints.chatCompletions.images":
     "OpenAI 兼容 `image_url` 部分的图像获取/验证控制。",
   "gateway.http.endpoints.chatCompletions.images.allowUrl":
-    "允许 `image_url` 部分的服务器端 URL 获取（默认：false；数据 URI 仍受支持）。",
+    "Allow server-side URL fetches for `image_url` parts (default: false; data URIs remain supported). Set this to `false` to disable URL fetching entirely.",
   "gateway.http.endpoints.chatCompletions.images.urlAllowlist":
-    "`image_url` URL 获取的可选主机名允许列表；支持精确主机和 `*.example.com` 通配符。",
+    "Optional hostname allowlist for `image_url` URL fetches; supports exact hosts and `*.example.com` wildcards. Empty or omitted lists mean no hostname allowlist restriction.",
   "gateway.http.endpoints.chatCompletions.images.allowedMimes":
     "`image_url` 部分允许的 MIME 类型（不区分大小写的列表）。",
   "gateway.http.endpoints.chatCompletions.images.maxBytes":
@@ -416,7 +424,7 @@ export const FIELD_HELP: Record<string, string> = {
   "nodeHost.browserProxy.enabled":
     "通过节点代理路由暴露本地浏览器控制服务器，以便远程客户端可以使用此主机的浏览器功能。除非远程自动化明确依赖，否则保持禁用。",
   "nodeHost.browserProxy.allowProfiles":
-    "通过节点代理路由暴露的浏览器配置文件名称的可选允许列表。保持为空以暴露所有配置的配置文件，或使用紧凑列表强制实施最小特权配置文件访问。",
+    "Optional allowlist of browser profile names exposed through node proxy routing. Leave empty to preserve the default full profile surface, including profile create/delete routes. When set, OpenClaw enforces least-privilege profile access and blocks persistent profile create/delete through the proxy.",
   media:
     "顶级媒体行为是所有处理入站文件的提供商和工具共享的。除非您需要为外部处理管道使用稳定的文件名或需要更长时间保留入站媒体文件，否则请保留默认设置。",
   "media.preserveFilenames":
@@ -518,9 +526,12 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.exec.notifyOnExit":
     "当为真（默认）时，后台 exec 会话退出和节点 exec 生命周期事件在退出时会排队系统事件并请求心跳。",
   "tools.exec.notifyOnExitEmptySuccess":
-    "当为真时，成功的后台 exec 退出，尽管输出为空，仍会排队完成系统事件（默认值：false）。",
-  "tools.exec.pathPrepend": "为 exec 运行（网关/沙箱）前置 PATH 的目录。",
-  "tools.exec.safeBins": "允许仅 stdin 的安全二进制文件运行，无需显式白名单条目。",
+    "When true, successful backgrounded exec exits with empty output still enqueue a completion system event (default: false).",
+  "tools.exec.pathPrepend": "Directories to prepend to PATH for exec runs (gateway/sandbox).",
+  "tools.exec.safeBins":
+    "Allow stdin-only safe binaries to run without explicit allowlist entries.",
+  "tools.exec.strictInlineEval":
+    "Require explicit approval for interpreter inline-eval forms such as `python -c`, `node -e`, `ruby -e`, or `osascript -e`. Prevents silent allowlist reuse and downgrades allow-always to ask-each-time for those forms.",
   "tools.exec.safeBinTrustedDirs":
     "为安全二进制文件路径检查信任的其他显式目录（PATH 条目从不自动信任）。",
   "tools.exec.safeBinProfiles":
@@ -626,42 +637,22 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.message.broadcast.enabled": "启用广播操作(默认值：true)。",
   "tools.web.search.enabled": "启用 web_search 工具(需要提供商 API 密钥)。",
   "tools.web.search.provider":
-    'Search provider ("brave", "firecrawl", "gemini", "grok", "kimi", or "perplexity"). Auto-detected from available API keys if omitted.',
-  "tools.web.search.apiKey": "Brave Search API key (fallback: BRAVE_API_KEY env var).",
+    "Search provider id. Auto-detected from available API keys if omitted.",
   "tools.web.search.maxResults": "Number of results to return (1-10).",
   "tools.web.search.timeoutSeconds": "Timeout in seconds for web_search requests.",
   "tools.web.search.cacheTtlMinutes": "Cache TTL in minutes for web_search results.",
-  "tools.web.search.brave.mode":
-    'Brave Search mode: "web" (URL results) or "llm-context" (pre-extracted page content for LLM grounding).',
-  "tools.web.search.firecrawl.apiKey":
-    "Firecrawl API key for web search (fallback: FIRECRAWL_API_KEY env var).",
-  "tools.web.search.firecrawl.baseUrl":
-    'Firecrawl Search base URL override (default: "https://api.firecrawl.dev").',
-  "tools.web.search.gemini.apiKey":
-    "用于 Google 搜索接地的 Gemini API 密钥(回退：GEMINI_API_KEY 环境变量)。",
-  "tools.web.search.gemini.model": 'Gemini 模型覆盖(默认："gemini-2.5-flash")。',
-  "tools.web.search.grok.apiKey": "Grok (xAI) API 密钥(回退：XAI_API_KEY 环境变量)。", // pragma: allowlist secret
-  "tools.web.search.grok.model": 'Grok 模型覆盖(默认："grok-4-1-fast")。',
-  "tools.web.search.kimi.apiKey":
-    "Moonshot/Kimi API 密钥(回退：KIMI_API_KEY 或 MOONSHOT_API_KEY 环境变量)。",
-  "tools.web.search.kimi.baseUrl": 'Kimi 基本 URL 覆盖(默认："https://api.moonshot.ai/v1")。',
-  "tools.web.search.kimi.model": 'Kimi 模型覆盖(默认："moonshot-v1-128k")。',
-  "tools.web.search.perplexity.apiKey":
-    "Perplexity 或 OpenRouter API 密钥(回退：PERPLEXITY_API_KEY 或 OPENROUTER_API_KEY 环境变量)。直接 Perplexity 密钥默认使用搜索 API；OpenRouter 密钥使用 Sonar 聊天完成。",
-  "tools.web.search.perplexity.baseUrl":
-    "可选的 Perplexity/OpenRouter 聊天完成基本 URL 覆盖。设置此项会使 Perplexity 选择进入遗留 Sonar/OpenRouter 兼容性路径。",
-  "tools.web.search.perplexity.model":
-    '可选的 Sonar/OpenRouter 模型覆盖(默认："perplexity/sonar-pro")。设置此项会使 Perplexity 选择进入遗留聊天完成兼容性路径。',
-  "tools.web.fetch.enabled": "启用 web_fetch 工具(轻量级 HTTP 获取)。",
-  "tools.web.fetch.maxChars": "web_fetch 返回的最大字符数(截断)。",
-  "tools.web.fetch.maxCharsCap": "web_fetch maxChars 的硬上限(适用于配置和工具调用)。",
-  "tools.web.fetch.timeoutSeconds": "web_fetch 请求的超时时间(秒)。",
-  "tools.web.fetch.cacheTtlMinutes": "web_fetch 结果的缓存 TTL(分钟)。",
-  "tools.web.fetch.maxRedirects": "web_fetch 允许的最大重定向数(默认：3)。",
-  "tools.web.fetch.userAgent": "为 web_fetch 请求覆盖 User-Agent 标头。",
-  "tools.web.fetch.readability": "使用 Readability 从 HTML 中提取主要内容(回退到基本 HTML 清理)。",
-  "tools.web.fetch.firecrawl.enabled": "为 web_fetch 启用 Firecrawl 回退(如已配置)。",
-  "tools.web.fetch.firecrawl.apiKey": "Firecrawl API 密钥(回退：FIRECRAWL_API_KEY 环境变量)。",
+  "tools.web.fetch.enabled": "Enable the web_fetch tool (lightweight HTTP fetch).",
+  "tools.web.fetch.maxChars": "Max characters returned by web_fetch (truncated).",
+  "tools.web.fetch.maxCharsCap":
+    "Hard cap for web_fetch maxChars (applies to config and tool calls).",
+  "tools.web.fetch.timeoutSeconds": "Timeout in seconds for web_fetch requests.",
+  "tools.web.fetch.cacheTtlMinutes": "Cache TTL in minutes for web_fetch results.",
+  "tools.web.fetch.maxRedirects": "Maximum redirects allowed for web_fetch (default: 3).",
+  "tools.web.fetch.userAgent": "Override User-Agent header for web_fetch requests.",
+  "tools.web.fetch.readability":
+    "Use Readability to extract main content from HTML (fallbacks to basic HTML cleanup).",
+  "tools.web.fetch.firecrawl.enabled": "Enable Firecrawl fallback for web_fetch (if configured).",
+  "tools.web.fetch.firecrawl.apiKey": "Firecrawl API key (fallback: FIRECRAWL_API_KEY env var).",
   "tools.web.fetch.firecrawl.baseUrl":
     "Firecrawl 基本 URL(例如 https://api.firecrawl.dev 或自定义端点)。",
   "tools.web.fetch.firecrawl.onlyMainContent":
@@ -703,9 +694,12 @@ export const FIELD_HELP: Record<string, string> = {
   "models.bedrockDiscovery.defaultContextWindow":
     "应用于发现的模型的回退上下文窗口值，当提供商元数据缺少明确限制时。使用现实的默认值以避免超大提示超过真实提供商约束。",
   "models.bedrockDiscovery.defaultMaxTokens":
-    "应用于没有明确输出令牌限制的发现的模型的回退最大令牌值。使用保守的默认值以减少截断惊喜和意外的令牌支出。",
-  auth: "身份验证配置文件根，用于多个配置文件提供者凭证和基于冷却的故障转移排序。保持配置文件最少和明确，以便自动故障转移行为保持可审计。",
-  "channels.slack.allowBots": "允许机器人撰写的消息触发 Slack 回复（默认：false）。",
+    "Fallback max-token value applied to discovered models without explicit output token limits. Use conservative defaults to reduce truncation surprises and unexpected token spend.",
+  auth: "Authentication profile root used for multi-profile provider credentials and cooldown-based failover ordering. Keep profiles minimal and explicit so automatic failover behavior stays auditable.",
+  "channels.slack.allowBots":
+    "Allow bot-authored messages to trigger Slack replies (default: false).",
+  "channels.matrix.allowBots":
+    'Allow messages from other configured Matrix bot accounts to trigger replies (default: false). Set "mentions" to only accept bot messages that visibly mention this bot.',
   "channels.slack.thread.historyScope":
     'Slack 线程历史上下文的范围（"thread" 隔离按线程；"channel" 重用通道历史）。',
   "channels.slack.thread.inheritParent":
@@ -893,7 +887,7 @@ export const FIELD_HELP: Record<string, string> = {
     "Forces a session memory-search reindex after compaction-triggered transcript updates (default: true). Keep enabled when compacted summaries must be immediately searchable, or disable to reduce write-time indexing pressure.",
   ui: "UI presentation settings for accenting and assistant identity shown in control surfaces. Use this for branding and readability customization without changing runtime behavior.",
   "ui.seamColor":
-    "用于用户界面表面强调、徽章和视觉识别提示的主要强调/接缝颜色。使用高对比度值，确保在浅色/深色主题下仍清晰可读。",
+    "Primary accent color used by UI surfaces for emphasis, badges, and visual identity cues. Use high-contrast values that remain readable across light/dark themes.",
   "ui.assistant":
     "设置助手在用户界面中显示的名称和头像的身份标识。请确保这些值与您面向客服人员的角色和支持预期保持一致。",
   "ui.assistant.name":
@@ -924,7 +918,13 @@ export const FIELD_HELP: Record<string, string> = {
   "plugins.entries.*.hooks":
     "针对核心强制执行的安全门，可对每个插件进行类型化的钩子策略控制。使用此功能可在不禁用整个插件的情况下，限制高影响的钩子类别。",
   "plugins.entries.*.hooks.allowPromptInjection":
-    "控制此插件是否可以通过类型钩子修改提示。设置为 false 可阻止 `before_prompt_build` 并忽略旧版 `before_agent_start` 中修改提示的字段，同时保留旧版 `modelOverride` 和 `providerOverride` 的行为。",
+    "Controls whether this plugin may mutate prompts through typed hooks. Set false to block `before_prompt_build` and ignore prompt-mutating fields from legacy `before_agent_start`, while preserving legacy `modelOverride` and `providerOverride` behavior.",
+  "plugins.entries.*.subagent":
+    "Per-plugin subagent runtime controls for model override trust and allowlists. Keep this unset unless a plugin must explicitly steer subagent model selection.",
+  "plugins.entries.*.subagent.allowModelOverride":
+    "Explicitly allows this plugin to request provider/model overrides in background subagent runs. Keep false unless the plugin is trusted to steer model selection.",
+  "plugins.entries.*.subagent.allowedModels":
+    'Allowed override targets for trusted plugin subagent runs as canonical "provider/model" refs. Use "*" only when you intentionally allow any model.',
   "plugins.entries.*.apiKey":
     "可选的 API 密钥字段，供那些接受在入口设置中直接配置密钥的插件使用。请使用 secret/env 替换，避免将真实凭据提交到配置文件中。",
   "plugins.entries.*.env":
@@ -962,8 +962,12 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.model.primary": "主模型(提供商/模型)。",
   "agents.defaults.model.fallbacks": "有序备用模型（提供者/模型）。当主模型失效时使用。",
   "agents.defaults.imageModel.primary":
-    "当主模型缺少图像输入时，可以使用可选的图像模型（提供程序/模型）。",
-  "agents.defaults.imageModel.fallbacks": "有序的备用图像模型（提供者/模型）。",
+    "Optional image model (provider/model) used when the primary model lacks image input.",
+  "agents.defaults.imageModel.fallbacks": "Ordered fallback image models (provider/model).",
+  "agents.defaults.imageGenerationModel.primary":
+    "Optional image-generation model (provider/model) used by the shared image generation capability.",
+  "agents.defaults.imageGenerationModel.fallbacks":
+    "Ordered fallback image-generation models (provider/model).",
   "agents.defaults.pdfModel.primary":
     "PDF 分析工具的可选 PDF 模型（提供程序/模型）。默认为 imageModel，其次为 sessionmodel。",
   "agents.defaults.pdfModel.fallbacks": "有序的备用 PDF 模型（提供商/模型）。",
@@ -1003,7 +1007,9 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.compaction.timeoutSeconds":
     "Maximum time in seconds allowed for a single compaction operation before it is aborted (default: 900). Increase this for very large sessions that need more time to summarize, or decrease it to fail faster on unresponsive models.",
   "agents.defaults.compaction.model":
-    "可选的提供程序/模型覆盖，仅用于压缩摘要。如果您希望压缩在与会话默认模型不同的模型上运行，请设置此项；如果希望继续使用主代理模型，则不要设置此项。",
+    "Optional provider/model override used only for compaction summarization. Set this when you want compaction to run on a different model than the session default, and leave it unset to keep using the primary agent model.",
+  "agents.defaults.compaction.truncateAfterCompaction":
+    "When enabled, rewrites the session JSONL file after compaction to remove entries that were summarized. Prevents unbounded file growth in long-running sessions with many compaction cycles. Default: false.",
   "agents.defaults.compaction.memoryFlush":
     "预压缩内存刷新设置会在进行大量内存压缩之前执行一次主动内存写入操作。长时间会话期间请保持启用状态，以便在进行大幅度内存修剪之前保留关键上下文信息。",
   "agents.defaults.compaction.memoryFlush.enabled":
@@ -1035,11 +1041,15 @@ export const FIELD_HELP: Record<string, string> = {
   "commands.bash":
     "允许 bash 聊天命令（`!`；`/bash` 别名）运行主机 shell 命令（默认值：false；需要 tools.elevated）。",
   "commands.bashForegroundMs":
-    "bash 在后台运行前等待多长时间（默认值：2000；0 表示立即进入后台运行）。",
-  "commands.config": "允许 /config 聊天命令读写磁盘上的配置(默认值：false)。",
-  "commands.debug": "允许 /debug 聊天命令仅用于运行时覆盖(默认值：false)。",
-  "commands.restart": "允许 /restart 和网关重启工具操作(默认值：true)。",
-  "commands.useAccessGroups": "强制执行访问组白名单/策略以用于命令。",
+    "How long bash waits before backgrounding (default: 2000; 0 backgrounds immediately).",
+  "commands.config": "Allow /config chat command to read/write config on disk (default: false).",
+  "commands.mcp":
+    "Allow /mcp chat command to manage OpenClaw MCP server config under mcp.servers (default: false).",
+  "commands.plugins":
+    "Allow /plugins chat command to list discovered plugins and toggle plugin enablement in config (default: false).",
+  "commands.debug": "Allow /debug chat command for runtime-only overrides (default: false).",
+  "commands.restart": "Allow /restart and gateway restart tool actions (default: true).",
+  "commands.useAccessGroups": "Enforce access-group allowlists/policies for commands.",
   "commands.ownerAllowFrom":
     "为仅限所有者使用的工具/命令设置明确的所有者允许列表。使用频道原生 ID（可选择性地添加前缀，例如“whatsapp:+15551234567”）。“*”将被忽略。",
   "commands.ownerDisplay":
@@ -1047,7 +1057,10 @@ export const FIELD_HELP: Record<string, string> = {
   "commands.ownerDisplaySecret":
     "当 ownerDisplay=hash 时，用于对所有者 ID 进行 HMAC 哈希处理的可选密钥。建议使用环境变量替换。",
   "commands.allowFrom":
-    "为所有者级别的命令界面定义提升的命令允许规则。使用狭窄的提供商特定身份，以确保特权命令不会暴露给广泛的聊天受众。",
+    "Defines elevated command allow rules by channel and sender for owner-level command surfaces. Use narrow provider-specific identities so privileged commands are not exposed to broad chat audiences.",
+  mcp: "Global MCP server definitions managed by OpenClaw. Embedded Pi and other runtime adapters can consume these servers without storing them inside Pi-owned project settings.",
+  "mcp.servers":
+    "Named MCP server definitions. OpenClaw stores them in its own config and runtime adapters decide which transports are supported at execution time.",
   session:
     "全局会话路由、重置、传递策略和维护控制，用于对话历史行为。除非您需要更严格的隔离、保留或传递约束，否则请保留默认设置。",
   "session.scope":
@@ -1171,7 +1184,7 @@ export const FIELD_HELP: Record<string, string> = {
   "hooks.path":
     "网钩端点在网关控制服务器上使用的 HTTP 路径(例如 `/hooks`)。使用不容易猜测的路径并将其与令牌验证相结合以实现纵深防御。",
   "hooks.token":
-    "网钩入口检查的共享不记名令牌，用于在映射运行之前进行请求身份验证。使用环境替换并在网钩端点是互联网可访问时定期轮换。",
+    "Shared bearer token checked by hooks ingress for request authentication before mappings run. Treat holders as full-trust callers for the hook ingress surface, not as a separate non-owner role. Use environment substitution and rotate regularly when webhook endpoints are internet-accessible.",
   "hooks.defaultSessionKey":
     "当请求未通过允许的通道提供会话密钥时，用于网钩传递的回退会话密钥。使用稳定但作用域化的密钥以避免混合无关的自动化对话。",
   "hooks.allowRequestSessionKey":
@@ -1179,7 +1192,7 @@ export const FIELD_HELP: Record<string, string> = {
   "hooks.allowedSessionKeyPrefixes":
     "启用调用方提供的密钥时接受的会话密钥前缀的允许列表。使用窄前缀以防止任意会话密钥注入。",
   "hooks.allowedAgentIds":
-    "选择执行代理时网钩映射允许目标的代理 ID 的允许列表。使用此限制自动化事件仅限于专用服务代理。",
+    "Allowlist of agent IDs that hook mappings are allowed to target when selecting execution agents. Use this to constrain automation events to dedicated service agents and reduce blast radius if a hook token is exposed.",
   "hooks.maxBodyBytes":
     "在请求被拒绝之前处理的最大网钩负载大小(字节)。保持这个范围有界以减少滥用风险并在突发集成下保护内存使用。",
   "hooks.presets":
@@ -1460,7 +1473,17 @@ export const FIELD_HELP: Record<string, string> = {
   "channels.telegram.network.autoSelectFamily":
     "覆盖 Telegram 的 Node autoSelectFamily(true=启用，false=禁用)。",
   "channels.telegram.timeoutSeconds":
-    "在 Telegram API 请求被中止前的最大秒数(默认值：500 per grammY)。",
+    "Max seconds before Telegram API requests are aborted (default: 500 per grammY).",
+  "channels.telegram.silentErrorReplies":
+    "When true, Telegram bot replies marked as errors are sent silently (no notification sound). Default: false.",
+  "channels.telegram.apiRoot":
+    "Custom Telegram Bot API root URL. Use for self-hosted Bot API servers (https://github.com/tdlib/telegram-bot-api) or reverse proxies in regions where api.telegram.org is blocked.",
+  "channels.telegram.autoTopicLabel":
+    "Auto-rename DM forum topics on first message using LLM. Default: true. Set to false to disable, or use object form { enabled: true, prompt: '...' } for custom prompt.",
+  "channels.telegram.autoTopicLabel.enabled":
+    "Whether auto topic labeling is enabled. Default: true.",
+  "channels.telegram.autoTopicLabel.prompt":
+    "Custom prompt for LLM-based topic naming. The user message is appended after the prompt.",
   "channels.telegram.threadBindings.enabled":
     "启用 Telegram 对话绑定功能(/focus、/unfocus、/agents 和 /session idle|max-age)。当设置时覆盖 session.threadBindings.enabled。",
   "channels.telegram.threadBindings.idleHours":

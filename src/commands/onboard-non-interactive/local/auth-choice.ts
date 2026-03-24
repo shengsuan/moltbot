@@ -1,15 +1,13 @@
 import type { ApiKeyCredential } from "../../../agents/auth-profiles/types.js";
 import type { OpenClawConfig } from "../../../config/config.js";
 import type { SecretInput } from "../../../config/types.secrets.js";
+import { applyAuthProfileConfig } from "../../../plugins/provider-auth-helpers.js";
+import { setCloudflareAiGatewayConfig } from "../../../plugins/provider-auth-storage.js";
 import type { RuntimeEnv } from "../../../runtime.js";
 import { resolveDefaultSecretProviderAlias } from "../../../secrets/ref-contract.js";
 import { normalizeSecretInputModeInput } from "../../auth-choice.apply-helpers.js";
 import { normalizeApiKeyTokenProviderAuthChoice } from "../../auth-choice.apply.api-providers.js";
-import {
-  applyAuthProfileConfig,
-  applyCloudflareAiGatewayConfig,
-  setCloudflareAiGatewayConfig,
-} from "../../onboard-auth.js";
+import { applyCloudflareAiGatewayConfig } from "../../onboard-auth.config-gateways.js";
 import {
   applyCustomApiConfig,
   CustomApiError,
@@ -253,29 +251,6 @@ export async function applyNonInteractiveAuthChoice(params: {
     );
     runtime.exit(1);
     return null;
-  }
-
-  if (authChoice === "shengsuanyun-api-key") {
-    const resolved = await resolveNonInteractiveApiKey({
-      provider: "shengsuanyun",
-      cfg: baseConfig,
-      flagValue: opts.shengsuanyunApiKey,
-      flagName: "--shengsuanyun-api-key",
-      envVar: "SHENGSUANYUN_API_KEY",
-      runtime,
-    });
-    if (!resolved) {
-      return null;
-    }
-    if (resolved.source !== "profile") {
-      await setShengSuanYunApiKey(resolved.key);
-    }
-    nextConfig = applyAuthProfileConfig(nextConfig, {
-      profileId: "shengsuanyun:default",
-      provider: "shengsuanyun",
-      mode: "api_key",
-    });
-    return applyShengSuanYunConfig(nextConfig);
   }
 
   if (authChoice === "custom-api-key") {

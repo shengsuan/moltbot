@@ -1,22 +1,21 @@
-import { emptyPluginConfigSchema, type OpenClawPluginApi } from "openclaw/plugin-sdk/core";
-import { buildShengSuanYunProvider } from "../../src/agents/models-config.providers.discovery.js";
+import { definePluginEntry, emptyPluginConfigSchema } from "openclaw/plugin-sdk/core";
+import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth";
 import {
   createOpenRouterSystemCacheWrapper,
   createOpenRouterWrapper,
   isProxyReasoningUnsupported,
-} from "../../src/agents/pi-embedded-runner/proxy-stream-wrappers.ts";
-import { SHENGSUANYUN_DEFAULT_MODEL_REF } from "../../src/commands/onboard-auth.credentials.js";
-import { applyShengSuanYunConfig } from "../../src/commands/onboard-auth.js";
-import { createProviderApiKeyAuthMethod } from "../../src/plugins/provider-api-key-auth.js";
+} from "openclaw/plugin-sdk/provider-stream";
+import { applyShengSuanYunConfig, SHENGSUANYUN_DEFAULT_MODEL_REF } from "./onboard.ts";
+import { buildShengSuanYunProvider } from "./provider-catalog.js";
 
 const PROVIDER_ID = "shengsuanyun";
 
-const shengSuanYunPlugin = {
+export default definePluginEntry({
   id: PROVIDER_ID,
   name: "胜算云",
   description: "添加胜算云模型提供插件",
   configSchema: emptyPluginConfigSchema(),
-  register(api: OpenClawPluginApi) {
+  register(api) {
     api.registerProvider({
       id: PROVIDER_ID,
       label: "胜算云",
@@ -71,6 +70,4 @@ const shengSuanYunPlugin = {
       },
     });
   },
-};
-
-export default shengSuanYunPlugin;
+});

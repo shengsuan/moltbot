@@ -37,7 +37,6 @@ import {
   DEFAULT_WORKSPACE,
   ensureWorkspaceAndSessions,
   guardCancel,
-  printWizardHeader,
   probeGatewayReachable,
   resolveControlUiLinks,
   summarizeExistingConfig,
@@ -88,12 +87,8 @@ async function runGatewayHealthCheck(params: {
     value: params.cfg.gateway?.auth?.password,
     path: "gateway.auth.password",
   });
-  const token =
-    process.env.OPENCLAW_GATEWAY_TOKEN ?? process.env.CLAWDBOT_GATEWAY_TOKEN ?? configuredToken;
-  const password =
-    process.env.OPENCLAW_GATEWAY_PASSWORD ??
-    process.env.CLAWDBOT_GATEWAY_PASSWORD ??
-    configuredPassword;
+  const token = process.env.OPENCLAW_GATEWAY_TOKEN ?? configuredToken;
+  const password = process.env.OPENCLAW_GATEWAY_PASSWORD ?? configuredPassword;
 
   await waitForGatewayReachable({
     url: wsUrl,
@@ -167,34 +162,33 @@ async function promptWebToolsConfig(
   const existingSearch = nextConfig.tools?.web?.search;
   const existingFetch = nextConfig.tools?.web?.fetch;
   const {
-    SEARCH_PROVIDER_OPTIONS,
+    resolveSearchProviderOptions,
     resolveExistingKey,
     hasExistingKey,
     applySearchKey,
+    applySearchProviderSelection,
     hasKeyInEnv,
   } = await import("./onboard-search.js");
-  type SP = (typeof SEARCH_PROVIDER_OPTIONS)[number]["value"];
-  const defaultProvider = SEARCH_PROVIDER_OPTIONS[0]?.value;
-  if (!defaultProvider) {
-    throw new Error("No web search providers are registered.");
-  }
+  const searchProviderOptions = resolveSearchProviderOptions(nextConfig);
+  const defaultProvider = searchProviderOptions[0]?.id;
 
   const hasKeyForProvider = (provider: string): boolean => {
-    const entry = SEARCH_PROVIDER_OPTIONS.find((e) => e.value === provider);
+    const entry = searchProviderOptions.find((e) => e.id === provider);
     if (!entry) {
       return false;
     }
-    return hasExistingKey(nextConfig, provider as SP) || hasKeyInEnv(entry);
+    if (entry.requiresCredential === false) {
+      return true;
+    }
+    return hasExistingKey(nextConfig, provider) || hasKeyInEnv(entry);
   };
 
-  const existingProvider: SP = (() => {
+  const existingProvider = (() => {
     const stored = existingSearch?.provider;
-    if (stored && SEARCH_PROVIDER_OPTIONS.some((e) => e.value === stored)) {
-      return stored as SP;
+    if (stored && searchProviderOptions.some((e) => e.id === stored)) {
+      return stored;
     }
-    return (
-      SEARCH_PROVIDER_OPTIONS.find((e) => hasKeyForProvider(e.value))?.value ?? defaultProvider
-    );
+    return searchProviderOptions.find((e) => hasKeyForProvider(e.id))?.id ?? defaultProvider;
   })();
 
   note(
@@ -210,7 +204,7 @@ async function promptWebToolsConfig(
     await confirm({
       message: "启用网络搜索？",
       initialValue:
-        existingSearch?.enabled ?? SEARCH_PROVIDER_OPTIONS.some((e) => hasKeyForProvider(e.value)),
+        existingSearch?.enabled ?? searchProviderOptions.some((e) => hasKeyForProvider(e.id)),
     }),
     runtime,
   );
@@ -219,64 +213,102 @@ async function promptWebToolsConfig(
     ...existingSearch,
     enabled: enableSearch,
   };
+  let workingConfig = nextConfig;
 
   if (enableSearch) {
-    const providerOptions = SEARCH_PROVIDER_OPTIONS.map((entry) => {
-      const configured = hasKeyForProvider(entry.value);
-      return {
-        value: entry.value,
-        label: entry.label,
-        hint: configured ? `${entry.hint} · configured` : entry.hint,
-      };
-    });
-
-    const providerChoice = guardCancel(
-      await select({
-        message: "选择网络搜索提供商",
-        options: providerOptions,
-        initialValue: existingProvider,
-      }),
-      runtime,
-    );
-
-    nextSearch = { ...nextSearch, provider: providerChoice };
-
-    const entry = SEARCH_PROVIDER_OPTIONS.find((e) => e.value === providerChoice)!;
-    const existingKey = resolveExistingKey(nextConfig, providerChoice as SP);
-    const keyConfigured = hasExistingKey(nextConfig, providerChoice as SP);
-    const envAvailable = entry.envKeys.some((k) => Boolean(process.env[k]?.trim()));
-    const envVarNames = entry.envKeys.join(" / ");
-
-    const keyInput = guardCancel(
-      await text({
-        message: keyConfigured
-          ? envAvailable
-            ? `${entry.label} API key (leave blank to keep current or use ${envVarNames})`
-            : `${entry.label} API key (leave blank to keep current)`
-          : envAvailable
-            ? `${entry.label} API key (paste it here; leave blank to use ${envVarNames})`
-            : `${entry.label} API key`,
-        placeholder: keyConfigured ? "Leave blank to keep current" : entry.placeholder,
-      }),
-      runtime,
-    );
-    const key = String(keyInput ?? "").trim();
-
-    if (key || existingKey) {
-      const applied = applySearchKey(nextConfig, providerChoice as SP, (key || existingKey)!);
-      nextSearch = { ...applied.tools?.web?.search };
-    } else if (keyConfigured || envAvailable) {
-      nextSearch = { ...nextSearch };
-    } else {
+    if (searchProviderOptions.length === 0) {
       note(
         [
-          "尚未存储密钥——在密钥可用之前，web_search 将无法工作。",
-          `在此处存储密钥或在 Gateway 环境中设置 ${envVarNames}。`,
-          `获取您的 API 密钥: ${entry.signupUrl}`,
+          "此插件政策目前不提供任何网络搜索服务。",
+          "启用插件或移除拒绝规则，然后重新运行配置。",
           "文档: https://docs.openclaw.ai/tools/web",
         ].join("\n"),
         "网络搜索",
       );
+      nextSearch = {
+        ...existingSearch,
+        enabled: false,
+      };
+    } else {
+      const providerOptions = searchProviderOptions.map((entry) => {
+        const configured = hasKeyForProvider(entry.id);
+        return {
+          value: entry.id,
+          label: entry.label,
+          hint:
+            entry.requiresCredential === false
+              ? `${entry.hint} · key-free`
+              : configured
+                ? `${entry.hint} · configured`
+                : entry.hint,
+        };
+      });
+
+      const providerChoice = guardCancel(
+        await select({
+          message: "Choose web search provider",
+          options: providerOptions,
+          initialValue: existingProvider,
+        }),
+        runtime,
+      );
+
+      nextSearch = { ...nextSearch, provider: providerChoice };
+
+      const entry = searchProviderOptions.find((e) => e.id === providerChoice)!;
+      const credentialLabel = entry.credentialLabel?.trim() || `${entry.label} API key`;
+      const existingKey = resolveExistingKey(nextConfig, providerChoice);
+      const keyConfigured = hasExistingKey(nextConfig, providerChoice);
+      const envAvailable = entry.envVars.some((k) => Boolean(process.env[k]?.trim()));
+      const envVarNames = entry.envVars.join(" / ");
+      const needsCredential = entry.requiresCredential !== false;
+
+      if (!needsCredential) {
+        workingConfig = applySearchProviderSelection(workingConfig, providerChoice);
+        nextSearch = { ...workingConfig.tools?.web?.search };
+        note(
+          [
+            `${entry.label} works without an API key.`,
+            "OpenClaw enabled the plugin and selected it as your web_search provider.",
+            `Docs: ${entry.docsUrl ?? "https://docs.openclaw.ai/tools/web"}`,
+          ].join("\n"),
+          "Web search",
+        );
+      } else {
+        const keyInput = guardCancel(
+          await text({
+            message: keyConfigured
+              ? envAvailable
+                ? `${credentialLabel} (leave blank to keep current or use ${envVarNames})`
+                : `${credentialLabel} (leave blank to keep current)`
+              : envAvailable
+                ? `${credentialLabel} (paste it here; leave blank to use ${envVarNames})`
+                : credentialLabel,
+            placeholder: keyConfigured ? "Leave blank to keep current" : entry.placeholder,
+          }),
+          runtime,
+        );
+        const key = String(keyInput ?? "").trim();
+
+        if (key || existingKey) {
+          workingConfig = applySearchKey(workingConfig, providerChoice, (key || existingKey)!);
+          nextSearch = { ...workingConfig.tools?.web?.search };
+        } else if (keyConfigured || envAvailable) {
+          workingConfig = applySearchProviderSelection(workingConfig, providerChoice);
+          nextSearch = { ...workingConfig.tools?.web?.search };
+        } else {
+          nextSearch = { ...nextSearch, provider: providerChoice };
+          note(
+            [
+              "No key stored yet — web_search won't work until a key is available.",
+              `Store your ${credentialLabel} here or set ${envVarNames} in the Gateway environment.`,
+              `Get your API key at: ${entry.signupUrl}`,
+              "Docs: https://docs.openclaw.ai/tools/web",
+            ].join("\n"),
+            "Web search",
+          );
+        }
+      }
     }
   }
 
@@ -294,11 +326,11 @@ async function promptWebToolsConfig(
   };
 
   return {
-    ...nextConfig,
+    ...workingConfig,
     tools: {
-      ...nextConfig.tools,
+      ...workingConfig.tools,
       web: {
-        ...nextConfig.tools?.web,
+        ...workingConfig.tools?.web,
         search: nextSearch,
         fetch: nextFetch,
       },
@@ -311,7 +343,6 @@ export async function runConfigureWizard(
   runtime: RuntimeEnv = defaultRuntime,
 ) {
   try {
-    printWizardHeader(runtime);
     intro(opts.command === "update" ? "OpenClaw 更新向导" : "OpenClaw 配置");
     const prompter = createClackPrompter();
 
@@ -353,14 +384,8 @@ export async function runConfigureWizard(
     });
     const localProbe = await probeGatewayReachable({
       url: localUrl,
-      token:
-        process.env.OPENCLAW_GATEWAY_TOKEN ??
-        process.env.CLAWDBOT_GATEWAY_TOKEN ??
-        baseLocalProbeToken,
-      password:
-        process.env.OPENCLAW_GATEWAY_PASSWORD ??
-        process.env.CLAWDBOT_GATEWAY_PASSWORD ??
-        baseLocalProbePassword,
+      token: process.env.OPENCLAW_GATEWAY_TOKEN ?? baseLocalProbeToken,
+      password: process.env.OPENCLAW_GATEWAY_PASSWORD ?? baseLocalProbePassword,
     });
     const remoteUrl = baseConfig.gateway?.remote?.url?.trim() ?? "";
     const baseRemoteProbeToken = await resolveGatewaySecretInputForWizard({
@@ -642,10 +667,9 @@ export async function runConfigureWizard(
       customBindHost: nextConfig.gateway?.customBindHost,
       basePath: nextConfig.gateway?.controlUi?.basePath,
     });
-    // Try both new and old passwords since gateway may still have old config.
+    // Try both newly written and preexisting passwords while the gateway restarts.
     const newPassword =
       process.env.OPENCLAW_GATEWAY_PASSWORD ??
-      process.env.CLAWDBOT_GATEWAY_PASSWORD ??
       (await resolveGatewaySecretInputForWizard({
         cfg: nextConfig,
         value: nextConfig.gateway?.auth?.password,
@@ -653,7 +677,6 @@ export async function runConfigureWizard(
       }));
     const oldPassword =
       process.env.OPENCLAW_GATEWAY_PASSWORD ??
-      process.env.CLAWDBOT_GATEWAY_PASSWORD ??
       (await resolveGatewaySecretInputForWizard({
         cfg: baseConfig,
         value: baseConfig.gateway?.auth?.password,
@@ -661,7 +684,6 @@ export async function runConfigureWizard(
       }));
     const token =
       process.env.OPENCLAW_GATEWAY_TOKEN ??
-      process.env.CLAWDBOT_GATEWAY_TOKEN ??
       (await resolveGatewaySecretInputForWizard({
         cfg: nextConfig,
         value: nextConfig.gateway?.auth?.token,

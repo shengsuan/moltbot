@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  getShengSuanYunModels,
+  discoverShengSuanYunModels,
   getShengSuanYunModalityModels,
   SHENGSUANYUN_BASE_URL,
   SHENGSUANYUN_MODALITIES_BASE_URL,
@@ -13,7 +13,7 @@ describe("ShengSuanYun provider", () => {
   });
 
   it("should skip LLM discovery in test environment", async () => {
-    const models = await getShengSuanYunModels();
+    const models = await discoverShengSuanYunModels();
     expect(models).toEqual([]);
   });
 
