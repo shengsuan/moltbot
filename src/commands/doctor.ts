@@ -173,7 +173,7 @@ export async function doctorCommand(
             ? true
             : options.nonInteractive === true
               ? false
-              : await prompter.confirmRepair({
+              : await prompter.confirmAutoFix({
                   message: "生成并配置网关令牌？",
                   initialValue: true,
                 });
