@@ -274,6 +274,6 @@ ENV NODE_ENV=production
 #   - aliases: /health and /ready
 # For external access from host/ingress, override bind to "lan" and set auth.
 EXPOSE 18789 18790 22
-HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
+#   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ENTRYPOINT ["/cfg.sh"]

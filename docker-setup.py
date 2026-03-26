@@ -316,22 +316,39 @@ if OPENCLAW_GATEWAY_BIND != "loopback":
         run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "gateway.controlUi.allowedOrigins", allowed_json, "--strict-json", check=False)
         print(f"为非环回绑定将 gateway.controlUi.allowedOrigins 设置为 {allowed_json}。")
 
-print("\n==> 客户端设置（可选）")
-# com=input("安装企业微信插件。输入： Y 开始安装， N 跳过")
-# com = com.upper()
-# if com == "Y" or com == "YES":
+print("\n==> 插件安装（可选）")
+com = input("是否安装企业微信插件？(Y/N): ")
+com = com.strip().upper()
+if com == "Y" or com == "YES":
+    print("正在安装企业微信插件...")
+    run_compose(compose_args, "run", "--rm", "--entrypoint", "sh", "openclaw-cli", "-c", "npx -y @wecom/wecom-openclaw-cli install --force")
+    print("企业微信插件安装完成。")
 
-print("WhatsApp (QR)：")
-print(f"  {compose_hint} run --rm openclaw-cli channels login")
-print("Telegram (机器人令牌)：")
-print(f"  {compose_hint} run --rm openclaw-cli channels add --channel telegram --token <token>")
-print("Discord (机器人令牌)：")
-print(f"  {compose_hint} run --rm openclaw-cli channels add --channel discord --token <token>")
-print("文档：https://docs.openclaw.ai/channels")
+wx = input("是否安装微信插件？(Y/N): ")
+wx = wx.strip().upper()
+if wx == "Y" or wx == "YES":
+    print("正在安装微信插件...")
+    run_compose(compose_args, "run", "--rm", "--entrypoint", "sh", "openclaw-cli", "-c", "npx -y @tencent-weixin/openclaw-weixin-cli@latest install")
+    print("微信插件安装完成。")
+
+qq = input("是否安装 QQ 插件？(Y/N): ")
+qq = qq.strip().upper()
+if qq == "Y" or qq == "YES":
+    print("正在安装 QQ 插件...")
+    run_compose(compose_args, "run", "--rm", "openclaw-cli", "plugins", "install", "@tencent-connect/openclaw-qqbot@latest", capture=True, check=False)
+    print("QQ 插件安装完成。")
+
+# print("\n==> 客户端设置（可选）")
+# print("WhatsApp (QR)：")
+# print(f"  {compose_hint} run --rm openclaw-cli channels login")
+# print("Telegram (机器人令牌)：")
+# print(f"  {compose_hint} run --rm openclaw-cli channels add --channel telegram --token <token>")
+# print("Discord (机器人令牌)：")
+# print(f"  {compose_hint} run --rm openclaw-cli channels add --channel discord --token <token>")
+# print("文档：https://docs.openclaw.ai/channels")
 
 print("\n==> 启动网关")
 run_compose(compose_args, "up", "-d", "openclaw-gateway")
-
 
 # ==========================================
 # 沙盒浏览器
