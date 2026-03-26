@@ -25,7 +25,7 @@ packages/dashboard-next/out/
 
 # Mise configuration files
 mise.toml
-
+cfg.openclaw.tar
 # Android build artifacts
 apps/android/.gradle/
 apps/android/app/build/

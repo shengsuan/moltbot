@@ -140,7 +140,11 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends; \
     fi && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      procps hostname curl git lsof openssl
+      procps hostname curl git lsof openssl openssh-server
+
+RUN mkdir -p /run/sshd /root/.ssh && \
+    chmod 700 /root/.ssh && \
+    ssh-keygen -A
 
 RUN chown node:node /app
 
@@ -151,6 +155,7 @@ COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
 COPY --from=runtime-assets --chown=node:node /app/extensions ./extensions
 COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
+COPY --from=runtime-assets --chown=root:root /app/scripts/cfg.sh /cfg.sh
 
 # In npm-installed Docker images, prefer the copied source extension tree for
 # bundled discovery so package metadata that points at source entries stays valid.
@@ -246,14 +251,15 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 
 # Expose the CLI binary without requiring npm global writes as non-root.
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
- && chmod 755 /app/openclaw.mjs
+ && chmod 755 /app/openclaw.mjs \
+ && chmod 755 /cfg.sh
 
 ENV NODE_ENV=production
 
 # Security hardening: Run as non-root user
 # The node:24-bookworm image includes a 'node' user (uid 1000)
 # This reduces the attack surface by preventing container escape via root privileges
-USER node
+# USER node
 
 # Start gateway server with default config.
 # Binds to loopback (127.0.0.1) by default for security.
@@ -267,6 +273,7 @@ USER node
 #   - GET /healthz (liveness) and GET /readyz (readiness)
 #   - aliases: /health and /ready
 # For external access from host/ingress, override bind to "lan" and set auth.
+EXPOSE 18789 18790 22
 HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured"]
+ENTRYPOINT ["/cfg.sh"]

@@ -317,6 +317,10 @@ if OPENCLAW_GATEWAY_BIND != "loopback":
         print(f"为非环回绑定将 gateway.controlUi.allowedOrigins 设置为 {allowed_json}。")
 
 print("\n==> 客户端设置（可选）")
+# com=input("安装企业微信插件。输入： Y 开始安装， N 跳过")
+# com = com.upper()
+# if com == "Y" or com == "YES":
+
 print("WhatsApp (QR)：")
 print(f"  {compose_hint} run --rm openclaw-cli channels login")
 print("Telegram (机器人令牌)：")
