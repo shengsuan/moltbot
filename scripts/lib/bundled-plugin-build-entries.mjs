@@ -89,9 +89,13 @@ export function collectBundledPluginBuildEntries(params = {}) {
     }
 
     const pluginSourceEntries = collectPluginSourceEntries(packageJson);
-    // Skip top-level scanning if openclaw.extensions points to pre-built dist files
     const hasDistEntries = pluginSourceEntries.some((entry) => entry.includes("/dist/"));
-    const topLevelEntries = hasDistEntries ? [] : collectTopLevelPublicSurfaceEntries(pluginDir);
+
+    if (hasDistEntries) {
+      continue;
+    }
+
+    const topLevelEntries = collectTopLevelPublicSurfaceEntries(pluginDir);
 
     entries.push({
       id: dirent.name,
