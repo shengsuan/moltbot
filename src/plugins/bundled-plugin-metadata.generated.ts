@@ -2348,13 +2348,13 @@ export const GENERATED_BUNDLED_PLUGIN_METADATA = [
     dirName: "openclaw-qqbot",
     idHint: "openclaw-qqbot",
     source: {
-      source: "./dist/index.js",
-      built: "dist/index.js",
+      source: "./preload.cjs",
+      built: "preload.js",
     },
     packageName: "@tencent-connect/openclaw-qqbot",
-    packageVersion: "1.6.5",
+    packageVersion: "1.6.6",
     packageManifest: {
-      extensions: ["./dist/index.js"],
+      extensions: ["./preload.cjs"],
       channel: {
         id: "qqbot",
         label: "QQ Bot",
@@ -3990,7 +3990,7 @@ export const GENERATED_BUNDLED_PLUGIN_METADATA = [
       built: "dist/index.esm.js",
     },
     packageName: "@wecom/wecom-openclaw-plugin",
-    packageVersion: "2026.3.25",
+    packageVersion: "2026.3.26",
     packageDescription: "OpenClaw WeCom (企业微信) channel plugin (official by Tencent WeCom team)",
     packageManifest: {
       extensions: ["./dist/index.esm.js"],

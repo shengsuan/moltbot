@@ -1,4 +1,5 @@
-import type { OpenClawConfig, GroupPolicy } from "openclaw/plugin-sdk/core";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import type { GroupPolicy } from "openclaw/plugin-sdk/setup";
 import type { ResolvedQQBotAccount, QQBotAccountConfig, ToolPolicy, GroupConfig } from "./types.js";
 
 // ============ Agent-aware mentionPatterns 解析 ============
