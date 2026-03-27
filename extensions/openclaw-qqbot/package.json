@@ -40,7 +40,7 @@
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
-    "openclaw": "*"
+    "@coohu/openclaw": "*"
   },
   "bundledDependencies": [
     "mpg123-decoder",

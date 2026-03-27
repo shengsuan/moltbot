@@ -5,13 +5,13 @@
   "description": "OpenClaw LINE channel plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "@coohu/openclaw": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.22"
+    "@coohu/openclaw": ">=2026.3.22"
   },
   "peerDependenciesMeta": {
-    "openclaw": {
+    "@coohu/openclaw": {
       "optional": true
     }
   },

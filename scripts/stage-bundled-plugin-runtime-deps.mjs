@@ -44,9 +44,10 @@ function sanitizeBundledManifestForRuntimeInstall(pluginDir) {
   const packageJson = readJson(manifestPath);
   let changed = false;
 
-  if (packageJson.peerDependencies?.openclaw) {
+  if (packageJson.peerDependencies?.openclaw || packageJson.peerDependencies?.["@coohu/openclaw"]) {
     const nextPeerDependencies = { ...packageJson.peerDependencies };
     delete nextPeerDependencies.openclaw;
+    delete nextPeerDependencies["@coohu/openclaw"];
     if (Object.keys(nextPeerDependencies).length === 0) {
       delete packageJson.peerDependencies;
     } else {
@@ -55,9 +56,13 @@ function sanitizeBundledManifestForRuntimeInstall(pluginDir) {
     changed = true;
   }
 
-  if (packageJson.peerDependenciesMeta?.openclaw) {
+  if (
+    packageJson.peerDependenciesMeta?.openclaw ||
+    packageJson.peerDependenciesMeta?.["@coohu/openclaw"]
+  ) {
     const nextPeerDependenciesMeta = { ...packageJson.peerDependenciesMeta };
     delete nextPeerDependenciesMeta.openclaw;
+    delete nextPeerDependenciesMeta["@coohu/openclaw"];
     if (Object.keys(nextPeerDependenciesMeta).length === 0) {
       delete packageJson.peerDependenciesMeta;
     } else {
@@ -66,9 +71,10 @@ function sanitizeBundledManifestForRuntimeInstall(pluginDir) {
     changed = true;
   }
 
-  if (packageJson.devDependencies?.openclaw) {
+  if (packageJson.devDependencies?.openclaw || packageJson.devDependencies?.["@coohu/openclaw"]) {
     const nextDevDependencies = { ...packageJson.devDependencies };
     delete nextDevDependencies.openclaw;
+    delete nextDevDependencies["@coohu/openclaw"];
     if (Object.keys(nextDevDependencies).length === 0) {
       delete packageJson.devDependencies;
     } else {

@@ -2345,6 +2345,73 @@ export const GENERATED_BUNDLED_PLUGIN_METADATA = [
     },
   },
   {
+    dirName: "openclaw-qqbot",
+    idHint: "openclaw-qqbot",
+    source: {
+      source: "./dist/index.js",
+      built: "dist/index.js",
+    },
+    packageName: "@tencent-connect/openclaw-qqbot",
+    packageVersion: "1.6.5",
+    packageManifest: {
+      extensions: ["./dist/index.js"],
+      channel: {
+        id: "qqbot",
+        label: "QQ Bot",
+      },
+    },
+    manifest: {
+      id: "openclaw-qqbot",
+      configSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {},
+      },
+      channels: ["qqbot"],
+      skills: ["skills/qqbot-channel", "skills/qqbot-remind", "skills/qqbot-media"],
+      name: "OpenClaw QQ Bot",
+      description: "QQ Bot channel plugin with message support, cron jobs, and proactive messaging",
+    },
+  },
+  {
+    dirName: "openclaw-weixin",
+    idHint: "openclaw-weixin",
+    source: {
+      source: "./index.ts",
+      built: "index.js",
+    },
+    packageName: "@tencent-weixin/openclaw-weixin",
+    packageVersion: "2.0.1",
+    packageDescription: "OpenClaw Weixin channel",
+    packageManifest: {
+      extensions: ["./index.ts"],
+      channel: {
+        id: "openclaw-weixin",
+        label: "openclaw-weixin",
+        selectionLabel: "openclaw-weixin",
+        docsPath: "/channels/openclaw-weixin",
+        docsLabel: "openclaw-weixin",
+        blurb: "Weixin channel",
+        order: 75,
+      },
+      install: {
+        npmSpec: "@tencent-weixin/openclaw-weixin",
+        defaultChoice: "npm",
+        minHostVersion: ">=2026.3.22",
+      },
+    },
+    manifest: {
+      id: "openclaw-weixin",
+      configSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {},
+      },
+      channels: ["openclaw-weixin"],
+      version: "2.0.0",
+    },
+  },
+  {
     dirName: "opencode",
     idHint: "opencode",
     source: {
@@ -3913,6 +3980,45 @@ export const GENERATED_BUNDLED_PLUGIN_METADATA = [
           cliDescription: "Volcano Engine API key",
         },
       ],
+    },
+  },
+  {
+    dirName: "wecom-openclaw-plugin",
+    idHint: "wecom-openclaw-plugin",
+    source: {
+      source: "./dist/index.esm.js",
+      built: "dist/index.esm.js",
+    },
+    packageName: "@wecom/wecom-openclaw-plugin",
+    packageVersion: "2026.3.25",
+    packageDescription: "OpenClaw WeCom (企业微信) channel plugin (official by Tencent WeCom team)",
+    packageManifest: {
+      extensions: ["./dist/index.esm.js"],
+      channel: {
+        id: "wecom",
+        label: "企业微信",
+        selectionLabel: "企业微信 (WeCom)",
+        docsPath: "/channels/wecom",
+        docsLabel: "wecom-openclaw-plugin",
+        blurb: "企业微信机器人接入插件",
+        order: 80,
+        quickstartAllowFrom: true,
+      },
+      install: {
+        npmSpec: "@wecom/wecom-openclaw-plugin",
+        localPath: "extensions/wecom-openclaw-plugin",
+        defaultChoice: "npm",
+      },
+    },
+    manifest: {
+      id: "wecom-openclaw-plugin",
+      configSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {},
+      },
+      channels: ["wecom"],
+      skills: ["./skills"],
     },
   },
   {
