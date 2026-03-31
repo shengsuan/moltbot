@@ -9,6 +9,10 @@ export type { ChannelSetupInput } from "../channels/plugins/types.core.js";
 export type {
   ChannelSetupDmPolicy,
   ChannelSetupWizardAdapter,
+  ChannelSetupStatus,
+  ChannelSetupStatusContext,
+  ChannelSetupConfigureContext,
+  ChannelSetupResult,
 } from "../channels/plugins/setup-wizard-types.js";
 export type {
   ChannelSetupWizard,

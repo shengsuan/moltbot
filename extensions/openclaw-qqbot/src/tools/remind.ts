@@ -231,7 +231,7 @@ export function registerRemindTool(api: OpenClawPluginApi): void {
         "删除提醒：action=remove, jobId=任务ID（先 list 获取）\n" +
         '时间格式示例："5m"(5分钟后) "1h"(1小时后) "0 8 * * *"(每天8点)',
       parameters: RemindSchema,
-      execute(_toolCallId, params) {
+      async execute(_toolCallId, params) {
         const p = params as RemindParams;
 
         // ===== list =====

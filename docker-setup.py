@@ -317,18 +317,12 @@ if OPENCLAW_GATEWAY_BIND != "loopback":
         print(f"为非环回绑定将 gateway.controlUi.allowedOrigins 设置为 {allowed_json}。")
 
 print("\n==> 插件安装（可选）")
-com = input("是否安装企业微信插件？(Y/N): ")
-com = com.strip().upper()
-if com == "Y" or com == "YES":
-    print("正在安装企业微信插件...")
-    run_compose(compose_args, "run", "--rm", "--entrypoint", "sh", "openclaw-cli", "-c", "npx -y @wecom/wecom-openclaw-cli install --force")
-    print("企业微信插件安装完成。")
 
 wx = input("是否安装微信插件？(Y/N): ")
 wx = wx.strip().upper()
 if wx == "Y" or wx == "YES":
     print("正在安装微信插件...")
-    run_compose(compose_args, "run", "--rm", "--entrypoint", "sh", "openclaw-cli", "-c", "npx -y @tencent-weixin/openclaw-weixin-cli@latest install")
+    run_compose(compose_args, "run", "--rm", "--entrypoint", "sh", "openclaw-cli", "-c", "openclaw plugins install @tencent-weixin/openclaw-weixin")
     print("微信插件安装完成。")
 
 qq = input("是否安装 QQ 插件？(Y/N): ")

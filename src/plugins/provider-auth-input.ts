@@ -198,7 +198,7 @@ export async function ensureApiKeyFromEnvOrPrompt(params: {
 
   if (envKey && selectedMode === "plaintext") {
     const useExisting = await params.prompter.confirm({
-      message: `Use existing ${params.envLabel} (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
+      message: `使用已有的 ${params.envLabel} (${envKey.source}, ${formatApiKeyPreview(envKey.apiKey)})?`,
       initialValue: true,
     });
     if (useExisting) {

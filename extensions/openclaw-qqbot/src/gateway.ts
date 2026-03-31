@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
 import WebSocket from "ws";
 import { sendStartupGreetings, type AdminResolverContext } from "./admin-resolver.js";
 import {
@@ -104,7 +105,7 @@ const INTERACTION_TYPE_CONFIG_UPDATE = 2002;
 async function handleInteractionCreate(params: {
   event: InteractionEvent;
   account: ResolvedQQBotAccount;
-  cfg: unknown;
+  cfg: OpenClawConfig;
   log?: {
     info: (msg: string) => void;
     warn?: (msg: string) => void;
@@ -120,7 +121,7 @@ async function handleInteractionCreate(params: {
     const runtime = getQQBotRuntime();
     const configApi = runtime.config as {
       loadConfig: () => Record<string, unknown>;
-      writeConfigFile: (cfg: unknown) => Promise<void>;
+      writeConfigFile: (cfg: OpenClawConfig) => Promise<void>;
     };
     const latestCfg = configApi.loadConfig() as Record<string, unknown>;
 
@@ -181,7 +182,7 @@ async function handleInteractionCreate(params: {
     const runtime = getQQBotRuntime();
     const configApi = runtime.config as {
       loadConfig: () => Record<string, unknown>;
-      writeConfigFile: (cfg: unknown) => Promise<void>;
+      writeConfigFile: (cfg: OpenClawConfig) => Promise<void>;
     };
 
     const currentCfg = structuredClone(configApi.loadConfig()) as Record<string, unknown>;
@@ -432,7 +433,7 @@ const IMAGE_SERVER_DIR = process.env.QQBOT_IMAGE_SERVER_DIR || getQQBotDataDir("
 export interface GatewayContext {
   account: ResolvedQQBotAccount;
   abortSignal: AbortSignal;
-  cfg: unknown;
+  cfg: OpenClawConfig;
   onReady?: (data: unknown) => void;
   onError?: (error: Error) => void;
   log?: {
@@ -502,7 +503,7 @@ export async function startGateway(ctx: GatewayContext): Promise<void> {
   // "Unable to resolve plugin runtime module"。提前检测并告警。
   try {
     const pluginRuntime = getQQBotRuntime();
-    if (pluginRuntime?.channel?.reply?.dispatchReplyWithBufferedBlockDispatcher) {
+    if (pluginRuntime?.channel?.reply?.dispatchReplyWithBufferedBlockDispatcher != null) {
       log?.info(`[qqbot:${account.accountId}] Runtime module preflight: OK`);
     } else {
       log?.error(
@@ -1215,7 +1216,7 @@ export async function startGateway(ctx: GatewayContext): Promise<void> {
           // 未被 @ 时：消息仍写入上下文（让 bot 拥有完整对话记忆），但不触发 AI 回复
           const configRequireMention =
             qqbotPlugin.groups?.resolveRequireMention?.({
-              cfg: cfg as any,
+              cfg: cfg,
               accountId: account.accountId,
               groupId: event.groupOpenid,
             }) ?? true;
@@ -1336,7 +1337,7 @@ export async function startGateway(ctx: GatewayContext): Promise<void> {
           //    然后根据运行时状态追加针对性行为指引。
           const baseHint =
             qqbotPlugin.groups?.resolveGroupIntroHint?.({
-              cfg: cfg as any,
+              cfg: cfg,
               accountId: account.accountId,
               groupId: event.groupOpenid,
             }) ?? "";

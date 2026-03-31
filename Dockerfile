@@ -146,18 +146,17 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 RUN mkdir -p /run/sshd /root/.ssh && \
     chmod 700 /root/.ssh && \
     ssh-keygen -A
-
-RUN chown node:node /app
-
-COPY --from=runtime-assets --chown=node:node /app/dist ./dist
-COPY --from=runtime-assets --chown=node:node /app/node_modules ./node_modules
-COPY --from=runtime-assets --chown=node:node /app/package.json .
-COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
-COPY --from=runtime-assets --chown=node:node /app/extensions ./extensions
-COPY --from=runtime-assets --chown=node:node /app/skills ./skills
-COPY --from=runtime-assets --chown=node:node /app/docs ./docs
-COPY --from=runtime-assets --chown=root:root /app/scripts/cfg.sh /cfg.sh
-
+    RUN chown node:node /app
+    
+    COPY --from=runtime-assets --chown=node:node /app/dist ./dist
+    COPY --from=runtime-assets --chown=node:node /app/node_modules ./node_modules
+    COPY --from=runtime-assets --chown=node:node /app/package.json .
+    COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
+    COPY --from=runtime-assets --chown=node:node /app/extensions ./extensions
+    COPY --from=runtime-assets --chown=node:node /app/skills ./skills
+    COPY --from=runtime-assets --chown=node:node /app/docs ./docs
+    COPY --from=runtime-assets --chown=root:root /app/scripts/cfg.sh /cfg.sh
+    
 # In npm-installed Docker images, prefer the copied source extension tree for
 # bundled discovery so package metadata that points at source entries stays valid.
 ENV OPENCLAW_BUNDLED_PLUGINS_DIR=/app/extensions
