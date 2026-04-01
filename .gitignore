@@ -5,7 +5,8 @@ docker-compose.override.yml
 docker-compose.extra.yml
 dist
 !extensions/openclaw-qqbot/dist
-!extensions/wecom-openclaw-plugin/dist
+!plugins/wecom-openclaw-plugin/dist
+!plugins/wecom-openclaw-plugin/node_modules
 dist-runtime
 pnpm-lock.yaml
 bun.lock
@@ -28,6 +29,7 @@ packages/dashboard-next/out/
 # Mise configuration files
 mise.toml
 cfg.openclaw.tar
+plugins.tar.gz
 # Android build artifacts
 apps/android/.gradle/
 apps/android/app/build/

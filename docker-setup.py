@@ -265,6 +265,24 @@ upsert_env(ENV_FILE, [
 # 构建 gateway 镜像并启动服务
 # ==========================================
 
+# Package plugins directory to bypass .dockerignore nested exclusions
+plugins_tar = ROOT_DIR / "plugins.tar.gz"
+plugins_dir = ROOT_DIR / "plugins"
+if plugins_dir.is_dir() and any(plugins_dir.iterdir()):
+    print(f"==> 打包 plugins 目录...")
+    result = subprocess.run(
+        ["tar", "-czf", str(plugins_tar), "-C", str(ROOT_DIR), "plugins"],
+        capture_output=True,
+        text=True
+    )
+    if result.returncode == 0:
+        size_mb = plugins_tar.stat().st_size / (1024 * 1024)
+        print(f"    已创建 plugins.tar.gz ({size_mb:.1f}MB)")
+    else:
+        print(f"警告：打包 plugins 失败: {result.stderr}", file=sys.stderr)
+else:
+    print("==> 跳过 plugins 打包（目录不存在或为空）")
+
 if IMAGE_NAME:
     print(f"==> 构建 Docker 镜像：{IMAGE_NAME}")
     #corss build support for amd64 on x86_64
@@ -282,6 +300,11 @@ if IMAGE_NAME:
                 build_cmd.extend(["--build-arg", f"{arg}={os.environ[arg]}"])
         build_cmd.extend(["-t", IMAGE_NAME, "-f", str(ROOT_DIR / "Dockerfile"), str(ROOT_DIR)])
         subprocess.run(build_cmd, check=True)
+
+# Cleanup plugins tar after build
+if plugins_tar.exists():
+    plugins_tar.unlink()
+    print("==> 已清理 plugins.tar.gz")
 
 print("\n==> 修复数据目录权限")
 chown_script = (
@@ -315,22 +338,6 @@ if OPENCLAW_GATEWAY_BIND != "loopback":
     else:
         run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "gateway.controlUi.allowedOrigins", allowed_json, "--strict-json", check=False)
         print(f"为非环回绑定将 gateway.controlUi.allowedOrigins 设置为 {allowed_json}。")
-
-print("\n==> 插件安装（可选）")
-
-wx = input("是否安装微信插件？(Y/N): ")
-wx = wx.strip().upper()
-if wx == "Y" or wx == "YES":
-    print("正在安装微信插件...")
-    run_compose(compose_args, "run", "--rm", "--entrypoint", "sh", "openclaw-cli", "-c", "openclaw plugins install @tencent-weixin/openclaw-weixin")
-    print("微信插件安装完成。")
-
-qq = input("是否安装 QQ 插件？(Y/N): ")
-qq = qq.strip().upper()
-if qq == "Y" or qq == "YES":
-    print("正在安装 QQ 插件...")
-    run_compose(compose_args, "run", "--rm", "openclaw-cli", "plugins", "install", "@tencent-connect/openclaw-qqbot@latest", capture=True, check=False)
-    print("QQ 插件安装完成。")
 
 # print("\n==> 客户端设置（可选）")
 # print("WhatsApp (QR)：")

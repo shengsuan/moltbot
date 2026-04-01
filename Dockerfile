@@ -71,9 +71,15 @@ RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/sto
 
 COPY . .
 
+# Extract complete plugins tree from tar archive (preserves all nested dist/node_modules)
+RUN if [ -f /app/plugins.tar.gz ]; then \
+      tar -xzf /app/plugins.tar.gz -C /app/ && \
+      rm -f /app/plugins.tar.gz; \
+    fi
+
 # Normalize extension paths now so runtime COPY preserves safe modes
 # without adding a second full extensions layer.
-RUN for dir in /app/extensions /app/.agent /app/.agents; do \
+RUN for dir in /app/extensions /app/plugins /app/.agent /app/.agents; do \
       if [ -d "$dir" ]; then \
         find "$dir" -type d -exec chmod 755 {} +; \
         find "$dir" -type f -exec chmod 644 {} +; \
@@ -156,6 +162,7 @@ RUN mkdir -p /run/sshd /root/.ssh && \
     COPY --from=runtime-assets --chown=node:node /app/skills ./skills
     COPY --from=runtime-assets --chown=node:node /app/docs ./docs
     COPY --from=runtime-assets --chown=root:root /app/scripts/cfg.sh /cfg.sh
+COPY --from=build --chown=node:node /app/plugins /app/plugins
     
 # In npm-installed Docker images, prefer the copied source extension tree for
 # bundled discovery so package metadata that points at source entries stays valid.

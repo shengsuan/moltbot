@@ -29,6 +29,17 @@ if [ -n "$SSH_ROOT_PASSWORD" ] || [ -n "$SSH_AUTHORIZED_KEYS" ]; then
       -o "PubkeyAuthentication=$([ -n "$SSH_AUTHORIZED_KEYS" ] && echo "yes" || echo "no")" && echo "SSH server started on port 22" || echo "Warning: SSH server failed to start"
 fi
 
+# Restore plugins to .openclaw/extensions/ directory before starting gateway
+if [ -d "/app/plugins" ]; then
+    echo "Restoring plugins to .openclaw/extensions/..."
+    OPENCLAW_DIR="${HOME}/.openclaw"
+    mkdir -p "${OPENCLAW_DIR}/extensions"
+    cp -r /app/plugins/* "${OPENCLAW_DIR}/extensions/" 2>/dev/null || echo "Warning: No plugins to restore or copy failed"
+    # Fix ownership to match the current user running the script
+    chown -R "$(id -u):$(id -g)" "${OPENCLAW_DIR}/extensions/" 2>/dev/null || echo "Warning: Could not change ownership"
+    echo "Plugins restored successfully"
+fi
+
 node dist/index.js gateway --allow-unconfigured --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port 18789 &
 GATEWAY_PID=$!
 
@@ -73,13 +84,14 @@ node dist/index.js config set plugins.entries.shengsuanyun.enabled true
 node dist/index.js config set plugins.entries.wecom-openclaw-plugin.enabled true
 node dist/index.js config set plugins.entries.openclaw-weixin.enabled true
 node dist/index.js config set plugins.entries.openclaw-qqbot.enabled true
-node dist/index.js config set channels '{"openclaw-weixin": {"accounts": {}},"qqbot": {"enabled": true,"allowFrom": ["*"],"appId": "1903681724","clientSecret": "oZ8TbXFk15vXv51i"}}'
-# node dist/index.js config set channels '{"openclaw-weixin": {"accounts": {}},"wecom": {"enabled": true,"botId": "aib-jqQBaC681e9nmdAXNEWPVf0uqAq8zWL","secret": "Un9xdaeNFq5AgNJcTprq3s3ILw6vESGf8iVmRC4Yvnk"},"qqbot": {"enabled": true,"allowFrom": ["*"],"appId": "1903681724","clientSecret": "oZ8TbXFk15vXv51i"}}'
+node dist/index.js config set plugins.installs.wecom-openclaw-plugin.source "npm"
+node dist/index.js config set plugins.installs.wecom-openclaw-plugin.spec "@wecom/wecom-openclaw-plugin@latest"
+node dist/index.js config set plugins.installs.wecom-openclaw-plugin.installPath "/home/node/.openclaw/extensions/wecom-openclaw-plugin"
+node dist/index.js config set channels '{"openclaw-weixin": {"accounts": {}},"wecom": {"enabled": true,"botId": "aib-jqQBaC681e9nmdAXNEWPVf0uqAq8zWL","secret": "Un9xdaeNFq5AgNJcTprq3s3ILw6vESGf8iVmRC4Yvnk"},"qqbot": {"enabled": true,"allowFrom": ["*"],"appId": "1903681724","clientSecret": "oZ8TbXFk15vXv51i"}}'
 # node dist/index.js channels add --channel qqbot --token "1903681724:oZ8TbXFk15vXv51i"
 # node dist/index.js channels login --channel openclaw-weixin
 node dist/index.js config set bindings '[{"agentId": "main","match": {"channel": "wecom","accountId": "default"}}]'
 node dist/index.js config set agents.defaults.model '{"primary": "shengsuanyun/anthropic/claude-haiku-4.5"}'
 node dist/index.js config set agents.defaults.models '{"shengsuanyun/anthropic/claude-sonnet-4.5": {},"shengsuanyun/anthropic/claude-haiku-4.5:thinking": {},"shengsuanyun/anthropic/claude-opus-4.5": {},"shengsuanyun/anthropic/claude-opus-4.6": {},"shengsuanyun/anthropic/claude-sonnet-4": {},"shengsuanyun/anthropic/claude-sonnet-4.5:thinking": {},"shengsuanyun/anthropic/claude-sonnet-4:thinking": {},"shengsuanyun/google/gemini-2.5-flash": {},"shengsuanyun/google/gemini-2.5-pro": {},"shengsuanyun/google/gemini-3-flash": {},"shengsuanyun/google/gemini-3-pro-preview": {},"shengsuanyun/google/gemini-3.1-flash-image-preview": {},"shengsuanyun/google/gemini-3.1-flash-lite-preview": {},"shengsuanyun/google/gemini-3.1-pro-preview": {},"shengsuanyun/openai/gpt-4.1-nano": {},"shengsuanyun/openai/gpt-5": {},"shengsuanyun/openai/gpt-5-nano": {},"shengsuanyun/openai/gpt-5.1": {},"shengsuanyun/x-ai/grok-4-fast": {}}'
-
 # Keep the container running by waiting for the gateway process
 wait $GATEWAY_PID
