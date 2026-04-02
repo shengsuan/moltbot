@@ -61,11 +61,21 @@ export default definePluginEntry({
 
       wrapStreamFn: (ctx) => {
         let streamFn = ctx.streamFn;
-        const skipReasoningInjection =
-          ctx.modelId === "auto" || isProxyReasoningUnsupported(ctx.modelId);
+        const skipReasoningInjection = isProxyReasoningUnsupported(ctx.modelId);
         const openRouterThinkingLevel = skipReasoningInjection ? undefined : ctx.thinkingLevel;
         streamFn = createOpenRouterWrapper(streamFn, openRouterThinkingLevel);
         streamFn = createOpenRouterSystemCacheWrapper(streamFn);
+        const wrappedStreamFn = streamFn;
+        streamFn = (model, context, options) => {
+          return wrappedStreamFn(model, context, {
+            ...options,
+            headers: {
+              ...options?.headers,
+              "HTTP-Referer": "https://openclaw.ai",
+              "X-Title": "OpenClaw",
+            },
+          });
+        };
         return streamFn;
       },
     });

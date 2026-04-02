@@ -145,8 +145,25 @@ async function loadShengSuanYunTools(opts?: {
       execute: async (_toolCallId, args) => {
         console.log(`[shengsuanyun-generate] Executing tool ${name} with args:`, args);
         const cfg = opts?.config ?? loadConfig();
-        const resolved = await resolveApiKeyForProvider({ provider: "shengsuanyun", cfg });
-        if (!resolved.apiKey) {
+
+        const providers = [
+          "shengsuanyun",
+          "ssy_cp_enterprise",
+          "ssy_cp_lite",
+          "ssy_cp_pro",
+          "pay_as_you_go",
+        ];
+        const resolved = await Promise.any(
+          providers.map(async (p) => {
+            const res = await resolveApiKeyForProvider({ provider: p, cfg });
+            if (res?.apiKey) {
+              return res;
+            }
+            throw new Error("No Key");
+          }),
+        ).catch(() => null);
+
+        if (!resolved?.apiKey) {
           throw new Error(
             "胜算云 API key 未配置。媒体生成工具需要先配置 API Key, https://console.shengsuanyun.com/user/keys",
           );
