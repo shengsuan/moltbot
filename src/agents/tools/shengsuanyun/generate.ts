@@ -13,7 +13,8 @@ import type { AnyAgentTool } from "../common.ts";
 import { readStringParam, readStringArrayParam, readNumberParam } from "../common.ts";
 import { toolDescriptionMap } from "./meta.ts";
 import { saveMediaToWorkspace } from "./save-media.ts";
-
+import { createSubsystemLogger } from "openclaw/plugin-sdk/logging-core";
+const log = createSubsystemLogger("shengsuanyun-gennerate-tools");
 export const APP_HEADERS: Record<string, string> = {
   "HTTP-Referer": "https://openclaw.ai",
   "X-Title": "OpenClaw",
@@ -125,18 +126,16 @@ async function loadShengSuanYunTools(opts?: {
     try {
       inputSchema = JSON.parse(model.input_schema) as JsonSchema;
     } catch (e) {
-      console.log(`[shengsuanyun-generate] Parse input_schema error for ${model.model_name}:`, e);
+      log.warn(String(e)+`\t\t${model.api_name}`);
       continue;
     }
     let parameters: TSchema;
     try {
       parameters = generateTypebox(inputSchema);
     } catch (e) {
-      console.error(`[shengsuanyun-generate] generateTypebox error for ${model.model_name}:`, e);
+      log.warn(String(e)+`\t\t${model.api_name}`);
       continue;
     }
-    // console.log(`[shengsuanyun-generate] ${name}\n`);
-    // console.log(`${description}\n\n`);
     tools.push({
       label,
       name,
@@ -218,7 +217,7 @@ async function loadShengSuanYunTools(opts?: {
                 content.push(ctt);
               } catch (err) {
                 content.push({ type: "text", text: url });
-                console.log("saveMediaToWorkspace() function error:", err);
+                log.warn(String(err)+`\t\t saveMediaToWorkspace()`);
               }
             }
           } else {
