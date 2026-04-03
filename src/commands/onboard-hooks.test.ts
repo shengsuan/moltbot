@@ -147,7 +147,7 @@ describe("onboard-hooks", () => {
       expect(prompter.multiselect).toHaveBeenCalledWith({
         message: "Enable hooks?",
         options: [
-          { value: "__skip__", label: "Skip for now" },
+          { value: "__skip__", label: "暂时跳过" },
           {
             value: "session-memory",
             label: "💾 session-memory",

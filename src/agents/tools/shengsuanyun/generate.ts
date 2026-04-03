@@ -1,13 +1,13 @@
 import { ImageContent, TextContent } from "@mariozechner/pi-ai";
-import { Type, type TSchema } from "@sinclair/typebox";
-import type { OpenClawConfig } from "../../../config/config.ts";
-import { loadConfig } from "../../../config/config.ts";
-import { resolveApiKeyForProvider } from "../../model-auth.ts";
 import {
   getShengSuanYunModalityModels,
   SHENGSUANYUN_BASE_URL,
   TaskRes,
-} from "../../shengsuanyun-models.ts";
+} from "@openclaw/shengsuanyun/provider-catalog.ts";
+import { Type, type TSchema } from "@sinclair/typebox";
+import type { OpenClawConfig } from "../../../config/config.ts";
+import { loadConfig } from "../../../config/config.ts";
+import { resolveApiKeyForProvider } from "../../model-auth.ts";
 import { sanitizeToolResultImages } from "../../tool-images.ts";
 import type { AnyAgentTool } from "../common.ts";
 import { readStringParam, readStringArrayParam, readNumberParam } from "../common.ts";

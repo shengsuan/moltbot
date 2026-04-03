@@ -51,6 +51,7 @@ export async function finalizeSetupWizard(
   options: FinalizeOnboardingOptions,
 ): Promise<{ launchedTui: boolean }> {
   const { flow, opts, baseConfig, nextConfig, settings, prompter, runtime } = options;
+  let gatewayProbe: { ok: boolean; detail?: string } = { ok: true };
 
   const withWizardProgress = async <T>(
     label: string,
@@ -227,15 +228,33 @@ export async function finalizeSetupWizard(
       basePath: undefined,
     });
     // Daemon install/restart can briefly flap the WS; wait a bit so health check doesn't false-fail.
-    await waitForGatewayReachable({
+    gatewayProbe = await waitForGatewayReachable({
       url: probeLinks.wsUrl,
       token: settings.gatewayToken,
       deadlineMs: 15_000,
     });
-    try {
-      await healthCommand({ json: false, timeoutMs: 10_000 }, runtime);
-    } catch (err) {
-      runtime.error(formatHealthCheckFailure(err));
+    if (gatewayProbe.ok) {
+      try {
+        await healthCommand({ json: false, timeoutMs: 10_000 }, runtime);
+      } catch (err) {
+        runtime.error(formatHealthCheckFailure(err));
+        await prompter.note(
+          [
+            "Docs:",
+            "https://docs.openclaw.ai/gateway/health",
+            "https://docs.openclaw.ai/gateway/troubleshooting",
+          ].join("\n"),
+          "Health check help",
+        );
+      }
+    } else if (installDaemon) {
+      runtime.error(
+        formatHealthCheckFailure(
+          new Error(
+            gatewayProbe.detail ?? `gateway did not become reachable at ${probeLinks.wsUrl}`,
+          ),
+        ),
+      );
       await prompter.note(
         [
           "文档:",
@@ -243,6 +262,17 @@ export async function finalizeSetupWizard(
           "https://docs.openclaw.ai/gateway/troubleshooting",
         ].join("\n"),
         "健康检查帮助",
+      );
+    } else {
+      await prompter.note(
+        [
+          "Gateway not detected yet.",
+          "Setup was run without Gateway service install, so no background gateway is expected.",
+          `Start now: ${formatCliCommand("openclaw gateway run")}`,
+          `Or rerun with: ${formatCliCommand("openclaw onboard --install-daemon")}`,
+          `Or skip this probe next time: ${formatCliCommand("openclaw onboard --skip-health")}`,
+        ].join("\n"),
+        "Gateway",
       );
     }
   }
@@ -299,11 +329,13 @@ export async function finalizeSetupWizard(
     }
   }
 
-  const gatewayProbe = await probeGatewayReachable({
-    url: links.wsUrl,
-    token: settings.authMode === "token" ? settings.gatewayToken : undefined,
-    password: settings.authMode === "password" ? resolvedGatewayPassword : "",
-  });
+  if (opts.skipHealth || !gatewayProbe.ok) {
+    gatewayProbe = await probeGatewayReachable({
+      url: links.wsUrl,
+      token: settings.authMode === "token" ? settings.gatewayToken : undefined,
+      password: settings.authMode === "password" ? resolvedGatewayPassword : "",
+    });
+  }
   const gatewayStatusLine = gatewayProbe.ok
     ? "网关: 可访问"
     : `网关: 未检测到${gatewayProbe.detail ? ` (${gatewayProbe.detail})` : ""}`;
@@ -352,13 +384,13 @@ export async function finalizeSetupWizard(
 
     await prompter.note(
       [
-        "Gateway 令牌: 为 Gateway 和用户界面共享认证信息.",
-        "保存在: ~/.openclaw/openclaw.json (gateway.auth.token) 或 OPENCLAW_GATEWAY_TOKEN.",
+        "网关令牌：网关 + 控制 UI 的共享身份验证。",
+        "存储在：$OPENCLAW_CONFIG_PATH（默认：~/.openclaw/openclaw.json）中的 gateway.auth.token，或 OPENCLAW_GATEWAY_TOKEN 中。",
         `查看令牌: ${formatCliCommand("openclaw config get gateway.auth.token")}`,
         `生成令牌: ${formatCliCommand("openclaw doctor --generate-gateway-token")}`,
-        "Web UI 在此浏览器的 localStorage (openclaw.control.settings.v1) 中存储副本。",
-        `随时打开仪表板: ${formatCliCommand("openclaw dashboard --no-open")}`,
-        "如果提示：将令牌粘贴到控制 UI 设置中（或使用带令牌的仪表板 URL）。",
+        "Web UI 会将当前标签页的仪表盘 URL 令牌保存在内存中，并在加载完成后从 URL 中移除这些令牌。",
+        `随时打开仪表盘: ${formatCliCommand("openclaw dashboard --no-open")}`,
+        "如果出现提示：将令牌粘贴到 Control UI 设置中（或使用令牌化的仪表板 URL）。",
       ].join("\n"),
       "令牌",
     );
@@ -437,6 +469,7 @@ export async function finalizeSetupWizard(
 
   const shouldOpenControlUi =
     !opts.skipUi &&
+    gatewayProbe.ok &&
     settings.authMode === "token" &&
     Boolean(settings.gatewayToken) &&
     hatchChoice === null;
@@ -473,6 +506,8 @@ export async function finalizeSetupWizard(
     );
   }
 
+  const { describeCodexNativeWebSearch } = await import("../agents/codex-native-web-search.js");
+  const codexNativeSummary = describeCodexNativeWebSearch(nextConfig);
   const webSearchProvider = nextConfig.tools?.web?.search?.provider;
   const webSearchEnabled = nextConfig.tools?.web?.search?.enabled;
   const configuredSearchProviders = listConfiguredWebSearchProviders({ config: nextConfig });
@@ -552,6 +587,15 @@ export async function finalizeSetupWizard(
         ].join("\n"),
         "网络搜索",
       );
+    } else if (codexNativeSummary) {
+      await prompter.note(
+        [
+          "Managed web search provider was skipped.",
+          codexNativeSummary,
+          "Docs: https://docs.openclaw.ai/tools/web",
+        ].join("\n"),
+        "Web search",
+      );
     } else {
       await prompter.note(
         [
@@ -563,6 +607,17 @@ export async function finalizeSetupWizard(
         "网络搜索",
       );
     }
+  }
+
+  if (codexNativeSummary) {
+    await prompter.note(
+      [
+        codexNativeSummary,
+        "Used only for Codex-capable models.",
+        "Docs: https://docs.openclaw.ai/tools/web",
+      ].join("\n"),
+      "Codex native search",
+    );
   }
 
   await prompter.note(

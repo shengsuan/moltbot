@@ -52,6 +52,8 @@ export async function promptRemoteGatewayConfig(
 ): Promise<OpenClawConfig> {
   let selectedBeacon: GatewayBonjourBeacon | null = null;
   let suggestedUrl = cfg.gateway?.remote?.url ?? DEFAULT_GATEWAY_URL;
+  let discoveryTlsFingerprint: string | undefined;
+  let trustedDiscoveryUrl: string | undefined;
 
   const hasBonjourTool = (await detectBinary("dns-sd")) || (await detectBinary("avahi-browse"));
   const wantsDiscover = hasBonjourTool
@@ -113,14 +115,27 @@ export async function promptRemoteGatewayConfig(
       });
       if (mode === "direct") {
         suggestedUrl = `wss://${host}:${port}`;
-        await prompter.note(
-          [
-            "默认通过 TLS 直连远程服务器",
-            `使用: ${suggestedUrl}`,
-            "如果 gateway 仅使用回环地址, 选择 SSH tunnel 连接 ws://127.0.0.1:18789.",
-          ].join("\n"),
-          "远程直连",
-        );
+        const fingerprint = target.endpoint.gatewayTlsFingerprintSha256;
+        const trusted = await prompter.confirm({
+          message: `信任此 gateway? Host: ${host}:${port} TLS fingerprint: ${fingerprint ?? "未公开宣传（连接不会被固定）"}`,
+          initialValue: false,
+        });
+        if (trusted) {
+          discoveryTlsFingerprint = fingerprint;
+          trustedDiscoveryUrl = suggestedUrl;
+          await prompter.note(
+            [
+              "直接远程访问默认使用TLS协议。",
+              `Using: ${suggestedUrl}`,
+              ...(fingerprint ? [`TLS pin: ${fingerprint}`] : []),
+              "如果您的网关仅支持环回，请选择 SSH 隧道并保留 ws://127.0.0.1:18789.",
+            ].join("\n"),
+            "Direct remote",
+          );
+        } else {
+          // Clear the discovered endpoint so the manual prompt falls back to a safe default.
+          suggestedUrl = DEFAULT_GATEWAY_URL;
+        }
       } else {
         suggestedUrl = DEFAULT_GATEWAY_URL;
         await prompter.note(
@@ -141,6 +156,8 @@ export async function promptRemoteGatewayConfig(
     validate: (value) => validateGatewayWebSocketUrl(String(value)),
   });
   const url = ensureWsUrl(String(urlInput));
+  const pinnedDiscoveryFingerprint =
+    discoveryTlsFingerprint && url === trustedDiscoveryUrl ? discoveryTlsFingerprint : undefined;
 
   const authChoice = await prompter.select({
     message: "Gateway 认证",
@@ -231,6 +248,7 @@ export async function promptRemoteGatewayConfig(
         url,
         ...(token !== undefined ? { token } : {}),
         ...(password !== undefined ? { password } : {}),
+        ...(pinnedDiscoveryFingerprint ? { tlsFingerprint: pinnedDiscoveryFingerprint } : {}),
       },
     },
   };

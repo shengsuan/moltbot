@@ -1,9 +1,4 @@
-import {
-  DISCORD_DEFAULT_INBOUND_WORKER_TIMEOUT_MS,
-  DISCORD_DEFAULT_LISTENER_TIMEOUT_MS,
-} from "../../extensions/discord/timeouts.js";
 import { MEDIA_AUDIO_FIELD_HELP } from "./media-audio-field-metadata.js";
-import { IRC_FIELD_HELP } from "./schema.irc.js";
 import { describeTalkSilenceTimeoutDefaults } from "./talk-defaults.js";
 
 export const FIELD_HELP: Record<string, string> = {
@@ -211,7 +206,7 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.list[].runtime.acp":
     "当 runtime.type=acp 时此代理的 ACP 运行时默认值。绑定级别 ACP 覆盖仍按对话优先。",
   "agents.list[].runtime.acp.agent":
-    "此 OpenClaw 代理要使用的可选 ACP 工具代理 id（例如 codex、claude）。",
+    "Optional ACP harness agent id to use for this OpenClaw agent (for example codex, claude, cursor, gemini, openclaw).",
   "agents.list[].runtime.acp.backend":
     "此代理的 ACP 会话的可选 ACP 后端覆盖（回退到全局 acp.backend）。",
   "agents.list[].runtime.acp.mode": "此代理的可选 ACP 会话模式默认值（persistent 或 oneshot）。",
@@ -296,7 +291,7 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.exec":
     "Exec 工具策略分组，用于 shell 执行主机、安全模式、批准行为和运行时绑定。在生产中保持保守的默认设置，并加强提升执行路径。",
   "tools.exec.host":
-    "为 shell 命令选择执行主机策略，通常控制本地对一个委托执行环境。使用仍然满足自动化要求的最安全的主机模式。",
+    'Selects execution target strategy for shell commands. Use "auto" for runtime-aware behavior (sandbox when available, otherwise gateway), or pin sandbox/gateway/node explicitly when you need a fixed surface.',
   "tools.exec.security":
     "执行安全态势选择器控制命令执行的沙箱/批准期望。对于不受信任的提示保持严格安全模式，仅对受信任的操作员工作流放宽。",
   "tools.exec.ask":
@@ -416,7 +411,9 @@ export const FIELD_HELP: Record<string, string> = {
   "gateway.nodes.allowCommands":
     "超出网关默认值的额外 node.invoke 命令允许（命令字符串数组）。在此启用危险命令是对安全敏感的覆盖，由 `openclaw security audit` 标记。",
   "gateway.nodes.denyCommands":
-    "即使存在于节点声明或默认允许列表中也要阻止的节点命令名称（仅精确命令名称匹配，例如 `system.run`；不检查该命令内的 shell 文本）。",
+    "Node command names to block even if present in node claims or default allowlist (exact command-name matching only, e.g. `system.run`; does not inspect shell text inside that command).",
+  "gateway.webchat.chatHistoryMaxChars":
+    "Max characters per text field in chat.history responses before truncation (default: 12000).",
   nodeHost:
     "节点主机控制，用于从此网关节点向其他节点或客户端暴露的功能。保持默认值，除非您有意在节点网络中代理本地功能。",
   "nodeHost.browserProxy":
@@ -504,11 +501,13 @@ export const FIELD_HELP: Record<string, string> = {
     "以毫秒为单位的间隔，用于从缓冲区定期刷新遥测到收集器。增加以减少导出聊天，或降低以在活跃事件响应期间获得更快的可见性。",
   "diagnostics.cacheTrace.enabled": "记录嵌入式代理运行的缓存迹线快照（默认值：false）。",
   "diagnostics.cacheTrace.filePath":
-    "缓存迹线日志的 JSONL 输出路径（默认值：$OPENCLAW_STATE_DIR/logs/cache-trace.jsonl）。",
-  "diagnostics.cacheTrace.includeMessages": "在迹线输出中包括完整消息负载（默认值：true）。",
-  "diagnostics.cacheTrace.includePrompt": "在迹线输出中包括 prompt 文本（默认值：true）。",
-  "diagnostics.cacheTrace.includeSystem": "在迹线输出中包括系统 prompt（默认值：true）。",
-  "tools.exec.applyPatch.enabled": "实验性。在工具策略允许时为 OpenAI 模型启用 apply_patch。",
+    "JSONL output path for cache trace logs (default: $OPENCLAW_STATE_DIR/logs/cache-trace.jsonl).",
+  "diagnostics.cacheTrace.includeMessages":
+    "Include full message payloads in trace output (default: true).",
+  "diagnostics.cacheTrace.includePrompt": "Include prompt text in trace output (default: true).",
+  "diagnostics.cacheTrace.includeSystem": "Include system prompt in trace output (default: true).",
+  "tools.exec.applyPatch.enabled":
+    "Enable or disable apply_patch for OpenAI and OpenAI Codex models when allowed by tool policy (default: true).",
   "tools.exec.applyPatch.workspaceOnly":
     "将 apply_patch 路径限制在工作区目录中（默认值：true）。设置为 false 允许在工作区外写入（危险）。",
   "tools.exec.applyPatch.allowModels":
@@ -602,7 +601,7 @@ export const FIELD_HELP: Record<string, string> = {
   "skills.load.watchDebounceMs":
     "防抖窗口（毫秒），用于在重新加载逻辑运行前合并快速技能文件变更。增加以减少频繁写入上的重新加载混乱，或降低以获得更快的编辑反馈。",
   approvals:
-    "批准路由控制，用于将 exec 批准请求转发到源会话外的聊天目标。保持此禁用，除非操作员需要显式的带外批准可见性。",
+    "Approval routing controls for forwarding exec and plugin approval requests to chat destinations outside the originating session. Keep these disabled unless operators need explicit out-of-band approval visibility.",
   "approvals.exec":
     "组 exec 批准转发行为，包括启用、路由模式、过滤器和显式目标。当批准提示必须到达运营频道而不仅是源线程时在此配置。",
   "approvals.exec.enabled":
@@ -622,29 +621,73 @@ export const FIELD_HELP: Record<string, string> = {
   "approvals.exec.targets[].accountId":
     "可选的账户选择器，用于多账户频道设置，当批准必须通过特定账户上下文路由时。仅当目标频道有多个配置身份时使用此选项。",
   "approvals.exec.targets[].threadId":
-    "可选的线程/主题目标，用于支持转发批准的线程传递的频道。使用此将批准流量保持在运营线程中而不是主频道。",
+    "Optional thread/topic target for channels that support threaded delivery of forwarded approvals. Use this to keep approval traffic contained in operational threads instead of main channels.",
+  "approvals.plugin":
+    "Groups plugin-approval forwarding behavior including enablement, routing mode, filters, and explicit targets. Independent of exec approval forwarding. Configure here when plugin approval prompts must reach operational channels.",
+  "approvals.plugin.enabled":
+    "Enables forwarding of plugin approval requests to configured delivery destinations (default: false). Independent of approvals.exec.enabled.",
+  "approvals.plugin.mode":
+    'Controls where plugin approval prompts are sent: "session" uses origin chat, "targets" uses configured targets, and "both" sends to both paths.',
+  "approvals.plugin.agentFilter":
+    'Optional allowlist of agent IDs eligible for forwarded plugin approvals, for example `["primary", "ops-agent"]`. Use this to limit forwarding blast radius.',
+  "approvals.plugin.sessionFilter":
+    'Optional session-key filters matched as substring or regex-style patterns, for example `["discord:", "^agent:ops:"]`. Use narrow patterns so only intended approval contexts are forwarded.',
+  "approvals.plugin.targets":
+    "Explicit delivery targets used when plugin approval forwarding mode includes targets, each with channel and destination details.",
+  "approvals.plugin.targets[].channel":
+    "Channel/provider ID used for forwarded plugin approval delivery, such as discord, slack, or a plugin channel id.",
+  "approvals.plugin.targets[].to":
+    "Destination identifier inside the target channel (channel ID, user ID, or thread root depending on provider).",
+  "approvals.plugin.targets[].accountId":
+    "Optional account selector for multi-account channel setups when plugin approvals must route through a specific account context.",
+  "approvals.plugin.targets[].threadId":
+    "Optional thread/topic target for channels that support threaded delivery of forwarded plugin approvals.",
   "tools.fs.workspaceOnly":
     "将文件系统工具（读/写/编辑/apply_patch）限制在工作区目录中（默认值：false）。",
   "tools.sessions.visibility":
     '控制哪些会话可由 sessions_list/sessions_history/sessions_send 目标。（"tree" 默认 = 当前会话 + 衍生子代理会话；"self" = 仅当前；"agent" = 当前代理 ID 中的任何会话；"all" = 任何会话；跨代理仍需要 tools.agentToAgent）。',
   "tools.message.allowCrossContextSend": "旧版覆盖：允许跨所有提供商的跨上下文发送。",
   "tools.message.crossContext.allowWithinProvider":
-    "允许在同一提供商内发送到其他频道（默认值：true）。",
-  "tools.message.crossContext.allowAcrossProviders": "允许跨不同提供商的发送（默认值：false）。",
-  "tools.message.crossContext.marker.enabled": "在跨上下文发送时添加可见的源标记（默认值：true）。",
-  "tools.message.crossContext.marker.prefix": '跨上下文标记的文本前缀（支持 "{channel}"）。',
-  "tools.message.crossContext.marker.suffix": '跨上下文标记的文本后缀（支持 "{channel}"）。',
-  "tools.message.broadcast.enabled": "启用广播操作(默认值：true)。",
-  "tools.web.search.enabled": "启用 web_search 工具(需要提供商 API 密钥)。",
+    "Allow sends to other channels within the same provider (default: true).",
+  "tools.message.crossContext.allowAcrossProviders":
+    "Allow sends across different providers (default: false).",
+  "tools.message.crossContext.marker.enabled":
+    "Add a visible origin marker when sending cross-context (default: true).",
+  "tools.message.crossContext.marker.prefix":
+    'Text prefix for cross-context markers (supports "{channel}").',
+  "tools.message.crossContext.marker.suffix":
+    'Text suffix for cross-context markers (supports "{channel}").',
+  "tools.message.broadcast.enabled": "Enable broadcast action (default: true).",
+  "tools.web.search.enabled":
+    "Enable managed web_search and optional Codex-native search for eligible models.",
   "tools.web.search.provider":
     "Search provider id. Auto-detected from available API keys if omitted.",
   "tools.web.search.maxResults": "Number of results to return (1-10).",
   "tools.web.search.timeoutSeconds": "Timeout in seconds for web_search requests.",
   "tools.web.search.cacheTtlMinutes": "Cache TTL in minutes for web_search results.",
+  "tools.web.search.openaiCodex.enabled":
+    "Enable native Codex web search for Codex-capable models.",
+  "tools.web.search.openaiCodex.mode":
+    'Native Codex web search mode: "cached" (default) or "live".',
+  "tools.web.search.openaiCodex.allowedDomains":
+    "Optional domain allowlist passed to the native Codex web_search tool.",
+  "tools.web.search.openaiCodex.contextSize":
+    'Native Codex search context size hint: "low", "medium", or "high".',
+  "tools.web.search.openaiCodex.userLocation.country":
+    "Approximate country sent to native Codex web search.",
+  "tools.web.search.openaiCodex.userLocation.region":
+    "Approximate region/state sent to native Codex web search.",
+  "tools.web.search.openaiCodex.userLocation.city":
+    "Approximate city sent to native Codex web search.",
+  "tools.web.search.openaiCodex.userLocation.timezone":
+    "Approximate timezone sent to native Codex web search.",
+  "tools.web.search.brave.mode":
+    'Brave Search mode: "web" (URL results) or "llm-context" (pre-extracted page content for LLM grounding).',
   "tools.web.fetch.enabled": "Enable the web_fetch tool (lightweight HTTP fetch).",
   "tools.web.fetch.maxChars": "Max characters returned by web_fetch (truncated).",
   "tools.web.fetch.maxCharsCap":
     "Hard cap for web_fetch maxChars (applies to config and tool calls).",
+  "tools.web.fetch.maxResponseBytes": "Max download size before truncation.",
   "tools.web.fetch.timeoutSeconds": "Timeout in seconds for web_fetch requests.",
   "tools.web.fetch.cacheTtlMinutes": "Cache TTL in minutes for web_fetch results.",
   "tools.web.fetch.maxRedirects": "Maximum redirects allowed for web_fetch (default: 3).",
@@ -656,9 +699,20 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.web.fetch.firecrawl.baseUrl":
     "Firecrawl 基本 URL(例如 https://api.firecrawl.dev 或自定义端点)。",
   "tools.web.fetch.firecrawl.onlyMainContent":
-    "当为 true 时，Firecrawl 仅返回主要内容(默认：true)。",
-  "tools.web.fetch.firecrawl.maxAgeMs": "Firecrawl maxAge(毫秒)，用于 API 支持时的缓存结果。",
-  "tools.web.fetch.firecrawl.timeoutSeconds": "Firecrawl 请求的超时时间(秒)。",
+    "When true, Firecrawl returns only the main content (default: true).",
+  "tools.web.fetch.firecrawl.maxAgeMs":
+    "Firecrawl maxAge (ms) for cached results when supported by the API.",
+  "tools.web.fetch.firecrawl.timeoutSeconds": "Timeout in seconds for Firecrawl requests.",
+  "tools.web.x_search.enabled":
+    "Enable the x_search tool (requires XAI_API_KEY or tools.web.x_search.apiKey).",
+  "tools.web.x_search.apiKey": "xAI API key for X search (fallback: XAI_API_KEY env var).",
+  "tools.web.x_search.model": 'Model to use for X search (default: "grok-4-1-fast-non-reasoning").',
+  "tools.web.x_search.inlineCitations":
+    "Keep inline citations from xAI in x_search responses when available (default: false).",
+  "tools.web.x_search.maxTurns":
+    "Optional max internal search/tool turns xAI may use per x_search request. Omit to let xAI choose.",
+  "tools.web.x_search.timeoutSeconds": "Timeout in seconds for x_search requests.",
+  "tools.web.x_search.cacheTtlMinutes": "Cache TTL in minutes for x_search results.",
   models:
     "模型目录根用于提供商定义、合并/替换行为和可选的 Bedrock 发现集成。在依赖生产故障转移路径之前保持提供商定义明确和经过验证。",
   "models.mode":
@@ -696,18 +750,12 @@ export const FIELD_HELP: Record<string, string> = {
   "models.bedrockDiscovery.defaultMaxTokens":
     "Fallback max-token value applied to discovered models without explicit output token limits. Use conservative defaults to reduce truncation surprises and unexpected token spend.",
   auth: "Authentication profile root used for multi-profile provider credentials and cooldown-based failover ordering. Keep profiles minimal and explicit so automatic failover behavior stays auditable.",
-  "channels.slack.allowBots":
-    "Allow bot-authored messages to trigger Slack replies (default: false).",
   "channels.matrix.allowBots":
     'Allow messages from other configured Matrix bot accounts to trigger replies (default: false). Set "mentions" to only accept bot messages that visibly mention this bot.',
-  "channels.slack.thread.historyScope":
-    'Slack 线程历史上下文的范围（"thread" 隔离按线程；"channel" 重用通道历史）。',
-  "channels.slack.thread.inheritParent":
-    "如果为 true，Slack 线程会话继承父通道记录（默认：false）。",
-  "channels.slack.thread.initialHistoryLimit":
-    "启动新线程会话时要获取的现有 Slack 线程消息的最大数量（默认：20，设置为 0 以禁用）。",
-  "channels.mattermost.botToken": "来自 Mattermost 系统控制台 -> 集成 -> 机器人账户的机器人令牌。",
-  "channels.mattermost.baseUrl": "Mattermost 服务器的基本 URL（例如 https://chat.example.com）。",
+  "channels.mattermost.botToken":
+    "Bot token from Mattermost System Console -> Integrations -> Bot Accounts.",
+  "channels.mattermost.baseUrl":
+    "Base URL for your Mattermost server (e.g., https://chat.example.com).",
   "channels.mattermost.chatmode":
     '对通道消息上提及("oncall")、触发字符(">""!")("onchar")或每条消息("onmessage")时进行回复。',
   "channels.mattermost.oncharPrefixes": '触发 onchar 模式的前缀（默认：[">", "!"]）。',
@@ -717,10 +765,17 @@ export const FIELD_HELP: Record<string, string> = {
   "auth.cooldowns":
     "冷却/回退控制，用于在与计费相关的故障和重试窗口后临时配置文件抑制。使用这些防止快速重新选择仍被阻止的配置文件。",
   "auth.cooldowns.billingBackoffHours":
-    "当配置文件因计费/信用不足而失败时的基本回退（小时）（默认：5）。",
-  "auth.cooldowns.billingBackoffHoursByProvider": "计费回退（小时）的可选各提供商覆盖。",
-  "auth.cooldowns.billingMaxHours": "计费回退的上限（小时）（默认：24）。",
-  "auth.cooldowns.failureWindowHours": "回退计数器的故障窗口（小时）（默认：24）。",
+    "Base backoff (hours) when a profile fails due to billing/insufficient credits (default: 5).",
+  "auth.cooldowns.billingBackoffHoursByProvider":
+    "Optional per-provider overrides for billing backoff (hours).",
+  "auth.cooldowns.billingMaxHours": "Cap (hours) for billing backoff (default: 24).",
+  "auth.cooldowns.failureWindowHours": "Failure window (hours) for backoff counters (default: 24).",
+  "auth.cooldowns.overloadedProfileRotations":
+    "Maximum same-provider auth-profile rotations allowed for overloaded errors before switching to model fallback (default: 1).",
+  "auth.cooldowns.overloadedBackoffMs":
+    "Fixed delay in milliseconds before retrying an overloaded provider/profile rotation (default: 0).",
+  "auth.cooldowns.rateLimitedProfileRotations":
+    "Maximum same-provider auth-profile rotations allowed for rate-limit errors before switching to model fallback (default: 1).",
   "agents.defaults.workspace":
     "暴露给代理运行时工具的默认工作区路径，用于文件系统上下文和仓库感知行为。在从包装器中运行时明确设置此项，以便路径分辨率保持确定性。",
   "agents.defaults.bootstrapMaxChars":
@@ -742,6 +797,16 @@ export const FIELD_HELP: Record<string, string> = {
     '选择哪些源被索引："memory" 读取 MEMORY.md + 内存文件，"sessions" 包括转录历史。除非您需要来自先前聊天转录的召回，否则保持 ["memory"]。',
   "agents.defaults.memorySearch.extraPaths":
     "Adds extra directories or .md files to the memory index beyond default memory files. Use this when key reference docs live elsewhere in your repo; when multimodal memory is enabled, matching image/audio files under these paths are also eligible for indexing.",
+  "agents.defaults.memorySearch.qmd":
+    "Use this when one agent should query another agent's transcript collections; QMD-specific extra collections let you opt into cross-agent memory search without flattening everything into one shared namespace.",
+  "agents.defaults.memorySearch.qmd.extraCollections":
+    "Use this when you need directional transcript search across agents; add collections here to scope QMD recalls without creating a shared global transcript namespace.",
+  "agents.defaults.memorySearch.qmd.extraCollections.path":
+    "Use an absolute or workspace-relative filesystem path for the extra QMD collection; keep it pointed at the transcript directory or note folder you actually want this agent to search.",
+  "agents.defaults.memorySearch.qmd.extraCollections.name":
+    "Preserves the configured collection label only when the path points outside the agent workspace; paths inside the workspace stay agent-scoped even if a name is provided. Use this for shared cross-agent transcript roots that live outside the workspace.",
+  "agents.defaults.memorySearch.qmd.extraCollections.pattern":
+    "Use a glob pattern to restrict which files inside the collection are indexed; keep the default `**/*.md` unless you need a narrower subset.",
   "agents.defaults.memorySearch.multimodal":
     'Optional multimodal memory settings for indexing image and audio files from configured extra paths. Keep this off unless your embedding model explicitly supports cross-modal embeddings, and set `memorySearch.fallback` to "none" while it is enabled. Matching files are uploaded to the configured remote embedding provider during indexing.',
   "agents.defaults.memorySearch.multimodal.enabled":
@@ -826,7 +891,9 @@ export const FIELD_HELP: Record<string, string> = {
   "memory.qmd.mcporter.startDaemon":
     "启用 mcporter 支持的 QMD 模式时自动启动 mcporter 守护进程（默认：true）。除非进程生命周期由您的服务监督员外部管理，否则保持启用。",
   "memory.qmd.searchMode":
-    '选择 QMD 检索路径："query" 使用标准查询流、"search" 使用搜索定向检索、"vsearch" 强调向量检索。除非调整相关性质量，否则保持默认。',
+    'Selects the QMD retrieval path: "query" uses standard query flow, "search" uses search-oriented retrieval, and "vsearch" emphasizes vector retrieval. Keep default unless tuning relevance quality.',
+  "memory.qmd.searchTool":
+    "Overrides the exact mcporter tool name used for QMD searches while preserving `searchMode` as the semantic retrieval mode. Use this only when your QMD MCP server exposes a custom tool such as `hybrid_search` and keep it unset for the normal built-in tool mapping.",
   "memory.qmd.includeDefaultMemory":
     "自动将默认内存文件（MEMORY.md 和 memory/**/*.md）索引到 QMD 集合中。除非您只想通过显式自定义路径控制索引，否则保持启用。",
   "memory.qmd.paths":
@@ -936,8 +1003,7 @@ export const FIELD_HELP: Record<string, string> = {
   "plugins.installs.*.source": 'Install source ("npm", "archive", or "path").',
   "plugins.installs.*.spec": "Original npm spec used for install (if source is npm).",
   "plugins.installs.*.sourcePath": "Original archive/path used for install (if any).",
-  "plugins.installs.*.installPath":
-    "Resolved install directory (usually ~/.openclaw/extensions/<id>).",
+  "plugins.installs.*.installPath": "Resolved install directory for the installed plugin bundle.",
   "plugins.installs.*.version": "Version recorded at install time (if available).",
   "plugins.installs.*.resolvedName": "Resolved npm package name from the fetched artifact.",
   "plugins.installs.*.resolvedVersion":
@@ -1010,6 +1076,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Optional provider/model override used only for compaction summarization. Set this when you want compaction to run on a different model than the session default, and leave it unset to keep using the primary agent model.",
   "agents.defaults.compaction.truncateAfterCompaction":
     "When enabled, rewrites the session JSONL file after compaction to remove entries that were summarized. Prevents unbounded file growth in long-running sessions with many compaction cycles. Default: false.",
+  "agents.defaults.compaction.notifyUser":
+    "When enabled, sends a brief compaction notice to the user (e.g. '🧹 Compacting context...') when compaction starts. Disabled by default to keep compaction silent and non-intrusive.",
   "agents.defaults.compaction.memoryFlush":
     "预压缩内存刷新设置会在进行大量内存压缩之前执行一次主动内存写入操作。长时间会话期间请保持启用状态，以便在进行大幅度内存修剪之前保留关键上下文信息。",
   "agents.defaults.compaction.memoryFlush.enabled":
@@ -1338,29 +1406,17 @@ export const FIELD_HELP: Record<string, string> = {
   "messages.removeAckAfterReply":
     "在启用时在最终回复传递后移除确认反应。在频道中保持启用状态，其中持久 ack 反应创建混乱以获得更清洁的 UX。",
   "messages.tts":
-    "文本到语音策略，用于在支持的语音或音频表面上朗读代理回复。除非语音播放是操作员/用户工作流的一部分，否则保持禁用状态。",
+    "Text-to-speech policy for reading agent replies aloud on supported voice or audio surfaces. Keep disabled unless voice playback is part of your operator/user workflow.",
+  "messages.tts.providers":
+    "Provider-specific TTS settings keyed by speech provider id. Use this instead of bundled provider-specific top-level keys so speech plugins stay decoupled from core config schema.",
+  "messages.tts.providers.*":
+    "Provider-specific TTS configuration for one speech provider id. Keep fields scoped to the plugin that owns that provider.",
+  "messages.tts.providers.*.apiKey":
+    "Provider API key used by that speech provider when its plugin requires authenticated TTS access.", // pragma: allowlist secret
   channels:
-    "频道提供商配置加共享默认值，控制访问策略、心跳可见性和每表面行为。保持默认值集中化并仅在需要时按提供商覆盖。",
-  "channels.telegram":
-    "Telegram 频道提供商配置，包括身份验证令牌、重试行为和消息呈现控制。使用此部分来调整特定于 Telegram API 语义的机器人行为。",
-  "channels.slack":
-    "Slack 频道提供商配置，适用于机器人/应用令牌、流式处理行为和 DM 策略控制。保持令牌处理和线程行为明确以避免嘈杂的工作区交互。",
-  "channels.discord":
-    "Discord 频道提供商配置，用于机器人身份验证、重试策略、流式处理、线程绑定和可选语音功能。保持特权意图和高级功能禁用，除非需要。",
-  "channels.whatsapp":
-    "WhatsApp 频道提供商配置，用于访问策略和消息批处理行为。使用此部分来调整 WhatsApp 聊天的响应性和直接消息路由安全性。",
-  "channels.signal":
-    "Signal 频道提供商配置，包括帐户身份和 DM 策略行为。保持帐户映射明确以便路由在多设备设置中保持稳定。",
-  "channels.imessage":
-    "iMessage 频道提供商配置，用于 CLI 集成和 DM 访问策略处理。当运行时环境有非标准二进制位置时显式设置 CLI 路径。",
-  "channels.bluebubbles":
-    "BlueBubbles 频道提供商配置，用于 Apple 消息传递桥接集成。在共享部署中保持 DM 策略与受信任的发件人模型对齐。",
-  "channels.msteams":
-    "Microsoft Teams 频道提供商配置和提供商特定的策略切换。使用此部分从其他企业聊天提供商隔离 Teams 行为。",
+    "Channel provider configurations plus shared defaults that control access policies, heartbeat visibility, and per-surface behavior. Keep defaults centralized and override per provider only where required.",
   "channels.mattermost":
-    "Mattermost 频道提供商配置，用于机器人凭证、基础 URL 和消息触发模式。在高流量团队频道中保持提及/触发规则严格。",
-  "channels.irc":
-    "IRC 频道提供商配置和经典 IRC 传输工作流的兼容性设置。当将旧版聊天基础结构桥接到 OpenClaw 中时使用此部分。",
+    "Mattermost channel provider configuration for bot credentials, base URL, and message trigger modes. Keep mention/trigger rules strict in high-volume team channels.",
   "channels.defaults":
     "应用于未设置特定于提供商的设置的提供商时的默认频道行为。使用此在按提供商调整之前强制执行一致的基线策略。",
   "channels.defaults.groupPolicy":
@@ -1376,68 +1432,11 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.heartbeat.directPolicy":
     '控制心跳传递是否可能针对直接/DM 聊天："allow"(允许)(默认)允许 DM 传递，"block"(阻止)禁止直接目标发送。',
   "agents.list.*.heartbeat.directPolicy":
-    '每代理心跳直接/DM 传递策略的覆盖；对于应仅将心跳警报发送到非 DM 目标的代理使用"block"。',
-  "channels.telegram.configWrites": "允许 Telegram 响应频道事件/命令写入配置(默认值：true)。",
-  "channels.telegram.botToken":
-    "用于对此帐户/提供商配置的 Bot API 请求进行身份验证的 Telegram 机器人令牌。使用秘密/环境替换，如果怀疑泄露，请轮换令牌。",
-  "channels.telegram.capabilities.inlineButtons":
-    "启用受支持的命令和交互表面的 Telegram 内联按钮组件。如果部署需要纯文本唯一兼容性行为，则禁用。",
-  "channels.telegram.execApprovals":
-    "Telegram 本机 exec 批准路由和批准者授权。仅当 Telegram 应为所选机器人帐户充当显式 exec 批准客户端时启用此选项。",
-  "channels.telegram.execApprovals.enabled":
-    "为此帐户启用 Telegram exec 批准。当为假或未设置时，Telegram 消息/按钮无法批准 exec 请求。",
-  "channels.telegram.execApprovals.approvers":
-    "允许为此机器人帐户批准 exec 请求的 Telegram 用户 ID。使用数字 Telegram 用户 ID；当目标包括 dm 时，提示仅传递给这些批准者。",
-  "channels.telegram.execApprovals.agentFilter":
-    '可选的符合 Telegram exec 审批条件的代理 ID 的允许列表，例如 `["main", "ops-agent"]`。使用此将批准提示的范围限制在实际从 Telegram 操作的代理。',
-  "channels.telegram.execApprovals.sessionFilter":
-    "在 Telegram 批准路由之前与子字符串或正则表达式样式模式匹配的可选会话密钥过滤器。使用窄模式以便 Telegram 批准仅出现在预期的会话中。",
-  "channels.telegram.execApprovals.target":
-    '控制 Telegram 批准提示的发送位置："dm"(直接消息)发送到批准者 DM(默认)、"channel"(频道)发送到原始 Telegram 聊天/主题，"both"(两者)发送到两者。频道传递向聊天公开命令文本，因此仅在受信任的群组/主题中使用。',
-  "channels.slack.configWrites": "允许 Slack 响应频道事件/命令写入配置(默认值：true)。",
-  "channels.slack.botToken":
-    "在配置的工作区中用于标准聊天操作的 Slack 机器人令牌。保持此凭证作用域和旋转(如果工作区应用权限更改)。",
-  "channels.slack.appToken":
-    "启用时用于 Socket 模式连接和事件传输的 Slack 应用级令牌。使用最少权限应用作用域并将此令牌存储为秘密。",
-  "channels.slack.userToken":
-    "用于需要超出机器人权限的用户上下文 API 访问的工作流的可选 Slack 用户令牌。谨慎使用并审计作用域，因为此令牌可能具有更广泛的权限。",
-  "channels.slack.userTokenReadOnly":
-    "When true, treat configured Slack user token usage as read-only helper behavior where possible. Keep enabled if you only need supplemental reads without user-context writes.",
-  "channels.slack.capabilities.interactiveReplies":
-    "Enable agent-authored Slack interactive reply directives (`[[slack_buttons: ...]]`, `[[slack_select: ...]]`). Default: false.",
+    'Per-agent override for heartbeat direct/DM delivery policy; use "block" for agents that should only send heartbeat alerts to non-DM destinations.',
   "channels.mattermost.configWrites":
     "Allow Mattermost to write config in response to channel events/commands (default: true).",
-  "channels.discord.configWrites":
-    "Allow Discord to write config in response to channel events/commands (default: true).",
-  "channels.discord.token":
-    "用于此提供商帐户的网关和 REST API 身份验证的 Discord 机器人令牌。保持此秘密在已提交配置之外并在任何泄露后立即轮换。",
-  "channels.discord.allowBots":
-    '允许机器人创作的消息触发 Discord 回复(默认值：false)。设置"mentions"仅接受提及机器人的机器人消息。',
-  "channels.discord.proxy":
-    "Discord 网关 + API 请求的代理 URL(应用 id 查找和允许列表解析)。通过 channels.discord.accounts.<id>.proxy 按帐户设置。",
-  "channels.whatsapp.configWrites": "允许 WhatsApp 响应频道事件/命令写入配置(默认值：true)。",
-  "channels.signal.configWrites": "允许 Signal 响应频道事件/命令写入配置(默认值：true)。",
-  "channels.signal.account":
-    "Signal 帐户标识符(电话/编号句柄)用于将此频道配置绑定到特定的 Signal 身份。保持此与链接的设备/会话状态对齐。",
-  "channels.imessage.configWrites": "允许 iMessage 响应频道事件/命令写入配置(默认值：true)。",
-  "channels.imessage.cliPath":
-    "用于发送/接收操作的 iMessage 桥接 CLI 二进制文件的文件系统路径。当二进制文件在服务运行时环境中不在 PATH 上时显式设置。",
-  "channels.msteams.configWrites": "允许 Microsoft Teams 响应频道事件/命令写入配置(默认值：true)。",
-  "channels.modelByChannel": "映射提供商 -> 频道 id -> 模型覆盖(值是提供商/模型或别名)。",
-  ...IRC_FIELD_HELP,
-  "channels.discord.commands.native": '覆盖 Discord 的本机命令(bool 或"auto")。',
-  "channels.discord.commands.nativeSkills": '覆盖 Discord 的本机技能命令(bool 或"auto")。',
-  "channels.telegram.commands.native": '覆盖 Telegram 的本机命令(bool 或"auto")。',
-  "channels.telegram.commands.nativeSkills": '覆盖 Telegram 的本机技能命令(bool 或"auto")。',
-  "channels.slack.commands.native": '覆盖 Slack 的本机命令(bool 或"auto")。',
-  "channels.slack.commands.nativeSkills": '覆盖 Slack 的本机技能命令(bool 或"auto")。',
-  "channels.slack.streaming":
-    '统一 Slack 流预览模式："off"(关闭) | "partial"(部分) | "block"(块) | "progress"(进度)。旧版 boolean/streamMode 键是自动映射的。',
-  "channels.slack.nativeStreaming":
-    "当 channels.slack.streaming 是 partial(部分)时启用本机 Slack 文本流(chat.startStream/chat.appendStream/chat.stopStream)(默认值：true)。",
-  "channels.slack.streamMode":
-    "旧版 Slack 预览模式别名(replace | status_final | append)；自动迁移到 channels.slack.streaming。",
-  "channels.telegram.customCommands": "其他 Telegram 机器人菜单命令(与本机合并；冲突被忽略)。",
+  "channels.modelByChannel":
+    "Map provider -> channel id -> model override (values are provider/model or aliases).",
   "messages.suppressToolErrors":
     "当为真时，禁止向用户显示 ⚠️ 工具错误警告。代理已在上下文中看到错误并可以重试。默认值：false。",
   "messages.ackReaction": "用于确认入站消息的表情符号反应(空值禁用)。",
@@ -1450,121 +1449,7 @@ export const FIELD_HELP: Record<string, string> = {
   "messages.statusReactions.emojis":
     "Override default status reaction emojis. Keys: thinking, compacting, tool, coding, web, done, error, stallSoft, stallHard. Must be valid Telegram reaction emojis.",
   "messages.statusReactions.timing":
-    "覆盖默认计时。键：debounceMs(700)、stallSoftMs(25000)、stallHardMs(60000)、doneHoldMs(1500)、errorHoldMs(2500)。",
-  "messages.inbound.debounceMs": "去抖动窗口(毫秒)，用于从同一发件人批处理快速入站消息(0 禁用)。",
-  "channels.telegram.dmPolicy":
-    '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.telegram.allowFrom=["*"]。',
-  "channels.telegram.streaming":
-    '统一 Telegram 流预览模式："off"(关闭) | "partial"(部分) | "block"(块) | "progress"(进度)(默认值："partial"(部分))。"progress"(进度)在 Telegram 上映射到"partial"(部分)。旧版 boolean/streamMode 键是自动映射的。',
-  "channels.discord.streaming":
-    '统一 Discord 流预览模式："off"(关闭) | "partial"(部分) | "block"(块) | "progress"(进度)。"progress"(进度)在 Discord 上映射到"partial"(部分)。旧版 boolean/streamMode 键是自动映射的。',
-  "channels.discord.streamMode":
-    "旧版 Discord 预览模式别名(off(关闭) | partial(部分) | block(块))；自动迁移到 channels.discord.streaming。",
-  "channels.discord.draftChunk.minChars":
-    '当 channels.discord.streaming="block"(块)时发出 Discord 流预览更新前的最少字符数(默认值：200)。',
-  "channels.discord.draftChunk.maxChars":
-    '当 channels.discord.streaming="block"(块)时 Discord 流预览块的目标最大大小(默认值：800；固定到 channels.discord.textChunkLimit)。',
-  "channels.discord.draftChunk.breakPreference":
-    "Discord 草稿块的首选断点(paragraph(段落) | newline(换行) | sentence(句子))。默认值：paragraph(段落)。",
-  "channels.telegram.retry.attempts": "Telegram 出站 API 调用的最大重试次数(默认值：3)。",
-  "channels.telegram.retry.minDelayMs": "Telegram 出站调用的最少重试延迟(毫秒)。",
-  "channels.telegram.retry.maxDelayMs": "Telegram 出站调用的最大重试延迟上限(毫秒)。",
-  "channels.telegram.retry.jitter": "应用于 Telegram 重试延迟的抖动因子(0-1)。",
-  "channels.telegram.network.autoSelectFamily":
-    "覆盖 Telegram 的 Node autoSelectFamily(true=启用，false=禁用)。",
-  "channels.telegram.timeoutSeconds":
-    "Max seconds before Telegram API requests are aborted (default: 500 per grammY).",
-  "channels.telegram.silentErrorReplies":
-    "When true, Telegram bot replies marked as errors are sent silently (no notification sound). Default: false.",
-  "channels.telegram.apiRoot":
-    "Custom Telegram Bot API root URL. Use for self-hosted Bot API servers (https://github.com/tdlib/telegram-bot-api) or reverse proxies in regions where api.telegram.org is blocked.",
-  "channels.telegram.autoTopicLabel":
-    "Auto-rename DM forum topics on first message using LLM. Default: true. Set to false to disable, or use object form { enabled: true, prompt: '...' } for custom prompt.",
-  "channels.telegram.autoTopicLabel.enabled":
-    "Whether auto topic labeling is enabled. Default: true.",
-  "channels.telegram.autoTopicLabel.prompt":
-    "Custom prompt for LLM-based topic naming. The user message is appended after the prompt.",
-  "channels.telegram.threadBindings.enabled":
-    "启用 Telegram 对话绑定功能(/focus、/unfocus、/agents 和 /session idle|max-age)。当设置时覆盖 session.threadBindings.enabled。",
-  "channels.telegram.threadBindings.idleHours":
-    "Telegram 绑定会话的不活动窗口(小时)。设置 0 禁用空闲自动取消焦点(默认值：24)。当设置时覆盖 session.threadBindings.idleHours。",
-  "channels.telegram.threadBindings.maxAgeHours":
-    "Telegram 绑定会话的可选硬最大年龄(小时)。设置 0 禁用硬上限(默认值：0)。当设置时覆盖 session.threadBindings.maxAgeHours。",
-  "channels.telegram.threadBindings.spawnSubagentSessions":
-    "允许子代理生成使用 thread=true 在支持时自动绑定 Telegram 当前对话。",
-  "channels.telegram.threadBindings.spawnAcpSessions":
-    "允许 ACP 生成使用 thread=true 在支持时自动绑定 Telegram 当前对话。",
-  "channels.whatsapp.dmPolicy":
-    '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.whatsapp.allowFrom=["*"]。',
-  "channels.whatsapp.selfChatMode": "同一手机设置(机器人使用您的个人 WhatsApp 号码)。",
-  "channels.whatsapp.debounceMs": "去抖动窗口(毫秒)，用于从同一发件人批处理快速连续消息(0 禁用)。",
-  "channels.signal.dmPolicy":
-    '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.signal.allowFrom=["*"]。',
-  "channels.imessage.dmPolicy":
-    '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.imessage.allowFrom=["*"]。',
-  "channels.bluebubbles.dmPolicy":
-    '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.bluebubbles.allowFrom=["*"]。',
-  "channels.discord.dmPolicy":
-    '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.discord.allowFrom=["*"]。',
-  "channels.discord.dm.policy":
-    '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.discord.allowFrom=["*"](旧版：channels.discord.dm.allowFrom)。',
-  "channels.discord.retry.attempts": "Discord 出站 API 调用的最大重试次数(默认值：3)。",
-  "channels.discord.retry.minDelayMs": "Discord 出站调用的最少重试延迟(毫秒)。",
-  "channels.discord.retry.maxDelayMs": "Discord 出站调用的最大重试延迟上限(毫秒)。",
-  "channels.discord.retry.jitter": "应用于 Discord 重试延迟的抖动因子(0-1)。",
-  "channels.discord.maxLinesPerMessage": "每条 Discord 消息的软最大行数(默认值：17)。",
-  "channels.discord.inboundWorker.runTimeoutMs": `可选排队 Discord 入站工作人员超时(毫秒)。这与 Carbon 侦听程序超时分离；默认为 ${DISCORD_DEFAULT_INBOUND_WORKER_TIMEOUT_MS}，可以用 0 禁用。通过 channels.discord.accounts.<id>.inboundWorker.runTimeoutMs 按帐户设置。`,
-  "channels.discord.eventQueue.listenerTimeout": `规范 Discord 侦听程序超时控制(毫秒)，用于网关规范化/入队处理程序。默认值在 OpenClaw 中是 ${DISCORD_DEFAULT_LISTENER_TIMEOUT_MS}；通过 channels.discord.accounts.<id>.eventQueue.listenerTimeout 按帐户设置。`,
-  "channels.discord.eventQueue.maxQueueSize":
-    "可选 Discord EventQueue 容量覆盖(最大排队事件数，然后背压)。通过 channels.discord.accounts.<id>.eventQueue.maxQueueSize 按帐户设置。",
-  "channels.discord.eventQueue.maxConcurrency":
-    "可选 Discord EventQueue 并发覆盖(最大并发处理程序执行)。通过 channels.discord.accounts.<id>.eventQueue.maxConcurrency 按帐户设置。",
-  "channels.discord.threadBindings.enabled":
-    "启用 Discord 线程绑定功能(/focus、绑定线程路由/传递和线程绑定子代理会话)。当设置时覆盖 session.threadBindings.enabled。",
-  "channels.discord.threadBindings.idleHours":
-    "Discord 线程绑定会话的不活动窗口(小时)(/focus 和生成的线程会话)。设置 0 禁用空闲自动取消焦点(默认值：24)。当设置时覆盖 session.threadBindings.idleHours。",
-  "channels.discord.threadBindings.maxAgeHours":
-    "Discord 线程绑定会话的可选硬最大年龄(小时)。设置 0 禁用硬上限(默认值：0)。当设置时覆盖 session.threadBindings.maxAgeHours。",
-  "channels.discord.threadBindings.spawnSubagentSessions":
-    "允许子代理生成使用 thread=true 自动创建和绑定 Discord 线程(默认值：false；选择加入)。设置 true 为此帐户/频道启用线程绑定的子代理生成。",
-  "channels.discord.threadBindings.spawnAcpSessions":
-    "允许 /acp 生成自动为 ACP 会话创建和绑定 Discord 线程(默认值：false；选择加入)。设置 true 为此帐户/频道启用线程绑定的 ACP 生成。",
-  "channels.discord.ui.components.accentColor":
-    "Discord 组件容器的强调色(十六进制)。通过 channels.discord.accounts.<id>.ui.components.accentColor 按帐户设置。",
-  "channels.discord.voice.enabled":
-    "启用 Discord 语音频道对话(默认值：true)。省略 channels.discord.voice 以对帐户保持禁用语音支持。",
-  "channels.discord.voice.autoJoin": "启动时自动加入的语音频道(guildId/channelId 条目列表)。",
-  "channels.discord.voice.daveEncryption":
-    "为 Discord 语音加入切换 DAVE 端对端加密(默认值：true in @discordjs/voice；Discord 可能需要这个)。",
-  "channels.discord.voice.decryptionFailureTolerance":
-    "DAVE 在尝试会话恢复前连续解密失败(传递给 @discordjs/voice；默认值：24)。",
-  "channels.discord.voice.tts": "Discord 语音播放的可选 TTS 覆盖(与 messages.tts 合并)。",
-  "channels.discord.intents.presence":
-    "启用 Guild Presences 特权意图。还必须在 Discord 开发人员门户中启用。允许跟踪用户活动(例如 Spotify)。默认值：false。",
-  "channels.discord.intents.guildMembers":
-    "启用 Guild Members 特权意图。还必须在 Discord 开发人员门户中启用。默认值：false。",
-  "channels.discord.pluralkit.enabled": "解析 PluralKit 代理消息并将系统成员视为不同的发件人。",
-  "channels.discord.pluralkit.token": "用于解析私有系统或成员的可选 PluralKit 令牌。",
-  "channels.discord.activity": "Discord 状态活动文本(默认为自定义状态)。",
-  "channels.discord.status":
-    "Discord 状态状态(online(在线)、dnd(勿扰)、idle(空闲)、invisible(隐身))。",
-  "channels.discord.autoPresence.enabled":
-    "基于运行时/模型可用性信号启用自动 Discord 机器人状态更新。启用时：healthy(健康)=>online(在线)、degraded(降级)/unknown(未知)=>idle(空闲)、exhausted(已耗尽)/unavailable(不可用)=>dnd(勿扰)。",
-  "channels.discord.autoPresence.intervalMs":
-    "评估 Discord 自动状态状态的频率(毫秒)(默认值：30000)。",
-  "channels.discord.autoPresence.minUpdateIntervalMs":
-    "实际 Discord 状态更新调用之间的最少时间(毫秒)(默认值：15000)。防止嘈杂状态更改上的状态垃圾邮件。",
-  "channels.discord.autoPresence.healthyText":
-    "运行时健康(在线)时的可选自定义状态文本。如果省略，当设置时会回退到静态 channels.discord.activity。",
-  "channels.discord.autoPresence.degradedText":
-    "运行时/模型可用性降级或未知(空闲)时的可选自定义状态文本。",
-  "channels.discord.autoPresence.exhaustedText":
-    "运行时检测到已耗尽/不可用模型配额(dnd)时的可选自定义状态文本。支持 {reason} 模板占位符。",
-  "channels.discord.activityType":
-    "Discord 状态活动类型(0=Playing(播放),1=Streaming(流式处理),2=Listening(监听),3=Watching(观看),4=Custom(自定义),5=Competing(竞争))。",
-  "channels.discord.activityUrl": "Discord 状态流式处理 URL(activityType=1 需要)。",
-  "channels.slack.dm.policy":
-    '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.slack.allowFrom=["*"](旧版：channels.slack.dm.allowFrom)。',
-  "channels.slack.dmPolicy":
-    '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.slack.allowFrom=["*"]。',
+    "Override default timing. Keys: debounceMs (700), stallSoftMs (25000), stallHardMs (60000), doneHoldMs (1500), errorHoldMs (2500).",
+  "messages.inbound.debounceMs":
+    "Debounce window (ms) for batching rapid inbound messages from the same sender (0 to disable).",
 };

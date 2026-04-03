@@ -4,7 +4,12 @@ import { assertSupportedRuntime } from "../infra/runtime-guard.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import { resolveUserPath } from "../utils.js";
-import { isDeprecatedAuthChoice, normalizeLegacyOnboardAuthChoice } from "./auth-choice-legacy.js";
+import {
+  formatDeprecatedNonInteractiveAuthChoiceError,
+  isDeprecatedAuthChoice,
+  normalizeLegacyOnboardAuthChoice,
+  resolveDeprecatedAuthChoiceReplacement,
+} from "./auth-choice-legacy.js";
 import { DEFAULT_WORKSPACE, handleReset } from "./onboard-helpers.js";
 import { runInteractiveSetup } from "./onboard-interactive.js";
 import { runNonInteractiveSetup } from "./onboard-non-interactive.js";
@@ -18,22 +23,22 @@ export async function setupWizardCommand(
 ) {
   assertSupportedRuntime(runtime);
   const originalAuthChoice = opts.authChoice;
-  const normalizedAuthChoice = normalizeLegacyOnboardAuthChoice(originalAuthChoice);
-  if (opts.nonInteractive && isDeprecatedAuthChoice(originalAuthChoice)) {
+  const normalizedAuthChoice = normalizeLegacyOnboardAuthChoice(originalAuthChoice, {
+    env: process.env,
+  });
+  if (opts.nonInteractive && isDeprecatedAuthChoice(originalAuthChoice, { env: process.env })) {
     runtime.error(
-      [
-        `认证选项 "${String(originalAuthChoice)}" 已弃用。`,
-        '请使用 "--auth-choice token"（Anthropic setup-token）或 "--auth-choice openai-codex"。',
-      ].join("\n"),
+      formatDeprecatedNonInteractiveAuthChoiceError(originalAuthChoice, {
+        env: process.env,
+      })!,
     );
     runtime.exit(1);
     return;
   }
-  if (originalAuthChoice === "claude-cli") {
-    runtime.log('认证选项 "claude-cli" 已弃用；将使用 setup-token 流程。');
-  }
-  if (originalAuthChoice === "codex-cli") {
-    runtime.log('认证选项 "codex-cli" 已弃用；将使用 OpenAI Codex OAuth。');
+  if (isDeprecatedAuthChoice(originalAuthChoice, { env: process.env })) {
+    runtime.log(
+      resolveDeprecatedAuthChoiceReplacement(originalAuthChoice, { env: process.env })!.message,
+    );
   }
   const flow = opts.flow === "manual" ? ("advanced" as const) : opts.flow;
   const normalizedOpts =
@@ -70,7 +75,7 @@ export async function setupWizardCommand(
 
   if (normalizedOpts.reset) {
     const snapshot = await readConfigFileSnapshot();
-    const baseConfig = snapshot.valid ? snapshot.config : {};
+    const baseConfig = snapshot.valid ? (snapshot.sourceConfig ?? snapshot.config) : {};
     const workspaceDefault =
       normalizedOpts.workspace ?? baseConfig.agents?.defaults?.workspace ?? DEFAULT_WORKSPACE;
     const resetScope: ResetScope = normalizedOpts.resetScope ?? "config+creds+sessions";

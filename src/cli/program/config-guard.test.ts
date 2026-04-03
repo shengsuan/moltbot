@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RuntimeEnv } from "../../runtime.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ensureConfigReady, __test__ } from "./config-guard.js";
 
 const loadAndMaybeMigrateDoctorConfigMock = vi.hoisted(() => vi.fn());
 const readConfigFileSnapshotMock = vi.hoisted(() => vi.fn());
@@ -11,8 +11,6 @@ vi.mock("../../commands/doctor-config-preflight.js", () => ({
 vi.mock("../../config/config.js", () => ({
   readConfigFileSnapshot: readConfigFileSnapshotMock,
 }));
-
-const mockedModuleIds = ["../../commands/doctor-config-preflight.js", "../../config/config.js"];
 
 function makeSnapshot() {
   return {
@@ -46,12 +44,7 @@ async function withCapturedStdout(run: () => Promise<void>): Promise<string> {
 }
 
 describe("ensureConfigReady", () => {
-  let ensureConfigReady: (params: {
-    runtime: RuntimeEnv;
-    commandPath?: string[];
-    suppressDoctorStdout?: boolean;
-  }) => Promise<void>;
-  let resetConfigGuardStateForTests: () => void;
+  const resetConfigGuardStateForTests = __test__.resetConfigGuardStateForTests;
 
   async function runEnsureConfigReady(commandPath: string[], suppressDoctorStdout = false) {
     const runtime = makeRuntime();
@@ -73,20 +66,6 @@ describe("ensureConfigReady", () => {
       baseConfig: {},
     });
   }
-
-  beforeAll(async () => {
-    ({
-      ensureConfigReady,
-      __test__: { resetConfigGuardStateForTests },
-    } = await import("./config-guard.js"));
-  });
-
-  afterAll(() => {
-    for (const id of mockedModuleIds) {
-      vi.doUnmock(id);
-    }
-    vi.resetModules();
-  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -144,9 +123,14 @@ describe("ensureConfigReady", () => {
     expect(gatewayRuntime.exit).not.toHaveBeenCalled();
   });
 
-  it("does not exit for invalid config on plugins install", async () => {
+  it("allows an explicit invalid-config override", async () => {
     setInvalidSnapshot();
-    const runtime = await runEnsureConfigReady(["plugins", "install"]);
+    const runtime = makeRuntime();
+    await ensureConfigReady({
+      runtime: runtime as never,
+      commandPath: ["plugins", "install"],
+      allowInvalid: true,
+    });
     expect(runtime.exit).not.toHaveBeenCalled();
   });
 

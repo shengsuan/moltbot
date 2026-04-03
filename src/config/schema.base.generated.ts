@@ -744,6 +744,9 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                 email: {
                   type: "string",
                 },
+                displayName: {
+                  type: "string",
+                },
               },
               required: ["provider", "mode"],
               additionalProperties: false,
@@ -785,6 +788,21 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
               failureWindowHours: {
                 type: "number",
                 exclusiveMinimum: 0,
+              },
+              overloadedProfileRotations: {
+                type: "integer",
+                minimum: 0,
+                maximum: 9007199254740991,
+              },
+              overloadedBackoffMs: {
+                type: "integer",
+                minimum: 0,
+                maximum: 9007199254740991,
+              },
+              rateLimitedProfileRotations: {
+                type: "integer",
+                minimum: 0,
+                maximum: 9007199254740991,
               },
             },
             additionalProperties: false,
@@ -1036,6 +1054,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     "bedrock-converse-stream",
                     "ollama",
                     "shengsuanyun-task",
+                    "azure-openai-responses",
                   ],
                 },
                 injectNumCtxForOpenAICompat: {
@@ -1141,6 +1160,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                           "bedrock-converse-stream",
                           "ollama",
                           "shengsuanyun-task",
+                          "azure-openai-responses",
                         ],
                       },
                       reasoning: {
@@ -1264,14 +1284,19 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                           },
                           toolSchemaProfile: {
                             type: "string",
-                            const: "xai",
+                          },
+                          unsupportedToolSchemaKeywords: {
+                            type: "array",
+                            items: {
+                              type: "string",
+                              minLength: 1,
+                            },
                           },
                           nativeWebSearchTool: {
                             type: "boolean",
                           },
                           toolCallArgumentsEncoding: {
                             type: "string",
-                            const: "html-entities",
                           },
                           requiresMistralToolIds: {
                             type: "boolean",
@@ -1355,6 +1380,13 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
           defaults: {
             type: "object",
             properties: {
+              params: {
+                type: "object",
+                propertyNames: {
+                  type: "string",
+                },
+                additionalProperties: {},
+              },
               model: {
                 anyOf: [
                   {
@@ -1838,6 +1870,31 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                       type: "string",
                     },
                   },
+                  qmd: {
+                    type: "object",
+                    properties: {
+                      extraCollections: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            path: {
+                              type: "string",
+                            },
+                            name: {
+                              type: "string",
+                            },
+                            pattern: {
+                              type: "string",
+                            },
+                          },
+                          required: ["path"],
+                          additionalProperties: false,
+                        },
+                      },
+                    },
+                    additionalProperties: false,
+                  },
                   multimodal: {
                     type: "object",
                     properties: {
@@ -1881,32 +1938,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     additionalProperties: false,
                   },
                   provider: {
-                    anyOf: [
-                      {
-                        type: "string",
-                        const: "openai",
-                      },
-                      {
-                        type: "string",
-                        const: "local",
-                      },
-                      {
-                        type: "string",
-                        const: "gemini",
-                      },
-                      {
-                        type: "string",
-                        const: "voyage",
-                      },
-                      {
-                        type: "string",
-                        const: "mistral",
-                      },
-                      {
-                        type: "string",
-                        const: "ollama",
-                      },
-                    ],
+                    type: "string",
                   },
                   remote: {
                     type: "object",
@@ -2020,36 +2052,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     additionalProperties: false,
                   },
                   fallback: {
-                    anyOf: [
-                      {
-                        type: "string",
-                        const: "openai",
-                      },
-                      {
-                        type: "string",
-                        const: "gemini",
-                      },
-                      {
-                        type: "string",
-                        const: "local",
-                      },
-                      {
-                        type: "string",
-                        const: "voyage",
-                      },
-                      {
-                        type: "string",
-                        const: "mistral",
-                      },
-                      {
-                        type: "string",
-                        const: "ollama",
-                      },
-                      {
-                        type: "string",
-                        const: "none",
-                      },
-                    ],
+                    type: "string",
                   },
                   model: {
                     type: "string",
@@ -2080,6 +2083,24 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                       },
                       path: {
                         type: "string",
+                      },
+                      fts: {
+                        type: "object",
+                        properties: {
+                          tokenizer: {
+                            anyOf: [
+                              {
+                                type: "string",
+                                const: "unicode61",
+                              },
+                              {
+                                type: "string",
+                                const: "trigram",
+                              },
+                            ],
+                          },
+                        },
+                        additionalProperties: false,
                       },
                       vector: {
                         type: "object",
@@ -2333,6 +2354,19 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                 },
                 additionalProperties: false,
               },
+              llm: {
+                type: "object",
+                properties: {
+                  idleTimeoutSeconds: {
+                    description:
+                      "Idle timeout for LLM streaming responses in seconds. If no token is received within this time, the request is aborted. Set to 0 to disable. Default: 60 seconds.",
+                    type: "integer",
+                    minimum: 0,
+                    maximum: 9007199254740991,
+                  },
+                },
+                additionalProperties: false,
+              },
               compaction: {
                 type: "object",
                 properties: {
@@ -2458,6 +2492,9 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                       },
                     },
                     additionalProperties: false,
+                  },
+                  notifyUser: {
+                    type: "boolean",
                   },
                 },
                 additionalProperties: false,
@@ -2837,6 +2874,9 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     type: "integer",
                     exclusiveMinimum: 0,
                     maximum: 9007199254740991,
+                  },
+                  requireAgentId: {
+                    type: "boolean",
                   },
                 },
                 additionalProperties: false,
@@ -3455,6 +3495,31 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                         type: "string",
                       },
                     },
+                    qmd: {
+                      type: "object",
+                      properties: {
+                        extraCollections: {
+                          type: "array",
+                          items: {
+                            type: "object",
+                            properties: {
+                              path: {
+                                type: "string",
+                              },
+                              name: {
+                                type: "string",
+                              },
+                              pattern: {
+                                type: "string",
+                              },
+                            },
+                            required: ["path"],
+                            additionalProperties: false,
+                          },
+                        },
+                      },
+                      additionalProperties: false,
+                    },
                     multimodal: {
                       type: "object",
                       properties: {
@@ -3498,32 +3563,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                       additionalProperties: false,
                     },
                     provider: {
-                      anyOf: [
-                        {
-                          type: "string",
-                          const: "openai",
-                        },
-                        {
-                          type: "string",
-                          const: "local",
-                        },
-                        {
-                          type: "string",
-                          const: "gemini",
-                        },
-                        {
-                          type: "string",
-                          const: "voyage",
-                        },
-                        {
-                          type: "string",
-                          const: "mistral",
-                        },
-                        {
-                          type: "string",
-                          const: "ollama",
-                        },
-                      ],
+                      type: "string",
                     },
                     remote: {
                       type: "object",
@@ -3637,36 +3677,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                       additionalProperties: false,
                     },
                     fallback: {
-                      anyOf: [
-                        {
-                          type: "string",
-                          const: "openai",
-                        },
-                        {
-                          type: "string",
-                          const: "gemini",
-                        },
-                        {
-                          type: "string",
-                          const: "local",
-                        },
-                        {
-                          type: "string",
-                          const: "voyage",
-                        },
-                        {
-                          type: "string",
-                          const: "mistral",
-                        },
-                        {
-                          type: "string",
-                          const: "ollama",
-                        },
-                        {
-                          type: "string",
-                          const: "none",
-                        },
-                      ],
+                      type: "string",
                     },
                     model: {
                       type: "string",
@@ -3697,6 +3708,24 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                         },
                         path: {
                           type: "string",
+                        },
+                        fts: {
+                          type: "object",
+                          properties: {
+                            tokenizer: {
+                              anyOf: [
+                                {
+                                  type: "string",
+                                  const: "unicode61",
+                                },
+                                {
+                                  type: "string",
+                                  const: "trigram",
+                                },
+                              ],
+                            },
+                          },
+                          additionalProperties: false,
                         },
                         vector: {
                           type: "object",
@@ -4029,6 +4058,9 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     },
                     thinking: {
                       type: "string",
+                    },
+                    requireAgentId: {
+                      type: "boolean",
                     },
                   },
                   additionalProperties: false,
@@ -4689,7 +4721,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                       properties: {
                         host: {
                           type: "string",
-                          enum: ["sandbox", "gateway", "node"],
+                          enum: ["auto", "sandbox", "gateway", "node"],
                         },
                         security: {
                           type: "string",
@@ -5126,477 +5158,42 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                       },
                     ],
                   },
-                  brave: {
+                  openaiCodex: {
                     type: "object",
                     properties: {
-                      apiKey: {
-                        anyOf: [
-                          {
-                            type: "string",
-                          },
-                          {
-                            oneOf: [
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "env",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                    pattern: "^[A-Z][A-Z0-9_]{0,127}$",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "file",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "exec",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                      baseUrl: {
-                        type: "string",
-                      },
-                      model: {
-                        type: "string",
-                      },
-                      mode: {
-                        type: "string",
-                      },
-                    },
-                    additionalProperties: false,
-                  },
-                  firecrawl: {
-                    type: "object",
-                    properties: {
-                      apiKey: {
-                        anyOf: [
-                          {
-                            type: "string",
-                          },
-                          {
-                            oneOf: [
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "env",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                    pattern: "^[A-Z][A-Z0-9_]{0,127}$",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "file",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "exec",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                      baseUrl: {
-                        type: "string",
-                      },
-                      model: {
-                        type: "string",
-                      },
-                    },
-                    additionalProperties: false,
-                  },
-                  gemini: {
-                    type: "object",
-                    properties: {
-                      apiKey: {
-                        anyOf: [
-                          {
-                            type: "string",
-                          },
-                          {
-                            oneOf: [
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "env",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                    pattern: "^[A-Z][A-Z0-9_]{0,127}$",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "file",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "exec",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                      baseUrl: {
-                        type: "string",
-                      },
-                      model: {
-                        type: "string",
-                      },
-                    },
-                    additionalProperties: false,
-                  },
-                  grok: {
-                    type: "object",
-                    properties: {
-                      apiKey: {
-                        anyOf: [
-                          {
-                            type: "string",
-                          },
-                          {
-                            oneOf: [
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "env",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                    pattern: "^[A-Z][A-Z0-9_]{0,127}$",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "file",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "exec",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                            ],
-                          },
-                        ],
-                      },
-                      baseUrl: {
-                        type: "string",
-                      },
-                      model: {
-                        type: "string",
-                      },
-                      inlineCitations: {
+                      enabled: {
                         type: "boolean",
                       },
-                    },
-                    additionalProperties: false,
-                  },
-                  kimi: {
-                    type: "object",
-                    properties: {
-                      apiKey: {
+                      mode: {
                         anyOf: [
                           {
                             type: "string",
+                            const: "cached",
                           },
                           {
-                            oneOf: [
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "env",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                    pattern: "^[A-Z][A-Z0-9_]{0,127}$",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "file",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "exec",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                            ],
+                            type: "string",
+                            const: "live",
                           },
                         ],
                       },
-                      baseUrl: {
-                        type: "string",
-                      },
-                      model: {
-                        type: "string",
-                      },
-                    },
-                    additionalProperties: false,
-                  },
-                  perplexity: {
-                    type: "object",
-                    properties: {
-                      apiKey: {
+                      allowedDomains: {},
+                      contextSize: {
                         anyOf: [
                           {
                             type: "string",
+                            const: "low",
                           },
                           {
-                            oneOf: [
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "env",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                    pattern: "^[A-Z][A-Z0-9_]{0,127}$",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "file",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                              {
-                                type: "object",
-                                properties: {
-                                  source: {
-                                    type: "string",
-                                    const: "exec",
-                                  },
-                                  provider: {
-                                    type: "string",
-                                    pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                                  },
-                                  id: {
-                                    type: "string",
-                                  },
-                                },
-                                required: ["source", "provider", "id"],
-                                additionalProperties: false,
-                              },
-                            ],
+                            type: "string",
+                            const: "medium",
+                          },
+                          {
+                            type: "string",
+                            const: "high",
                           },
                         ],
                       },
-                      baseUrl: {
-                        type: "string",
-                      },
-                      model: {
-                        type: "string",
-                      },
+                      userLocation: {},
                     },
                     additionalProperties: false,
                   },
@@ -5615,6 +5212,11 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     maximum: 9007199254740991,
                   },
                   maxCharsCap: {
+                    type: "integer",
+                    exclusiveMinimum: 0,
+                    maximum: 9007199254740991,
+                  },
+                  maxResponseBytes: {
                     type: "integer",
                     exclusiveMinimum: 0,
                     maximum: 9007199254740991,
@@ -5729,6 +5331,101 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                       },
                     },
                     additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+              x_search: {
+                type: "object",
+                properties: {
+                  enabled: {
+                    type: "boolean",
+                  },
+                  apiKey: {
+                    anyOf: [
+                      {
+                        type: "string",
+                      },
+                      {
+                        oneOf: [
+                          {
+                            type: "object",
+                            properties: {
+                              source: {
+                                type: "string",
+                                const: "env",
+                              },
+                              provider: {
+                                type: "string",
+                                pattern: "^[a-z][a-z0-9_-]{0,63}$",
+                              },
+                              id: {
+                                type: "string",
+                                pattern: "^[A-Z][A-Z0-9_]{0,127}$",
+                              },
+                            },
+                            required: ["source", "provider", "id"],
+                            additionalProperties: false,
+                          },
+                          {
+                            type: "object",
+                            properties: {
+                              source: {
+                                type: "string",
+                                const: "file",
+                              },
+                              provider: {
+                                type: "string",
+                                pattern: "^[a-z][a-z0-9_-]{0,63}$",
+                              },
+                              id: {
+                                type: "string",
+                              },
+                            },
+                            required: ["source", "provider", "id"],
+                            additionalProperties: false,
+                          },
+                          {
+                            type: "object",
+                            properties: {
+                              source: {
+                                type: "string",
+                                const: "exec",
+                              },
+                              provider: {
+                                type: "string",
+                                pattern: "^[a-z][a-z0-9_-]{0,63}$",
+                              },
+                              id: {
+                                type: "string",
+                              },
+                            },
+                            required: ["source", "provider", "id"],
+                            additionalProperties: false,
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                  model: {
+                    type: "string",
+                  },
+                  inlineCitations: {
+                    type: "boolean",
+                  },
+                  maxTurns: {
+                    type: "integer",
+                    minimum: -9007199254740991,
+                    maximum: 9007199254740991,
+                  },
+                  timeoutSeconds: {
+                    type: "integer",
+                    exclusiveMinimum: 0,
+                    maximum: 9007199254740991,
+                  },
+                  cacheTtlMinutes: {
+                    type: "number",
+                    minimum: 0,
                   },
                 },
                 additionalProperties: false,
@@ -7171,7 +6868,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
             properties: {
               host: {
                 type: "string",
-                enum: ["sandbox", "gateway", "node"],
+                enum: ["auto", "sandbox", "gateway", "node"],
               },
               security: {
                 type: "string",
@@ -8189,292 +7886,109 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                 },
                 additionalProperties: false,
               },
-              elevenlabs: {
+              providers: {
                 type: "object",
-                properties: {
-                  apiKey: {
+                propertyNames: {
+                  type: "string",
+                },
+                additionalProperties: {
+                  type: "object",
+                  properties: {
+                    apiKey: {
+                      anyOf: [
+                        {
+                          type: "string",
+                        },
+                        {
+                          oneOf: [
+                            {
+                              type: "object",
+                              properties: {
+                                source: {
+                                  type: "string",
+                                  const: "env",
+                                },
+                                provider: {
+                                  type: "string",
+                                  pattern: "^[a-z][a-z0-9_-]{0,63}$",
+                                },
+                                id: {
+                                  type: "string",
+                                  pattern: "^[A-Z][A-Z0-9_]{0,127}$",
+                                },
+                              },
+                              required: ["source", "provider", "id"],
+                              additionalProperties: false,
+                            },
+                            {
+                              type: "object",
+                              properties: {
+                                source: {
+                                  type: "string",
+                                  const: "file",
+                                },
+                                provider: {
+                                  type: "string",
+                                  pattern: "^[a-z][a-z0-9_-]{0,63}$",
+                                },
+                                id: {
+                                  type: "string",
+                                },
+                              },
+                              required: ["source", "provider", "id"],
+                              additionalProperties: false,
+                            },
+                            {
+                              type: "object",
+                              properties: {
+                                source: {
+                                  type: "string",
+                                  const: "exec",
+                                },
+                                provider: {
+                                  type: "string",
+                                  pattern: "^[a-z][a-z0-9_-]{0,63}$",
+                                },
+                                id: {
+                                  type: "string",
+                                },
+                              },
+                              required: ["source", "provider", "id"],
+                              additionalProperties: false,
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  },
+                  additionalProperties: {
                     anyOf: [
                       {
                         type: "string",
                       },
                       {
-                        oneOf: [
-                          {
-                            type: "object",
-                            properties: {
-                              source: {
-                                type: "string",
-                                const: "env",
-                              },
-                              provider: {
-                                type: "string",
-                                pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                              },
-                              id: {
-                                type: "string",
-                                pattern: "^[A-Z][A-Z0-9_]{0,127}$",
-                              },
-                            },
-                            required: ["source", "provider", "id"],
-                            additionalProperties: false,
-                          },
-                          {
-                            type: "object",
-                            properties: {
-                              source: {
-                                type: "string",
-                                const: "file",
-                              },
-                              provider: {
-                                type: "string",
-                                pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                              },
-                              id: {
-                                type: "string",
-                              },
-                            },
-                            required: ["source", "provider", "id"],
-                            additionalProperties: false,
-                          },
-                          {
-                            type: "object",
-                            properties: {
-                              source: {
-                                type: "string",
-                                const: "exec",
-                              },
-                              provider: {
-                                type: "string",
-                                pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                              },
-                              id: {
-                                type: "string",
-                              },
-                            },
-                            required: ["source", "provider", "id"],
-                            additionalProperties: false,
-                          },
-                        ],
-                      },
-                    ],
-                  },
-                  baseUrl: {
-                    type: "string",
-                  },
-                  voiceId: {
-                    type: "string",
-                  },
-                  modelId: {
-                    type: "string",
-                  },
-                  seed: {
-                    type: "integer",
-                    minimum: 0,
-                    maximum: 4294967295,
-                  },
-                  applyTextNormalization: {
-                    type: "string",
-                    enum: ["auto", "on", "off"],
-                  },
-                  languageCode: {
-                    type: "string",
-                  },
-                  voiceSettings: {
-                    type: "object",
-                    properties: {
-                      stability: {
                         type: "number",
-                        minimum: 0,
-                        maximum: 1,
                       },
-                      similarityBoost: {
-                        type: "number",
-                        minimum: 0,
-                        maximum: 1,
-                      },
-                      style: {
-                        type: "number",
-                        minimum: 0,
-                        maximum: 1,
-                      },
-                      useSpeakerBoost: {
+                      {
                         type: "boolean",
                       },
-                      speed: {
-                        type: "number",
-                        minimum: 0.5,
-                        maximum: 2,
-                      },
-                    },
-                    additionalProperties: false,
-                  },
-                },
-                additionalProperties: false,
-              },
-              openai: {
-                type: "object",
-                properties: {
-                  apiKey: {
-                    anyOf: [
                       {
-                        type: "string",
+                        type: "null",
                       },
                       {
-                        oneOf: [
-                          {
-                            type: "object",
-                            properties: {
-                              source: {
-                                type: "string",
-                                const: "env",
-                              },
-                              provider: {
-                                type: "string",
-                                pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                              },
-                              id: {
-                                type: "string",
-                                pattern: "^[A-Z][A-Z0-9_]{0,127}$",
-                              },
-                            },
-                            required: ["source", "provider", "id"],
-                            additionalProperties: false,
-                          },
-                          {
-                            type: "object",
-                            properties: {
-                              source: {
-                                type: "string",
-                                const: "file",
-                              },
-                              provider: {
-                                type: "string",
-                                pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                              },
-                              id: {
-                                type: "string",
-                              },
-                            },
-                            required: ["source", "provider", "id"],
-                            additionalProperties: false,
-                          },
-                          {
-                            type: "object",
-                            properties: {
-                              source: {
-                                type: "string",
-                                const: "exec",
-                              },
-                              provider: {
-                                type: "string",
-                                pattern: "^[a-z][a-z0-9_-]{0,63}$",
-                              },
-                              id: {
-                                type: "string",
-                              },
-                            },
-                            required: ["source", "provider", "id"],
-                            additionalProperties: false,
-                          },
-                        ],
+                        type: "array",
+                        items: {},
+                      },
+                      {
+                        type: "object",
+                        propertyNames: {
+                          type: "string",
+                        },
+                        additionalProperties: {},
                       },
                     ],
                   },
-                  baseUrl: {
-                    type: "string",
-                  },
-                  model: {
-                    type: "string",
-                  },
-                  voice: {
-                    type: "string",
-                  },
-                  speed: {
-                    type: "number",
-                    minimum: 0.25,
-                    maximum: 4,
-                  },
-                  instructions: {
-                    type: "string",
-                  },
                 },
-                additionalProperties: false,
-              },
-              edge: {
-                type: "object",
-                properties: {
-                  enabled: {
-                    type: "boolean",
-                  },
-                  voice: {
-                    type: "string",
-                  },
-                  lang: {
-                    type: "string",
-                  },
-                  outputFormat: {
-                    type: "string",
-                  },
-                  pitch: {
-                    type: "string",
-                  },
-                  rate: {
-                    type: "string",
-                  },
-                  volume: {
-                    type: "string",
-                  },
-                  saveSubtitles: {
-                    type: "boolean",
-                  },
-                  proxy: {
-                    type: "string",
-                  },
-                  timeoutMs: {
-                    type: "integer",
-                    minimum: 1000,
-                    maximum: 120000,
-                  },
-                },
-                additionalProperties: false,
-              },
-              microsoft: {
-                type: "object",
-                properties: {
-                  enabled: {
-                    type: "boolean",
-                  },
-                  voice: {
-                    type: "string",
-                  },
-                  lang: {
-                    type: "string",
-                  },
-                  outputFormat: {
-                    type: "string",
-                  },
-                  pitch: {
-                    type: "string",
-                  },
-                  rate: {
-                    type: "string",
-                  },
-                  volume: {
-                    type: "string",
-                  },
-                  saveSubtitles: {
-                    type: "boolean",
-                  },
-                  proxy: {
-                    type: "string",
-                  },
-                  timeoutMs: {
-                    type: "integer",
-                    minimum: 1000,
-                    maximum: 120000,
-                  },
-                },
-                additionalProperties: false,
               },
               prefsPath: {
                 type: "string",
@@ -8606,6 +8120,74 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
         type: "object",
         properties: {
           exec: {
+            type: "object",
+            properties: {
+              enabled: {
+                type: "boolean",
+              },
+              mode: {
+                anyOf: [
+                  {
+                    type: "string",
+                    const: "session",
+                  },
+                  {
+                    type: "string",
+                    const: "targets",
+                  },
+                  {
+                    type: "string",
+                    const: "both",
+                  },
+                ],
+              },
+              agentFilter: {
+                type: "array",
+                items: {
+                  type: "string",
+                },
+              },
+              sessionFilter: {
+                type: "array",
+                items: {
+                  type: "string",
+                },
+              },
+              targets: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    channel: {
+                      type: "string",
+                      minLength: 1,
+                    },
+                    to: {
+                      type: "string",
+                      minLength: 1,
+                    },
+                    accountId: {
+                      type: "string",
+                    },
+                    threadId: {
+                      anyOf: [
+                        {
+                          type: "string",
+                        },
+                        {
+                          type: "number",
+                        },
+                      ],
+                    },
+                  },
+                  required: ["channel", "to"],
+                  additionalProperties: false,
+                },
+              },
+            },
+            additionalProperties: false,
+          },
+          plugin: {
             type: "object",
             properties: {
               enabled: {
@@ -9433,44 +9015,8 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                   type: "boolean",
                 },
                 channel: {
-                  anyOf: [
-                    {
-                      type: "string",
-                      const: "last",
-                    },
-                    {
-                      type: "string",
-                      const: "whatsapp",
-                    },
-                    {
-                      type: "string",
-                      const: "telegram",
-                    },
-                    {
-                      type: "string",
-                      const: "discord",
-                    },
-                    {
-                      type: "string",
-                      const: "irc",
-                    },
-                    {
-                      type: "string",
-                      const: "slack",
-                    },
-                    {
-                      type: "string",
-                      const: "signal",
-                    },
-                    {
-                      type: "string",
-                      const: "imessage",
-                    },
-                    {
-                      type: "string",
-                      const: "msteams",
-                    },
-                  ],
+                  type: "string",
+                  minLength: 1,
                 },
                 to: {
                   type: "string",
@@ -9831,10 +9377,9 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
         additionalProperties: false,
       },
       channels: {
-        type: "object",
         properties: {},
-        additionalProperties: true,
         required: [],
+        additionalProperties: true,
       },
       discovery: {
         type: "object",
@@ -10383,6 +9928,17 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                 items: {
                   type: "string",
                 },
+              },
+            },
+            additionalProperties: false,
+          },
+          webchat: {
+            type: "object",
+            properties: {
+              chatHistoryMaxChars: {
+                type: "integer",
+                exclusiveMinimum: 0,
+                maximum: 500000,
               },
             },
             additionalProperties: false,
@@ -10992,6 +10548,10 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                   },
                 ],
               },
+              searchTool: {
+                type: "string",
+                minLength: 1,
+              },
               includeDefaultMemory: {
                 type: "boolean",
               },
@@ -11224,6 +10784,25 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                 url: {
                   type: "string",
                   format: "uri",
+                },
+                headers: {
+                  type: "object",
+                  propertyNames: {
+                    type: "string",
+                  },
+                  additionalProperties: {
+                    anyOf: [
+                      {
+                        type: "string",
+                      },
+                      {
+                        type: "number",
+                      },
+                      {
+                        type: "boolean",
+                      },
+                    ],
+                  },
                 },
               },
               additionalProperties: {},
@@ -12076,7 +11655,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.list[].runtime.acp.agent": {
       label: "Agent ACP Harness Agent",
-      help: "此 OpenClaw 代理要使用的可选 ACP 工具代理 id（例如 codex、claude）。",
+      help: "Optional ACP harness agent id to use for this OpenClaw agent (for example codex, claude, cursor, gemini, openclaw).",
       tags: ["advanced"],
     },
     "agents.list[].runtime.acp.backend": {
@@ -12643,7 +12222,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "tools.exec.applyPatch.enabled": {
       label: "Enable apply_patch",
-      help: "实验性。在工具策略允许时为 OpenAI 模型启用 apply_patch。",
+      help: "Enable or disable apply_patch for OpenAI and OpenAI Codex models when allowed by tool policy (default: true).",
       tags: ["tools"],
     },
     "tools.exec.applyPatch.workspaceOnly": {
@@ -12722,8 +12301,8 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       tags: ["tools"],
     },
     "tools.exec.host": {
-      label: "Exec Host",
-      help: "为 shell 命令选择执行主机策略，通常控制本地对一个委托执行环境。使用仍然满足自动化要求的最安全的主机模式。",
+      label: "Exec Target",
+      help: 'Selects execution target strategy for shell commands. Use "auto" for runtime-aware behavior (sandbox when available, otherwise gateway), or pin sandbox/gateway/node explicitly when you need a fixed surface.',
       tags: ["tools"],
     },
     "tools.exec.security": {
@@ -12818,7 +12397,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     approvals: {
       label: "Approvals",
-      help: "批准路由控制，用于将 exec 批准请求转发到源会话外的聊天目标。保持此禁用，除非操作员需要显式的带外批准可见性。",
+      help: "Approval routing controls for forwarding exec and plugin approval requests to chat destinations outside the originating session. Keep these disabled unless operators need explicit out-of-band approval visibility.",
       tags: ["advanced"],
     },
     "approvals.exec": {
@@ -12871,6 +12450,56 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       help: "可选的线程/主题目标，用于支持转发批准的线程传递的频道。使用此将批准流量保持在运营线程中而不是主频道。",
       tags: ["advanced"],
     },
+    "approvals.plugin": {
+      label: "Plugin Approval Forwarding",
+      help: "Groups plugin-approval forwarding behavior including enablement, routing mode, filters, and explicit targets. Independent of exec approval forwarding. Configure here when plugin approval prompts must reach operational channels.",
+      tags: ["advanced"],
+    },
+    "approvals.plugin.enabled": {
+      label: "Forward Plugin Approvals",
+      help: "Enables forwarding of plugin approval requests to configured delivery destinations (default: false). Independent of approvals.exec.enabled.",
+      tags: ["advanced"],
+    },
+    "approvals.plugin.mode": {
+      label: "Plugin Approval Forwarding Mode",
+      help: 'Controls where plugin approval prompts are sent: "session" uses origin chat, "targets" uses configured targets, and "both" sends to both paths.',
+      tags: ["advanced"],
+    },
+    "approvals.plugin.agentFilter": {
+      label: "Plugin Approval Agent Filter",
+      help: 'Optional allowlist of agent IDs eligible for forwarded plugin approvals, for example `["primary", "ops-agent"]`. Use this to limit forwarding blast radius.',
+      tags: ["advanced"],
+    },
+    "approvals.plugin.sessionFilter": {
+      label: "Plugin Approval Session Filter",
+      help: 'Optional session-key filters matched as substring or regex-style patterns, for example `["discord:", "^agent:ops:"]`. Use narrow patterns so only intended approval contexts are forwarded.',
+      tags: ["storage"],
+    },
+    "approvals.plugin.targets": {
+      label: "Plugin Approval Forwarding Targets",
+      help: "Explicit delivery targets used when plugin approval forwarding mode includes targets, each with channel and destination details.",
+      tags: ["advanced"],
+    },
+    "approvals.plugin.targets[].channel": {
+      label: "Plugin Approval Target Channel",
+      help: "Channel/provider ID used for forwarded plugin approval delivery, such as discord, slack, or a plugin channel id.",
+      tags: ["advanced"],
+    },
+    "approvals.plugin.targets[].to": {
+      label: "Plugin Approval Target Destination",
+      help: "Destination identifier inside the target channel (channel ID, user ID, or thread root depending on provider).",
+      tags: ["advanced"],
+    },
+    "approvals.plugin.targets[].accountId": {
+      label: "Plugin Approval Target Account ID",
+      help: "Optional account selector for multi-account channel setups when plugin approvals must route through a specific account context.",
+      tags: ["advanced"],
+    },
+    "approvals.plugin.targets[].threadId": {
+      label: "Plugin Approval Target Thread ID",
+      help: "Optional thread/topic target for channels that support threaded delivery of forwarded plugin approvals.",
+      tags: ["advanced"],
+    },
     "tools.message.allowCrossContextSend": {
       label: "Allow Cross-Context Messaging",
       help: "旧版覆盖：允许跨所有提供商的跨上下文发送。",
@@ -12908,7 +12537,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "tools.web.search.enabled": {
       label: "Enable Web Search Tool",
-      help: "启用 web_search 工具(需要提供商 API 密钥)。",
+      help: "Enable managed web_search and optional Codex-native search for eligible models.",
       tags: ["tools"],
     },
     "tools.web.search.provider": {
@@ -12931,6 +12560,51 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       help: "Cache TTL in minutes for web_search results.",
       tags: ["performance", "storage", "tools"],
     },
+    "tools.web.search.openaiCodex.enabled": {
+      label: "Enable Native Codex Web Search",
+      help: "Enable native Codex web search for Codex-capable models.",
+      tags: ["tools"],
+    },
+    "tools.web.search.openaiCodex.mode": {
+      label: "Codex Web Search Mode",
+      help: 'Native Codex web search mode: "cached" (default) or "live".',
+      tags: ["tools"],
+    },
+    "tools.web.search.openaiCodex.allowedDomains": {
+      label: "Codex Allowed Domains",
+      help: "Optional domain allowlist passed to the native Codex web_search tool.",
+      tags: ["access", "tools"],
+    },
+    "tools.web.search.openaiCodex.contextSize": {
+      label: "Codex Search Context Size",
+      help: 'Native Codex search context size hint: "low", "medium", or "high".',
+      tags: ["tools"],
+    },
+    "tools.web.search.openaiCodex.userLocation.country": {
+      label: "Codex User Country",
+      help: "Approximate country sent to native Codex web search.",
+      tags: ["tools"],
+    },
+    "tools.web.search.openaiCodex.userLocation.region": {
+      label: "Codex User Region",
+      help: "Approximate region/state sent to native Codex web search.",
+      tags: ["tools"],
+    },
+    "tools.web.search.openaiCodex.userLocation.city": {
+      label: "Codex User City",
+      help: "Approximate city sent to native Codex web search.",
+      tags: ["tools"],
+    },
+    "tools.web.search.openaiCodex.userLocation.timezone": {
+      label: "Codex User Timezone",
+      help: "Approximate timezone sent to native Codex web search.",
+      tags: ["tools"],
+    },
+    "tools.web.search.brave.mode": {
+      label: "Brave Search Mode",
+      help: 'Brave Search mode: "web" (URL results) or "llm-context" (pre-extracted page content for LLM grounding).',
+      tags: ["tools"],
+    },
     "tools.web.fetch.enabled": {
       label: "Enable Web Fetch Tool",
       help: "Enable the web_fetch tool (lightweight HTTP fetch).",
@@ -12944,6 +12618,11 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "tools.web.fetch.maxCharsCap": {
       label: "Web Fetch Hard Max Chars",
       help: "Hard cap for web_fetch maxChars (applies to config and tool calls).",
+      tags: ["performance", "tools"],
+    },
+    "tools.web.fetch.maxResponseBytes": {
+      label: "Web Fetch Max Download Size (bytes)",
+      help: "Max download size before truncation.",
       tags: ["performance", "tools"],
     },
     "tools.web.fetch.timeoutSeconds": {
@@ -12984,8 +12663,8 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "tools.web.fetch.firecrawl.baseUrl": {
       label: "Firecrawl Base URL",
-      help: "Firecrawl 基本 URL(例如 https://api.firecrawl.dev 或自定义端点)。",
-      tags: ["tools"],
+      help: "Firecrawl base URL (e.g. https://api.firecrawl.dev or custom endpoint).",
+      tags: ["tools", "url-secret"],
     },
     "tools.web.fetch.firecrawl.onlyMainContent": {
       label: "Firecrawl Main Content Only",
@@ -13001,6 +12680,42 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       label: "Firecrawl Timeout (sec)",
       help: "Firecrawl 请求的超时时间(秒)。",
       tags: ["performance", "tools"],
+    },
+    "tools.web.x_search.enabled": {
+      label: "Enable X Search Tool",
+      help: "Enable the x_search tool (requires XAI_API_KEY or tools.web.x_search.apiKey).",
+      tags: ["tools"],
+    },
+    "tools.web.x_search.apiKey": {
+      label: "xAI API Key",
+      help: "xAI API key for X search (fallback: XAI_API_KEY env var).",
+      tags: ["security", "auth", "tools"],
+      sensitive: true,
+    },
+    "tools.web.x_search.model": {
+      label: "X Search Model",
+      help: 'Model to use for X search (default: "grok-4-1-fast-non-reasoning").',
+      tags: ["models", "tools"],
+    },
+    "tools.web.x_search.inlineCitations": {
+      label: "X Search Inline Citations",
+      help: "Keep inline citations from xAI in x_search responses when available (default: false).",
+      tags: ["tools"],
+    },
+    "tools.web.x_search.maxTurns": {
+      label: "X Search Max Turns",
+      help: "Optional max internal search/tool turns xAI may use per x_search request. Omit to let xAI choose.",
+      tags: ["performance", "tools"],
+    },
+    "tools.web.x_search.timeoutSeconds": {
+      label: "X Search Timeout (sec)",
+      help: "Timeout in seconds for x_search requests.",
+      tags: ["performance", "tools"],
+    },
+    "tools.web.x_search.cacheTtlMinutes": {
+      label: "X Search Cache TTL (min)",
+      help: "Cache TTL in minutes for x_search results.",
+      tags: ["performance", "storage", "tools"],
     },
     "gateway.controlUi.basePath": {
       label: "Control UI Base Path",
@@ -13054,7 +12769,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       label: "Gateway APNs Relay Base URL",
       help: "Base HTTPS URL for the external APNs relay service used by official/TestFlight iOS builds. Keep this aligned with the relay URL baked into the iOS build so registration and send traffic hit the same deployment.",
       placeholder: "https://relay.example.com",
-      tags: ["network", "advanced"],
+      tags: ["network", "advanced", "url-secret"],
     },
     "gateway.push.apns.relay.timeoutMs": {
       label: "Gateway APNs Relay Timeout (ms)",
@@ -13150,6 +12865,11 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       label: "Gateway Node Denylist",
       help: "即使存在于节点声明或默认允许列表中也要阻止的节点命令名称（仅精确命令名称匹配，例如 `system.run`；不检查该命令内的 shell 文本）。",
       tags: ["access", "network"],
+    },
+    "gateway.webchat.chatHistoryMaxChars": {
+      label: "WebChat History Max Chars",
+      help: "Max characters per text field in chat.history responses before truncation (default: 12000).",
+      tags: ["network", "performance"],
     },
     "nodeHost.browserProxy": {
       label: "Node Browser Proxy",
@@ -13361,6 +13081,31 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       help: "Adds extra directories or .md files to the memory index beyond default memory files. Use this when key reference docs live elsewhere in your repo; when multimodal memory is enabled, matching image/audio files under these paths are also eligible for indexing.",
       tags: ["storage"],
     },
+    "agents.defaults.memorySearch.qmd": {
+      label: "Memory Search QMD Collections",
+      help: "Use this when one agent should query another agent's transcript collections; QMD-specific extra collections let you opt into cross-agent memory search without flattening everything into one shared namespace.",
+      tags: ["advanced"],
+    },
+    "agents.defaults.memorySearch.qmd.extraCollections": {
+      label: "QMD Extra Collections",
+      help: "Use this when you need directional transcript search across agents; add collections here to scope QMD recalls without creating a shared global transcript namespace.",
+      tags: ["advanced"],
+    },
+    "agents.defaults.memorySearch.qmd.extraCollections.path": {
+      label: "QMD Extra Collection Path",
+      help: "Use an absolute or workspace-relative filesystem path for the extra QMD collection; keep it pointed at the transcript directory or note folder you actually want this agent to search.",
+      tags: ["storage"],
+    },
+    "agents.defaults.memorySearch.qmd.extraCollections.name": {
+      label: "QMD Extra Collection Name",
+      help: "Preserves the configured collection label only when the path points outside the agent workspace; paths inside the workspace stay agent-scoped even if a name is provided. Use this for shared cross-agent transcript roots that live outside the workspace.",
+      tags: ["advanced"],
+    },
+    "agents.defaults.memorySearch.qmd.extraCollections.pattern": {
+      label: "QMD Extra Collection Pattern",
+      help: "Use a glob pattern to restrict which files inside the collection are indexed; keep the default `**/*.md` unless you need a narrower subset.",
+      tags: ["advanced"],
+    },
     "agents.defaults.memorySearch.multimodal": {
       label: "Memory Search Multimodal",
       help: 'Optional multimodal memory settings for indexing image and audio files from configured extra paths. Keep this off unless your embedding model explicitly supports cross-modal embeddings, and set `memorySearch.fallback` to "none" while it is enabled. Matching files are uploaded to the configured remote embedding provider during indexing.',
@@ -13393,8 +13138,8 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.defaults.memorySearch.remote.baseUrl": {
       label: "Remote Embedding Base URL",
-      help: "覆盖嵌入 API 端点，如 OpenAI 兼容代理或自定义 Gemini 基本 URL。仅在通过您自己的网关或供应商端点进行路由时使用此项；否则保持提供商默认值。",
-      tags: ["advanced"],
+      help: "Overrides the embedding API endpoint, such as an OpenAI-compatible proxy or custom Gemini base URL. Use this only when routing through your own gateway or vendor endpoint; keep provider defaults otherwise.",
+      tags: ["advanced", "url-secret"],
     },
     "agents.defaults.memorySearch.remote.apiKey": {
       label: "Remote Embedding API Key",
@@ -13615,6 +13360,11 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "memory.qmd.searchMode": {
       label: "QMD 搜索模式",
       help: '选择 QMD 检索路径："query" 使用标准查询流、"search" 使用搜索定向检索、"vsearch" 强调向量检索。除非调整相关性质量，否则保持默认。',
+      tags: ["storage"],
+    },
+    "memory.qmd.searchTool": {
+      label: "QMD Search Tool Override",
+      help: "Overrides the exact mcporter tool name used for QMD searches while preserving `searchMode` as the semantic retrieval mode. Use this only when your QMD MCP server exposes a custom tool such as `hybrid_search` and keep it unset for the normal built-in tool mapping.",
       tags: ["storage"],
     },
     "memory.qmd.includeDefaultMemory": {
@@ -13844,8 +13594,8 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "models.providers.*.baseUrl": {
       label: "Model Provider Base URL",
-      help: "提供商端点的基本 URL，用于为该提供商条目提供模型请求。使用 HTTPS 端点并在需要时通过配置模板保持 URL 特定于环境。",
-      tags: ["models"],
+      help: "Base URL for the provider endpoint used to serve model requests for that provider entry. Use HTTPS endpoints and keep URLs environment-specific through config templating where needed.",
+      tags: ["models", "url-secret"],
     },
     "models.providers.*.apiKey": {
       label: "Model Provider API Key",
@@ -13937,6 +13687,21 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       label: "Failover Window (hours)",
       help: "回退计数器的故障窗口（小时）（默认：24）。",
       tags: ["auth", "access"],
+    },
+    "auth.cooldowns.overloadedProfileRotations": {
+      label: "Overloaded Profile Rotations",
+      help: "Maximum same-provider auth-profile rotations allowed for overloaded errors before switching to model fallback (default: 1).",
+      tags: ["auth", "access", "storage"],
+    },
+    "auth.cooldowns.overloadedBackoffMs": {
+      label: "Overloaded Backoff (ms)",
+      help: "Fixed delay in milliseconds before retrying an overloaded provider/profile rotation (default: 0).",
+      tags: ["auth", "access", "reliability", "storage"],
+    },
+    "auth.cooldowns.rateLimitedProfileRotations": {
+      label: "Rate-Limited Profile Rotations",
+      help: "Maximum same-provider auth-profile rotations allowed for rate-limit errors before switching to model fallback (default: 1).",
+      tags: ["auth", "access", "performance", "storage"],
     },
     "agents.defaults.models": {
       label: "Models",
@@ -14101,6 +13866,11 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "agents.defaults.compaction.truncateAfterCompaction": {
       label: "Truncate After Compaction",
       help: "When enabled, rewrites the session JSONL file after compaction to remove entries that were summarized. Prevents unbounded file growth in long-running sessions with many compaction cycles. Default: false.",
+      tags: ["advanced"],
+    },
+    "agents.defaults.compaction.notifyUser": {
+      label: "Compaction Notify User",
+      help: "When enabled, sends a brief compaction notice to the user (e.g. '🧹 Compacting context...') when compaction starts. Disabled by default to keep compaction silent and non-intrusive.",
       tags: ["advanced"],
     },
     "agents.defaults.compaction.memoryFlush": {
@@ -15173,6 +14943,22 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       help: "文本到语音策略，用于在支持的语音或音频表面上朗读代理回复。除非语音播放是操作员/用户工作流的一部分，否则保持禁用状态。",
       tags: ["media"],
     },
+    "messages.tts.providers": {
+      label: "TTS Provider Settings",
+      help: "Provider-specific TTS settings keyed by speech provider id. Use this instead of bundled provider-specific top-level keys so speech plugins stay decoupled from core config schema.",
+      tags: ["media"],
+    },
+    "messages.tts.providers.*": {
+      label: "TTS Provider Config",
+      help: "Provider-specific TTS configuration for one speech provider id. Keep fields scoped to the plugin that owns that provider.",
+      tags: ["media"],
+    },
+    "messages.tts.providers.*.apiKey": {
+      label: "TTS Provider API Key",
+      help: "Provider API key used by that speech provider when its plugin requires authenticated TTS access.",
+      tags: ["security", "auth", "media"],
+      sensitive: true,
+    },
     "talk.provider": {
       label: "Talk 活跃提供商",
       help: '活跃的 Talk 提供商 id（例如"elevenlabs"）。',
@@ -15245,673 +15031,10 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       help: "在支持的位置启用简洁指示符样式心跳呈现，而不是冗长的状态文本。为具有许多活跃频道的密集仪表板使用指示符模式。",
       tags: ["network", "automation", "channels"],
     },
-    "channels.whatsapp": {
-      label: "WhatsApp",
-      help: "WhatsApp 频道提供商配置，用于访问策略和消息批处理行为。使用此部分来调整 WhatsApp 聊天的响应性和直接消息路由安全性。",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram": {
-      label: "Telegram",
-      help: "Telegram 频道提供商配置，包括身份验证令牌、重试行为和消息呈现控制。使用此部分来调整特定于 Telegram API 语义的机器人行为。",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.customCommands": {
-      label: "Telegram 自定义命令",
-      help: "其他 Telegram 机器人菜单命令(与本机合并；冲突被忽略)。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord": {
-      label: "Discord",
-      help: "Discord 频道提供商配置，用于机器人身份验证、重试策略、流式处理、线程绑定和可选语音功能。保持特权意图和高级功能禁用，除非需要。",
-      tags: ["network", "channels"],
-    },
-    "channels.slack": {
-      label: "Slack",
-      help: "Slack 频道提供商配置，适用于机器人/应用令牌、流式处理行为和 DM 策略控制。保持令牌处理和线程行为明确以避免嘈杂的工作区交互。",
-      tags: ["network", "channels"],
-    },
-    "channels.mattermost": {
-      label: "Mattermost",
-      help: "Mattermost 频道提供商配置，用于机器人凭证、基础 URL 和消息触发模式。在高流量团队频道中保持提及/触发规则严格。",
-      tags: ["network", "channels"],
-    },
-    "channels.signal": {
-      label: "Signal",
-      help: "Signal 频道提供商配置，包括帐户身份和 DM 策略行为。保持帐户映射明确以便路由在多设备设置中保持稳定。",
-      tags: ["network", "channels"],
-    },
-    "channels.imessage": {
-      label: "iMessage",
-      help: "iMessage 频道提供商配置，用于 CLI 集成和 DM 访问策略处理。当运行时环境有非标准二进制位置时显式设置 CLI 路径。",
-      tags: ["network", "channels"],
-    },
-    "channels.bluebubbles": {
-      label: "BlueBubbles",
-      help: "BlueBubbles 频道提供商配置，用于 Apple 消息传递桥接集成。在共享部署中保持 DM 策略与受信任的发件人模型对齐。",
-      tags: ["network", "channels"],
-    },
-    "channels.msteams": {
-      label: "MS Teams",
-      help: "Microsoft Teams 频道提供商配置和提供商特定的策略切换。使用此部分从其他企业聊天提供商隔离 Teams 行为。",
-      tags: ["network", "channels"],
-    },
     "channels.modelByChannel": {
       label: "频道模型覆盖",
       help: "映射提供商 -> 频道 id -> 模型覆盖(值是提供商/模型或别名)。",
       tags: ["network", "channels"],
-    },
-    "channels.irc": {
-      label: "IRC",
-      help: "IRC 频道提供商配置和经典 IRC 传输工作流的兼容性设置。当将旧版聊天基础结构桥接到 OpenClaw 中时使用此部分。",
-      tags: ["network", "channels"],
-    },
-    "channels.irc.dmPolicy": {
-      label: "IRC DM Policy",
-      help: 'Direct message access control ("pairing" recommended). "open" requires channels.irc.allowFrom=["*"].',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.irc.nickserv.enabled": {
-      label: "IRC NickServ Enabled",
-      help: "Enable NickServ identify/register after connect (defaults to enabled when password is configured).",
-      tags: ["network", "channels"],
-    },
-    "channels.irc.nickserv.service": {
-      label: "IRC NickServ Service",
-      help: "NickServ service nick (default: NickServ).",
-      tags: ["network", "channels"],
-    },
-    "channels.irc.nickserv.password": {
-      label: "IRC NickServ Password",
-      help: "NickServ password used for IDENTIFY/REGISTER (sensitive).",
-      tags: ["security", "auth", "network", "channels"],
-      sensitive: true,
-    },
-    "channels.irc.nickserv.passwordFile": {
-      label: "IRC NickServ Password File",
-      help: "Optional file path containing NickServ password.",
-      tags: ["security", "auth", "network", "storage", "channels"],
-    },
-    "channels.irc.nickserv.register": {
-      label: "IRC NickServ Register",
-      help: "If true, send NickServ REGISTER on every connect. Use once for initial registration, then disable.",
-      tags: ["network", "channels"],
-    },
-    "channels.irc.nickserv.registerEmail": {
-      label: "IRC NickServ Register Email",
-      help: "Email used with NickServ REGISTER (required when register=true).",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.botToken": {
-      label: "Telegram 机器人令牌",
-      help: "用于对此帐户/提供商配置的 Bot API 请求进行身份验证的 Telegram 机器人令牌。使用秘密/环境替换，如果怀疑泄露，请轮换令牌。",
-      tags: ["security", "auth", "network", "channels"],
-      sensitive: true,
-    },
-    "channels.telegram.dmPolicy": {
-      label: "Telegram 直接消息策略",
-      help: '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.telegram.allowFrom=["*"]。',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.telegram.configWrites": {
-      label: "Telegram 配置写入",
-      help: "允许 Telegram 响应频道事件/命令写入配置(默认值：true)。",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.commands.native": {
-      label: "Telegram 原生命令",
-      help: '覆盖 Telegram 的本机命令(bool 或"auto")。',
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.commands.nativeSkills": {
-      label: "Telegram 原生技能命令",
-      help: '覆盖 Telegram 的本机技能命令(bool 或"auto")。',
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.streaming": {
-      label: "Telegram 流模式",
-      help: '统一 Telegram 流预览模式："off"(关闭) | "partial"(部分) | "block"(块) | "progress"(进度)(默认值："partial"(部分))。"progress"(进度)在 Telegram 上映射到"partial"(部分)。旧版 boolean/streamMode 键是自动映射的。',
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.retry.attempts": {
-      label: "Telegram 重试尝试次数",
-      help: "Telegram 出站 API 调用的最大重试次数(默认值：3)。",
-      tags: ["network", "reliability", "channels"],
-    },
-    "channels.telegram.retry.minDelayMs": {
-      label: "Telegram 重试最小延迟(毫秒)",
-      help: "Telegram 出站调用的最少重试延迟(毫秒)。",
-      tags: ["network", "reliability", "channels"],
-    },
-    "channels.telegram.retry.maxDelayMs": {
-      label: "Telegram 重试最大延迟(毫秒)",
-      help: "Telegram 出站调用的最大重试延迟上限(毫秒)。",
-      tags: ["network", "reliability", "performance", "channels"],
-    },
-    "channels.telegram.retry.jitter": {
-      label: "Telegram 重试抖动",
-      help: "应用于 Telegram 重试延迟的抖动因子(0-1)。",
-      tags: ["network", "reliability", "channels"],
-    },
-    "channels.telegram.network.autoSelectFamily": {
-      label: "Telegram autoSelectFamily",
-      help: "覆盖 Telegram 的 Node autoSelectFamily(true=启用，false=禁用)。",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.timeoutSeconds": {
-      label: "Telegram API Timeout (seconds)",
-      help: "Max seconds before Telegram API requests are aborted (default: 500 per grammY).",
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.telegram.silentErrorReplies": {
-      label: "Telegram Silent Error Replies",
-      help: "When true, Telegram bot replies marked as errors are sent silently (no notification sound). Default: false.",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.apiRoot": {
-      label: "Telegram API Root URL",
-      help: "Custom Telegram Bot API root URL. Use for self-hosted Bot API servers (https://github.com/tdlib/telegram-bot-api) or reverse proxies in regions where api.telegram.org is blocked.",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.autoTopicLabel": {
-      label: "Telegram Auto Topic Label",
-      help: "Auto-rename DM forum topics on first message using LLM. Default: true. Set to false to disable, or use object form { enabled: true, prompt: '...' } for custom prompt.",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.autoTopicLabel.enabled": {
-      label: "Telegram Auto Topic Label Enabled",
-      help: "Whether auto topic labeling is enabled. Default: true.",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.autoTopicLabel.prompt": {
-      label: "Telegram Auto Topic Label Prompt",
-      help: "Custom prompt for LLM-based topic naming. The user message is appended after the prompt.",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.capabilities.inlineButtons": {
-      label: "Telegram Inline Buttons",
-      help: "启用受支持的命令和交互表面的 Telegram 内联按钮组件。如果部署需要纯文本唯一兼容性行为，则禁用。",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.execApprovals": {
-      label: "Telegram Exec Approvals",
-      help: "Telegram 本机 exec 批准路由和批准者授权。仅当 Telegram 应为所选机器人帐户充当显式 exec 批准客户端时启用此选项。",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.execApprovals.enabled": {
-      label: "Telegram Exec Approvals Enabled",
-      help: "为此帐户启用 Telegram exec 批准。当为假或未设置时，Telegram 消息/按钮无法批准 exec 请求。",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.execApprovals.approvers": {
-      label: "Telegram Exec Approval Approvers",
-      help: "允许为此机器人帐户批准 exec 请求的 Telegram 用户 ID。使用数字 Telegram 用户 ID；当目标包括 dm 时，提示仅传递给这些批准者。",
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.execApprovals.agentFilter": {
-      label: "Telegram Exec Approval Agent Filter",
-      help: '可选的符合 Telegram exec 审批条件的代理 ID 的允许列表，例如 `["main", "ops-agent"]`。使用此将批准提示的范围限制在实际从 Telegram 操作的代理。',
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.execApprovals.sessionFilter": {
-      label: "Telegram Exec Approval Session Filter",
-      help: "在 Telegram 批准路由之前与子字符串或正则表达式样式模式匹配的可选会话密钥过滤器。使用窄模式以便 Telegram 批准仅出现在预期的会话中。",
-      tags: ["network", "storage", "channels"],
-    },
-    "channels.telegram.execApprovals.target": {
-      label: "Telegram Exec Approval Target",
-      help: '控制 Telegram 批准提示的发送位置："dm"(直接消息)发送到批准者 DM(默认)、"channel"(频道)发送到原始 Telegram 聊天/主题，"both"(两者)发送到两者。频道传递向聊天公开命令文本，因此仅在受信任的群组/主题中使用。',
-      tags: ["network", "channels"],
-    },
-    "channels.telegram.threadBindings.enabled": {
-      label: "Telegram Thread Binding Enabled",
-      help: "启用 Telegram 对话绑定功能(/focus、/unfocus、/agents 和 /session idle|max-age)。当设置时覆盖 session.threadBindings.enabled。",
-      tags: ["network", "storage", "channels"],
-    },
-    "channels.telegram.threadBindings.idleHours": {
-      label: "Telegram Thread Binding Idle Timeout (hours)",
-      help: "Telegram 绑定会话的不活动窗口(小时)。设置 0 禁用空闲自动取消焦点(默认值：24)。当设置时覆盖 session.threadBindings.idleHours。",
-      tags: ["network", "storage", "channels"],
-    },
-    "channels.telegram.threadBindings.maxAgeHours": {
-      label: "Telegram Thread Binding Max Age (hours)",
-      help: "Telegram 绑定会话的可选硬最大年龄(小时)。设置 0 禁用硬上限(默认值：0)。当设置时覆盖 session.threadBindings.maxAgeHours。",
-      tags: ["network", "performance", "storage", "channels"],
-    },
-    "channels.telegram.threadBindings.spawnSubagentSessions": {
-      label: "Telegram Thread-Bound Subagent Spawn",
-      help: "允许子代理生成使用 thread=true 在支持时自动绑定 Telegram 当前对话。",
-      tags: ["network", "storage", "channels"],
-    },
-    "channels.telegram.threadBindings.spawnAcpSessions": {
-      label: "Telegram Thread-Bound ACP Spawn",
-      help: "允许 ACP 生成使用 thread=true 在支持时自动绑定 Telegram 当前对话。",
-      tags: ["network", "storage", "channels"],
-    },
-    "channels.whatsapp.dmPolicy": {
-      label: "WhatsApp DM Policy",
-      help: '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.whatsapp.allowFrom=["*"]。',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.whatsapp.selfChatMode": {
-      label: "WhatsApp Self-Phone Mode",
-      help: "同一手机设置(机器人使用您的个人 WhatsApp 号码)。",
-      tags: ["network", "channels"],
-    },
-    "channels.whatsapp.debounceMs": {
-      label: "WhatsApp Message Debounce (ms)",
-      help: "去抖动窗口(毫秒)，用于从同一发件人批处理快速连续消息(0 禁用)。",
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.whatsapp.configWrites": {
-      label: "WhatsApp Config Writes",
-      help: "允许 WhatsApp 响应频道事件/命令写入配置(默认值：true)。",
-      tags: ["network", "channels"],
-    },
-    "channels.signal.dmPolicy": {
-      label: "Signal DM Policy",
-      help: '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.signal.allowFrom=["*"]。',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.signal.configWrites": {
-      label: "Signal Config Writes",
-      help: "允许 Signal 响应频道事件/命令写入配置(默认值：true)。",
-      tags: ["network", "channels"],
-    },
-    "channels.imessage.dmPolicy": {
-      label: "iMessage DM Policy",
-      help: '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.imessage.allowFrom=["*"]。',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.imessage.configWrites": {
-      label: "iMessage Config Writes",
-      help: "允许 iMessage 响应频道事件/命令写入配置(默认值：true)。",
-      tags: ["network", "channels"],
-    },
-    "channels.bluebubbles.dmPolicy": {
-      label: "BlueBubbles DM Policy",
-      help: '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.bluebubbles.allowFrom=["*"]。',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.msteams.configWrites": {
-      label: "MS Teams Config Writes",
-      help: "允许 Microsoft Teams 响应频道事件/命令写入配置(默认值：true)。",
-      tags: ["network", "channels"],
-    },
-    "channels.irc.configWrites": {
-      label: "IRC Config Writes",
-      help: "Allow IRC to write config in response to channel events/commands (default: true).",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.dmPolicy": {
-      label: "Discord DM Policy",
-      help: '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.discord.allowFrom=["*"]。',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.discord.dm.policy": {
-      label: "Discord DM Policy",
-      help: '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.discord.allowFrom=["*"](旧版：channels.discord.dm.allowFrom)。',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.discord.configWrites": {
-      label: "Discord Config Writes",
-      help: "Allow Discord to write config in response to channel events/commands (default: true).",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.proxy": {
-      label: "Discord Proxy URL",
-      help: "Discord 网关 + API 请求的代理 URL(应用 id 查找和允许列表解析)。通过 channels.discord.accounts.<id>.proxy 按帐户设置。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.commands.native": {
-      label: "Discord Native Commands",
-      help: '覆盖 Discord 的本机命令(bool 或"auto")。',
-      tags: ["network", "channels"],
-    },
-    "channels.discord.commands.nativeSkills": {
-      label: "Discord Native Skill Commands",
-      help: '覆盖 Discord 的本机技能命令(bool 或"auto")。',
-      tags: ["network", "channels"],
-    },
-    "channels.discord.streaming": {
-      label: "Discord Streaming Mode",
-      help: '统一 Discord 流预览模式："off"(关闭) | "partial"(部分) | "block"(块) | "progress"(进度)。"progress"(进度)在 Discord 上映射到"partial"(部分)。旧版 boolean/streamMode 键是自动映射的。',
-      tags: ["network", "channels"],
-    },
-    "channels.discord.streamMode": {
-      label: "Discord Stream Mode (Legacy)",
-      help: "旧版 Discord 预览模式别名(off(关闭) | partial(部分) | block(块))；自动迁移到 channels.discord.streaming。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.draftChunk.minChars": {
-      label: "Discord Draft Chunk Min Chars",
-      help: '当 channels.discord.streaming="block"(块)时发出 Discord 流预览更新前的最少字符数(默认值：200)。',
-      tags: ["network", "channels"],
-    },
-    "channels.discord.draftChunk.maxChars": {
-      label: "Discord Draft Chunk Max Chars",
-      help: '当 channels.discord.streaming="block"(块)时 Discord 流预览块的目标最大大小(默认值：800；固定到 channels.discord.textChunkLimit)。',
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.discord.draftChunk.breakPreference": {
-      label: "Discord Draft Chunk Break Preference",
-      help: "Discord 草稿块的首选断点(paragraph(段落) | newline(换行) | sentence(句子))。默认值：paragraph(段落)。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.retry.attempts": {
-      label: "Discord Retry Attempts",
-      help: "Discord 出站 API 调用的最大重试次数(默认值：3)。",
-      tags: ["network", "reliability", "channels"],
-    },
-    "channels.discord.retry.minDelayMs": {
-      label: "Discord Retry Min Delay (ms)",
-      help: "Discord 出站调用的最少重试延迟(毫秒)。",
-      tags: ["network", "reliability", "channels"],
-    },
-    "channels.discord.retry.maxDelayMs": {
-      label: "Discord Retry Max Delay (ms)",
-      help: "Discord 出站调用的最大重试延迟上限(毫秒)。",
-      tags: ["network", "reliability", "performance", "channels"],
-    },
-    "channels.discord.retry.jitter": {
-      label: "Discord Retry Jitter",
-      help: "应用于 Discord 重试延迟的抖动因子(0-1)。",
-      tags: ["network", "reliability", "channels"],
-    },
-    "channels.discord.maxLinesPerMessage": {
-      label: "Discord Max Lines Per Message",
-      help: "每条 Discord 消息的软最大行数(默认值：17)。",
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.discord.inboundWorker.runTimeoutMs": {
-      label: "Discord Inbound Worker Timeout (ms)",
-      help: "可选排队 Discord 入站工作人员超时(毫秒)。这与 Carbon 侦听程序超时分离；默认为 1800000，可以用 0 禁用。通过 channels.discord.accounts.<id>.inboundWorker.runTimeoutMs 按帐户设置。",
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.discord.eventQueue.listenerTimeout": {
-      label: "Discord EventQueue Listener Timeout (ms)",
-      help: "规范 Discord 侦听程序超时控制(毫秒)，用于网关规范化/入队处理程序。默认值在 OpenClaw 中是 120000；通过 channels.discord.accounts.<id>.eventQueue.listenerTimeout 按帐户设置。",
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.discord.eventQueue.maxQueueSize": {
-      label: "Discord EventQueue Max Queue Size",
-      help: "可选 Discord EventQueue 容量覆盖(最大排队事件数，然后背压)。通过 channels.discord.accounts.<id>.eventQueue.maxQueueSize 按帐户设置。",
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.discord.eventQueue.maxConcurrency": {
-      label: "Discord EventQueue Max Concurrency",
-      help: "可选 Discord EventQueue 并发覆盖(最大并发处理程序执行)。通过 channels.discord.accounts.<id>.eventQueue.maxConcurrency 按帐户设置。",
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.discord.threadBindings.enabled": {
-      label: "Discord Thread Binding Enabled",
-      help: "启用 Discord 线程绑定功能(/focus、绑定线程路由/传递和线程绑定子代理会话)。当设置时覆盖 session.threadBindings.enabled。",
-      tags: ["network", "storage", "channels"],
-    },
-    "channels.discord.threadBindings.idleHours": {
-      label: "Discord Thread Binding Idle Timeout (hours)",
-      help: "Discord 线程绑定会话的不活动窗口(小时)(/focus 和生成的线程会话)。设置 0 禁用空闲自动取消焦点(默认值：24)。当设置时覆盖 session.threadBindings.idleHours。",
-      tags: ["network", "storage", "channels"],
-    },
-    "channels.discord.threadBindings.maxAgeHours": {
-      label: "Discord Thread Binding Max Age (hours)",
-      help: "Discord 线程绑定会话的可选硬最大年龄(小时)。设置 0 禁用硬上限(默认值：0)。当设置时覆盖 session.threadBindings.maxAgeHours。",
-      tags: ["network", "performance", "storage", "channels"],
-    },
-    "channels.discord.threadBindings.spawnSubagentSessions": {
-      label: "Discord Thread-Bound Subagent Spawn",
-      help: "允许子代理生成使用 thread=true 自动创建和绑定 Discord 线程(默认值：false；选择加入)。设置 true 为此帐户/频道启用线程绑定的子代理生成。",
-      tags: ["network", "storage", "channels"],
-    },
-    "channels.discord.threadBindings.spawnAcpSessions": {
-      label: "Discord Thread-Bound ACP Spawn",
-      help: "允许 /acp 生成自动为 ACP 会话创建和绑定 Discord 线程(默认值：false；选择加入)。设置 true 为此帐户/频道启用线程绑定的 ACP 生成。",
-      tags: ["network", "storage", "channels"],
-    },
-    "channels.discord.ui.components.accentColor": {
-      label: "Discord Component Accent Color",
-      help: "Discord 组件容器的强调色(十六进制)。通过 channels.discord.accounts.<id>.ui.components.accentColor 按帐户设置。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.intents.presence": {
-      label: "Discord Presence Intent",
-      help: "启用 Guild Presences 特权意图。还必须在 Discord 开发人员门户中启用。允许跟踪用户活动(例如 Spotify)。默认值：false。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.intents.guildMembers": {
-      label: "Discord 工会成员 Intent",
-      help: "启用 Guild Members 特权意图。还必须在 Discord 开发人员门户中启用。默认值：false。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.voice.enabled": {
-      label: "Discord 语音已启用",
-      help: "启用 Discord 语音频道对话(默认值：true)。省略 channels.discord.voice 以对帐户保持禁用语音支持。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.voice.autoJoin": {
-      label: "Discord 语音自动加入",
-      help: "启动时自动加入的语音频道(guildId/channelId 条目列表)。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.voice.daveEncryption": {
-      label: "Discord 语音 DAVE 加密",
-      help: "为 Discord 语音加入切换 DAVE 端对端加密(默认值：true in @discordjs/voice；Discord 可能需要这个)。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.voice.decryptionFailureTolerance": {
-      label: "Discord 语音解密失败容限",
-      help: "DAVE 在尝试会话恢复前连续解密失败(传递给 @discordjs/voice；默认值：24)。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.voice.tts": {
-      label: "Discord 语音文本转语音",
-      help: "Discord 语音播放的可选 TTS 覆盖(与 messages.tts 合并)。",
-      tags: ["network", "media", "channels"],
-    },
-    "channels.discord.pluralkit.enabled": {
-      label: "Discord PluralKit 已启用",
-      help: "解析 PluralKit 代理消息并将系统成员视为不同的发件人。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.pluralkit.token": {
-      label: "Discord PluralKit 令牌",
-      help: "用于解析私有系统或成员的可选 PluralKit 令牌。",
-      tags: ["security", "auth", "network", "channels"],
-      sensitive: true,
-    },
-    "channels.discord.activity": {
-      label: "Discord Presence Activity",
-      help: "Discord 状态活动文本(默认为自定义状态)。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.status": {
-      label: "Discord Presence 状态",
-      help: "Discord 状态状态(online(在线)、dnd(勿扰)、idle(空闲)、invisible(隐身))。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.autoPresence.enabled": {
-      label: "Discord 自动 Presence 已启用",
-      help: "基于运行时/模型可用性信号启用自动 Discord 机器人状态更新。启用时：healthy(健康)=>online(在线)、degraded(降级)/unknown(未知)=>idle(空闲)、exhausted(已耗尽)/unavailable(不可用)=>dnd(勿扰)。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.autoPresence.intervalMs": {
-      label: "Discord 自动 Presence 检查间隔(毫秒)",
-      help: "评估 Discord 自动状态状态的频率(毫秒)(默认值：30000)。",
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.discord.autoPresence.minUpdateIntervalMs": {
-      label: "Discord 自动 Presence 最小更新间隔(毫秒)",
-      help: "实际 Discord 状态更新调用之间的最少时间(毫秒)(默认值：15000)。防止嘈杂状态更改上的状态垃圾邮件。",
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.discord.autoPresence.healthyText": {
-      label: "Discord 自动 Presence 健康文本",
-      help: "运行时健康(在线)时的可选自定义状态文本。如果省略，当设置时会回退到静态 channels.discord.activity。",
-      tags: ["network", "reliability", "channels"],
-    },
-    "channels.discord.autoPresence.degradedText": {
-      label: "Discord 自动 Presence 降级文本",
-      help: "运行时/模型可用性降级或未知(空闲)时的可选自定义状态文本。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.autoPresence.exhaustedText": {
-      label: "Discord 自动 Presence 耗尽文本",
-      help: "运行时检测到已耗尽/不可用模型配额(dnd)时的可选自定义状态文本。支持 {reason} 模板占位符。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.activityType": {
-      label: "Discord Presence Activity 类型",
-      help: "Discord 状态活动类型(0=Playing(播放),1=Streaming(流式处理),2=Listening(监听),3=Watching(观看),4=Custom(自定义),5=Competing(竞争))。",
-      tags: ["network", "channels"],
-    },
-    "channels.discord.activityUrl": {
-      label: "Discord Presence Activity URL",
-      help: "Discord 状态流式处理 URL(activityType=1 需要)。",
-      tags: ["network", "channels"],
-    },
-    "channels.slack.dm.policy": {
-      label: "Slack DM Policy",
-      help: '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.slack.allowFrom=["*"](旧版：channels.slack.dm.allowFrom)。',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.slack.dmPolicy": {
-      label: "Slack DM Policy",
-      help: '直接消息访问控制(推荐"pairing"(配对))。"open"(打开)需要 channels.slack.allowFrom=["*"]。',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.slack.configWrites": {
-      label: "Slack Config Writes",
-      help: "允许 Slack 响应频道事件/命令写入配置(默认值：true)。",
-      tags: ["network", "channels"],
-    },
-    "channels.slack.commands.native": {
-      label: "Slack Native Commands",
-      help: '覆盖 Slack 的本机命令(bool 或"auto")。',
-      tags: ["network", "channels"],
-    },
-    "channels.slack.commands.nativeSkills": {
-      label: "Slack Native Skill Commands",
-      help: '覆盖 Slack 的本机技能命令(bool 或"auto")。',
-      tags: ["network", "channels"],
-    },
-    "channels.slack.allowBots": {
-      label: "Slack Allow Bot Messages",
-      help: "Allow bot-authored messages to trigger Slack replies (default: false).",
-      tags: ["access", "network", "channels"],
-    },
-    "channels.discord.allowBots": {
-      label: "Discord Allow Bot Messages",
-      help: '允许机器人创作的消息触发 Discord 回复(默认值：false)。设置"mentions"仅接受提及机器人的机器人消息。',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.matrix.allowBots": {
-      label: "Matrix Allow Bot Messages",
-      help: 'Allow messages from other configured Matrix bot accounts to trigger replies (default: false). Set "mentions" to only accept bot messages that visibly mention this bot.',
-      tags: ["access", "network", "channels"],
-    },
-    "channels.discord.token": {
-      label: "Discord Bot Token",
-      help: "用于此提供商帐户的网关和 REST API 身份验证的 Discord 机器人令牌。保持此秘密在已提交配置之外并在任何泄露后立即轮换。",
-      tags: ["security", "auth", "network", "channels"],
-      sensitive: true,
-    },
-    "channels.slack.botToken": {
-      label: "Slack Bot Token",
-      help: "在配置的工作区中用于标准聊天操作的 Slack 机器人令牌。保持此凭证作用域和旋转(如果工作区应用权限更改)。",
-      tags: ["security", "auth", "network", "channels"],
-      sensitive: true,
-    },
-    "channels.slack.appToken": {
-      label: "Slack App Token",
-      help: "启用时用于 Socket 模式连接和事件传输的 Slack 应用级令牌。使用最少权限应用作用域并将此令牌存储为秘密。",
-      tags: ["security", "auth", "network", "channels"],
-      sensitive: true,
-    },
-    "channels.slack.userToken": {
-      label: "Slack User Token",
-      help: "用于需要超出机器人权限的用户上下文 API 访问的工作流的可选 Slack 用户令牌。谨慎使用并审计作用域，因为此令牌可能具有更广泛的权限。",
-      tags: ["security", "auth", "network", "channels"],
-      sensitive: true,
-    },
-    "channels.slack.userTokenReadOnly": {
-      label: "Slack User Token Read Only",
-      help: "When true, treat configured Slack user token usage as read-only helper behavior where possible. Keep enabled if you only need supplemental reads without user-context writes.",
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.slack.capabilities.interactiveReplies": {
-      label: "Slack Interactive Replies",
-      help: "Enable agent-authored Slack interactive reply directives (`[[slack_buttons: ...]]`, `[[slack_select: ...]]`). Default: false.",
-      tags: ["network", "channels"],
-    },
-    "channels.slack.streaming": {
-      label: "Slack Streaming Mode",
-      help: '统一 Slack 流预览模式："off"(关闭) | "partial"(部分) | "block"(块) | "progress"(进度)。旧版 boolean/streamMode 键是自动映射的。',
-      tags: ["network", "channels"],
-    },
-    "channels.slack.nativeStreaming": {
-      label: "Slack Native Streaming",
-      help: "当 channels.slack.streaming 是 partial(部分)时启用本机 Slack 文本流(chat.startStream/chat.appendStream/chat.stopStream)(默认值：true)。",
-      tags: ["network", "channels"],
-    },
-    "channels.slack.streamMode": {
-      label: "Slack Stream Mode (Legacy)",
-      help: "旧版 Slack 预览模式别名(replace | status_final | append)；自动迁移到 channels.slack.streaming。",
-      tags: ["network", "channels"],
-    },
-    "channels.slack.thread.historyScope": {
-      label: "Slack Thread History Scope",
-      help: 'Slack 线程历史上下文的范围（"thread" 隔离按线程；"channel" 重用通道历史）。',
-      tags: ["network", "channels"],
-    },
-    "channels.slack.thread.inheritParent": {
-      label: "Slack Thread Parent Inheritance",
-      help: "如果为 true，Slack 线程会话继承父通道记录（默认：false）。",
-      tags: ["network", "channels"],
-    },
-    "channels.slack.thread.initialHistoryLimit": {
-      label: "Slack Thread Initial History Limit",
-      help: "启动新线程会话时要获取的现有 Slack 线程消息的最大数量（默认：20，设置为 0 以禁用）。",
-      tags: ["network", "performance", "channels"],
-    },
-    "channels.mattermost.botToken": {
-      label: "Mattermost Bot Token",
-      help: "来自 Mattermost 系统控制台 -> 集成 -> 机器人账户的机器人令牌。",
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.mattermost.baseUrl": {
-      label: "Mattermost Base URL",
-      help: "Mattermost 服务器的基本 URL（例如 https://chat.example.com）。",
-      placeholder: "https://chat.example.com",
-      tags: ["network", "channels"],
-    },
-    "channels.mattermost.configWrites": {
-      label: "Mattermost Config Writes",
-      help: "Allow Mattermost to write config in response to channel events/commands (default: true).",
-      tags: ["network", "channels"],
-    },
-    "channels.mattermost.chatmode": {
-      label: "Mattermost Chat Mode",
-      help: '对通道消息上提及("oncall")、触发字符(">""!")("onchar")或每条消息("onmessage")时进行回复。',
-      tags: ["network", "channels"],
-    },
-    "channels.mattermost.oncharPrefixes": {
-      label: "Mattermost Onchar Prefixes",
-      help: '触发 onchar 模式的前缀（默认：[">", "!"]）。',
-      tags: ["network", "channels"],
-    },
-    "channels.mattermost.requireMention": {
-      label: "Mattermost Require Mention",
-      help: "在通道中响应前需要 @mention（默认：true）。",
-      tags: ["network", "channels"],
-    },
-    "channels.signal.account": {
-      label: "Signal Account",
-      help: "Signal 帐户标识符(电话/编号句柄)用于将此频道配置绑定到特定的 Signal 身份。保持此与链接的设备/会话状态对齐。",
-      tags: ["network", "channels"],
-    },
-    "channels.imessage.cliPath": {
-      label: "iMessage CLI Path",
-      help: "用于发送/接收操作的 iMessage 桥接 CLI 二进制文件的文件系统路径。当二进制文件在服务运行时环境中不在 PATH 上时显式设置。",
-      tags: ["network", "storage", "channels"],
     },
     "agents.list[].skills": {
       label: "Agent Skill Filter",
@@ -16061,7 +15184,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "plugins.installs.*.installPath": {
       label: "Plugin Install Path",
-      help: "Resolved install directory (usually ~/.openclaw/extensions/<id>).",
+      help: "Resolved install directory for the installed plugin bundle.",
       tags: ["storage"],
     },
     "plugins.installs.*.version": {
@@ -16155,139 +15278,42 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       sensitive: true,
       tags: ["security", "auth", "tools"],
     },
-    "tools.web.search.brave.apiKey": {
+    "mcp.servers.*.headers.*": {
       sensitive: true,
-      tags: ["security", "auth", "tools"],
-    },
-    "tools.web.search.firecrawl.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "tools"],
-    },
-    "tools.web.search.gemini.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "tools"],
-    },
-    "tools.web.search.grok.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "tools"],
-    },
-    "tools.web.search.kimi.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "tools"],
-    },
-    "tools.web.search.perplexity.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "tools"],
-    },
-    "messages.tts.elevenlabs.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "media"],
-    },
-    "messages.tts.openai.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "media"],
-    },
-    "channels.telegram.webhookSecret": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.telegram.accounts.*.botToken": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.telegram.accounts.*.webhookSecret": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.discord.voice.tts.elevenlabs.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "media", "channels"],
-    },
-    "channels.discord.voice.tts.openai.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "media", "channels"],
-    },
-    "channels.discord.accounts.*.token": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.discord.accounts.*.voice.tts.elevenlabs.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "media", "channels"],
-    },
-    "channels.discord.accounts.*.voice.tts.openai.apiKey": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "media", "channels"],
-    },
-    "channels.discord.accounts.*.pluralkit.token": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.irc.password": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.irc.accounts.*.password": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.irc.accounts.*.nickserv.password": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.googlechat.serviceAccount": {
-      sensitive: true,
-      tags: ["security", "network", "channels"],
-    },
-    "channels.googlechat.serviceAccountRef": {
-      sensitive: true,
-      tags: ["security", "network", "channels"],
-    },
-    "channels.googlechat.accounts.*.serviceAccount": {
-      sensitive: true,
-      tags: ["security", "network", "channels"],
-    },
-    "channels.googlechat.accounts.*.serviceAccountRef": {
-      sensitive: true,
-      tags: ["security", "network", "channels"],
-    },
-    "channels.slack.signingSecret": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.slack.accounts.*.signingSecret": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.slack.accounts.*.botToken": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.slack.accounts.*.appToken": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.slack.accounts.*.userToken": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.bluebubbles.password": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.bluebubbles.accounts.*.password": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
-    },
-    "channels.msteams.appPassword": {
-      sensitive: true,
-      tags: ["security", "auth", "network", "channels"],
+      tags: ["security"],
     },
     "skills.entries.*.apiKey": {
       sensitive: true,
       tags: ["security", "auth"],
     },
+    "agents.list[].memorySearch.remote.baseUrl": {
+      tags: ["advanced", "url-secret"],
+    },
+    "tools.media.models[].baseUrl": {
+      tags: ["media", "tools", "url-secret"],
+    },
+    "tools.media.image.baseUrl": {
+      tags: ["media", "tools", "url-secret"],
+    },
+    "tools.media.image.models[].baseUrl": {
+      tags: ["media", "tools", "url-secret"],
+    },
+    "tools.media.audio.baseUrl": {
+      tags: ["media", "tools", "url-secret"],
+    },
+    "tools.media.audio.models[].baseUrl": {
+      tags: ["media", "tools", "url-secret"],
+    },
+    "tools.media.video.baseUrl": {
+      tags: ["media", "tools", "url-secret"],
+    },
+    "tools.media.video.models[].baseUrl": {
+      tags: ["media", "tools", "url-secret"],
+    },
+    "mcp.servers.*.url": {
+      tags: ["advanced", "url-secret"],
+    },
   },
-  version: "0.0.0",
+  version: "2026.4.2",
   generatedAt: "2026-03-22T21:17:33.302Z",
 } as const satisfies BaseConfigSchemaResponse;

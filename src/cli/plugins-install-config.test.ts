@@ -1,10 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { bundledPluginRootAt, repoInstallSpec } from "../../test/helpers/bundled-plugin-paths.js";
 import type { OpenClawConfig } from "../config/config.js";
 import type { ConfigFileSnapshot } from "../config/types.openclaw.js";
+import { loadConfigForInstall } from "./plugins-install-command.js";
 
-const loadConfigMock = vi.fn<() => OpenClawConfig>();
-const readConfigFileSnapshotMock = vi.fn<() => Promise<ConfigFileSnapshot>>();
-const cleanStaleMatrixPluginConfigMock = vi.fn();
+const hoisted = vi.hoisted(() => ({
+  loadConfigMock: vi.fn<() => OpenClawConfig>(),
+  readConfigFileSnapshotMock: vi.fn<() => Promise<ConfigFileSnapshot>>(),
+  cleanStaleMatrixPluginConfigMock: vi.fn(),
+}));
+
+const loadConfigMock = hoisted.loadConfigMock;
+const readConfigFileSnapshotMock = hoisted.readConfigFileSnapshotMock;
+const cleanStaleMatrixPluginConfigMock = hoisted.cleanStaleMatrixPluginConfigMock;
 
 vi.mock("../config/config.js", () => ({
   loadConfig: () => loadConfigMock(),
@@ -15,7 +23,7 @@ vi.mock("../commands/doctor/providers/matrix.js", () => ({
   cleanStaleMatrixPluginConfig: (cfg: OpenClawConfig) => cleanStaleMatrixPluginConfigMock(cfg),
 }));
 
-const { loadConfigForInstall } = await import("./plugins-install-command.js");
+const MATRIX_REPO_INSTALL_SPEC = repoInstallSpec("matrix");
 
 function makeSnapshot(overrides: Partial<ConfigFileSnapshot> = {}): ConfigFileSnapshot {
   return {
@@ -23,8 +31,10 @@ function makeSnapshot(overrides: Partial<ConfigFileSnapshot> = {}): ConfigFileSn
     exists: true,
     raw: '{ "plugins": {} }',
     parsed: { plugins: {} },
+    sourceConfig: { plugins: {} } as ConfigFileSnapshot["sourceConfig"],
     resolved: { plugins: {} } as OpenClawConfig,
     valid: false,
+    runtimeConfig: { plugins: {} } as ConfigFileSnapshot["runtimeConfig"],
     config: { plugins: {} } as OpenClawConfig,
     hash: "abc",
     issues: [{ path: "plugins.installs.matrix", message: "stale path" }],
@@ -35,6 +45,11 @@ function makeSnapshot(overrides: Partial<ConfigFileSnapshot> = {}): ConfigFileSn
 }
 
 describe("loadConfigForInstall", () => {
+  const matrixNpmRequest = {
+    rawSpec: "@openclaw/matrix",
+    normalizedSpec: "@openclaw/matrix",
+  };
+
   beforeEach(() => {
     loadConfigMock.mockReset();
     readConfigFileSnapshotMock.mockReset();
@@ -50,23 +65,21 @@ describe("loadConfigForInstall", () => {
     const cfg = { plugins: { entries: { matrix: { enabled: true } } } } as OpenClawConfig;
     loadConfigMock.mockReturnValue(cfg);
 
-    const result = await loadConfigForInstall();
+    const result = await loadConfigForInstall(matrixNpmRequest);
     expect(result).toBe(cfg);
     expect(readConfigFileSnapshotMock).not.toHaveBeenCalled();
   });
 
-  it("runs stale Matrix cleanup on the happy path", async () => {
+  it("does not run stale Matrix cleanup on the happy path", async () => {
     const cfg = { plugins: {} } as OpenClawConfig;
-    const cleanedCfg = { plugins: { cleaned: true } } as unknown as OpenClawConfig;
     loadConfigMock.mockReturnValue(cfg);
-    cleanStaleMatrixPluginConfigMock.mockReturnValue({ config: cleanedCfg, changes: ["cleaned"] });
 
-    const result = await loadConfigForInstall();
-    expect(cleanStaleMatrixPluginConfigMock).toHaveBeenCalledWith(cfg);
-    expect(result).toBe(cleanedCfg);
+    const result = await loadConfigForInstall(matrixNpmRequest);
+    expect(cleanStaleMatrixPluginConfigMock).not.toHaveBeenCalled();
+    expect(result).toBe(cfg);
   });
 
-  it("falls back to snapshot config when loadConfig throws INVALID_CONFIG and snapshot was parsed", async () => {
+  it("falls back to snapshot config for explicit Matrix reinstall when issues match the known upgrade failure", async () => {
     const invalidConfigErr = new Error("config invalid");
     (invalidConfigErr as { code?: string }).code = "INVALID_CONFIG";
     loadConfigMock.mockImplementation(() => {
@@ -80,16 +93,77 @@ describe("loadConfigForInstall", () => {
       makeSnapshot({
         parsed: { plugins: { installs: { matrix: {} } } },
         config: snapshotCfg,
+        issues: [
+          { path: "channels.matrix", message: "unknown channel id: matrix" },
+          { path: "plugins.load.paths", message: "plugin: plugin path not found: /gone" },
+        ],
       }),
     );
 
-    const result = await loadConfigForInstall();
+    const result = await loadConfigForInstall(matrixNpmRequest);
     expect(readConfigFileSnapshotMock).toHaveBeenCalled();
     expect(cleanStaleMatrixPluginConfigMock).toHaveBeenCalledWith(snapshotCfg);
     expect(result).toBe(snapshotCfg);
   });
 
-  it("throws when loadConfig fails with INVALID_CONFIG and snapshot parsed is empty (parse failure)", async () => {
+  it("allows explicit repo-checkout Matrix reinstall recovery", async () => {
+    const invalidConfigErr = new Error("config invalid");
+    (invalidConfigErr as { code?: string }).code = "INVALID_CONFIG";
+    loadConfigMock.mockImplementation(() => {
+      throw invalidConfigErr;
+    });
+
+    const snapshotCfg = { plugins: {} } as OpenClawConfig;
+    readConfigFileSnapshotMock.mockResolvedValue(
+      makeSnapshot({
+        config: snapshotCfg,
+        issues: [{ path: "channels.matrix", message: "unknown channel id: matrix" }],
+      }),
+    );
+
+    const result = await loadConfigForInstall({
+      rawSpec: MATRIX_REPO_INSTALL_SPEC,
+      normalizedSpec: MATRIX_REPO_INSTALL_SPEC,
+      resolvedPath: bundledPluginRootAt("/tmp/repo", "matrix"),
+    });
+    expect(result).toBe(snapshotCfg);
+  });
+
+  it("rejects unrelated invalid config even during Matrix reinstall", async () => {
+    const invalidConfigErr = new Error("config invalid");
+    (invalidConfigErr as { code?: string }).code = "INVALID_CONFIG";
+    loadConfigMock.mockImplementation(() => {
+      throw invalidConfigErr;
+    });
+
+    readConfigFileSnapshotMock.mockResolvedValue(
+      makeSnapshot({
+        issues: [{ path: "models.default", message: "invalid model ref" }],
+      }),
+    );
+
+    await expect(loadConfigForInstall(matrixNpmRequest)).rejects.toThrow(
+      "Config invalid outside the Matrix upgrade recovery path",
+    );
+  });
+
+  it("rejects non-Matrix install requests when config is invalid", async () => {
+    const invalidConfigErr = new Error("config invalid");
+    (invalidConfigErr as { code?: string }).code = "INVALID_CONFIG";
+    loadConfigMock.mockImplementation(() => {
+      throw invalidConfigErr;
+    });
+
+    await expect(
+      loadConfigForInstall({
+        rawSpec: "alpha",
+        normalizedSpec: "alpha",
+      }),
+    ).rejects.toThrow("Config invalid; run `openclaw doctor --fix` before installing plugins.");
+    expect(readConfigFileSnapshotMock).not.toHaveBeenCalled();
+  });
+
+  it("throws when loadConfig fails with INVALID_CONFIG and snapshot parsed is empty", async () => {
     const invalidConfigErr = new Error("config invalid");
     (invalidConfigErr as { code?: string }).code = "INVALID_CONFIG";
     loadConfigMock.mockImplementation(() => {
@@ -103,7 +177,7 @@ describe("loadConfigForInstall", () => {
       }),
     );
 
-    await expect(loadConfigForInstall()).rejects.toThrow(
+    await expect(loadConfigForInstall(matrixNpmRequest)).rejects.toThrow(
       "Config file could not be parsed; run `openclaw doctor` to repair it.",
     );
   });
@@ -117,7 +191,7 @@ describe("loadConfigForInstall", () => {
 
     readConfigFileSnapshotMock.mockResolvedValue(makeSnapshot({ exists: false, parsed: {} }));
 
-    await expect(loadConfigForInstall()).rejects.toThrow(
+    await expect(loadConfigForInstall(matrixNpmRequest)).rejects.toThrow(
       "Config file could not be parsed; run `openclaw doctor` to repair it.",
     );
   });
@@ -129,7 +203,9 @@ describe("loadConfigForInstall", () => {
       throw fsErr;
     });
 
-    await expect(loadConfigForInstall()).rejects.toThrow("EACCES: permission denied");
+    await expect(loadConfigForInstall(matrixNpmRequest)).rejects.toThrow(
+      "EACCES: permission denied",
+    );
     expect(readConfigFileSnapshotMock).not.toHaveBeenCalled();
   });
 });

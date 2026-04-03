@@ -14,9 +14,8 @@
 [![Discord](https://img.shields.io/discord/1456350064065904867?label=Discord&logo=discord&logoColor=white&color=5865F2&style=for-the-badge)]()
 [![许可证: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)]()
 
-**OpenClaw** 是一款运行在您自己的设备上的个人AI助手。
-
-它可以通过您常用的渠道（WhatsApp、Telegram、Slack、Discord、Google Chat、Signal、iMessage、BlueBubbles、IRC、Microsoft Teams、Matrix、飞书、LINE、Mattermost、Nextcloud Talk、Nostr、Synology Chat、Tlon、Twitch、Zalo、Zalo Personal、WebChat）回复您。它支持macOS/iOS/Android平台，并可渲染由您控制的实时画布。网关只是控制平台，产品本身才是真正的助手。
+**OpenClaw** 是一款运行在您自己的设备上的个人人工智能助手。
+它可以通过你常用的渠道（WhatsApp、Telegram、Slack、Discord、Google Chat、Signal、iMessage、BlueBubbles、IRC、Microsoft Teams、Matrix、飞书、LINE、Mattermost、Nextcloud Talk、Nostr、Synology Chat、Tlon、Twitch、Zalo、Zalo Personal、微信、WebChat）回复你。它支持macOS/iOS/Android平台，并能渲染由你控制的实时画布。网关只是控制平台，产品本身才是真正的助手。
 
 [Website](https://openclaw.ai) · [Docs](https://docs.openclaw.ai) · [Vision](VISION.md) · [DeepWiki](https://deepwiki.com/openclaw/openclaw) · [Getting Started](https://docs.openclaw.ai/start/getting-started) · [Updating](https://docs.openclaw.ai/install/updating) · [Showcase](https://docs.openclaw.ai/start/showcase) · [FAQ](https://docs.openclaw.ai/help/faq) · [Onboarding](https://docs.openclaw.ai/start/wizard) · [Nix](https://github.com/openclaw/nix-openclaw) · [Docker](https://docs.openclaw.ai/install/docker) · [Discord](https://discord.gg/clawd)
 
@@ -24,16 +23,50 @@
 
 OpenClaw Onboard 会引导您逐步完成网关、工作区、通道和技能的设置。这是推荐的命令行设置方式，可在 macOS、Linux 和 Windows（通过 WSL2；强烈推荐）上运行。
 
-支持 npm、pnpm 或 bun。
-
-全新安装？请从这里开始：[入门指南](https://docs.openclaw.ai/start/getting-started)
-**推荐设置**：在终端中运行引导向导 (`openclaw onboard`)。
-该向导将逐步指导你完成网关、工作区、渠道和技能的设置。CLI 向导是推荐方式，适用于 macOS、Linux 和 Windows（通过 WSL2；强烈推荐）。
-
-支持 npm、pnpm 或 bun。
-| OpenAI | Vercel | Blacksmith | Convex |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| [![OpenAI](docs/assets/sponsors/openai.svg)](https://openai.com/) | [![Vercel](docs/assets/sponsors/vercel.svg)](https://vercel.com/) | [![Blacksmith](docs/assets/sponsors/blacksmith.svg)](https://blacksmith.sh/) | [![Convex](docs/assets/sponsors/convex.svg)](https://www.convex.dev/) |
+<table>
+  <tr>
+    <td align="center" width="20%">
+      <a href="https://openai.com/">
+        <picture>
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/openai-light.svg">
+          <img src="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/openai.svg" alt="OpenAI" height="28">
+        </picture>
+      </a>
+    </td>
+    <td align="center" width="20%">
+      <a href="https://www.nvidia.com/">
+        <picture>
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/nvidia.svg">
+          <img src="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/nvidia-dark.svg" alt="NVIDIA" height="28">
+        </picture>
+      </a>
+    </td>
+    <td align="center" width="20%">
+      <a href="https://vercel.com/">
+        <picture>
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/vercel-light.svg">
+          <img src="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/vercel.svg" alt="Vercel" height="24">
+        </picture>
+      </a>
+    </td>
+    <td align="center" width="20%">
+      <a href="https://blacksmith.sh/">
+        <picture>
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/blacksmith-light.svg">
+          <img src="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/blacksmith.svg" alt="Blacksmith" height="28">
+        </picture>
+      </a>
+    </td>
+    <td align="center" width="20%">
+      <a href="https://www.convex.dev/">
+        <picture>
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/convex-light.svg">
+          <img src="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/convex.svg" alt="Convex" height="24">
+        </picture>
+      </a>
+    </td>
+  </tr>
+</table>
 
 **新用户安装？从这里开始**：[入门指南](https://docs.openclaw.ai/start/getting-started)
 
@@ -73,7 +106,7 @@ openclaw gateway --port 18789 --verbose
 # 发送一条消息
 openclaw message send --to +1234567890 --message "Hello from OpenClaw"
 
-# 与助手对话（可选择将回复发送回任何已连接的渠道：WhatsApp/Telegram/Slack/Discord/Google Chat/Signal/iMessage/BlueBubbles/Microsoft Teams/Matrix/Zalo/Zalo Personal/WebChat）
+# 与助手对话（可选择将对话返回到任何已连接的渠道：WhatsApp/Telegram/Slack/Discord/Google Chat/Signal/iMessage/BlueBubbles/IRC/Microsoft Teams/Matrix/Feishu/LINE/Mattermost/Nextcloud Talk/Nostr/Synology Chat/Tlon/Twitch/Zalo/Zalo Personal/微信/WebChat）
 openclaw agent --message "Ship checklist" --thinking high
 ```
 
@@ -149,8 +182,8 @@ OpenClaw 连接到真实的即时通讯平台。请将收到的私信（DM）视
 
 #### 渠道
 
-- **渠道**：[WhatsApp](https://docs.openclaw.ai/channels/whatsapp) (Baileys), [Telegram](https://docs.openclaw.ai/channels/telegram) (grammY), [Slack](https://docs.openclaw.ai/channels/slack) (Bolt), [Discord](https://docs.openclaw.ai/channels/discord) (discord.js), [Google Chat](https://docs.openclaw.ai/channels/googlechat) (Chat API), [Signal](https://docs.openclaw.ai/channels/signal) (signal-cli), [BlueBubbles](https://docs.openclaw.ai/channels/bluebubbles) (iMessage, 推荐), [iMessage](https://docs.openclaw.ai/channels/imessage) (旧版 imsg), [Microsoft Teams](https://docs.openclaw.ai/channels/msteams) (扩展), [Matrix](https://docs.openclaw.ai/channels/matrix) (扩展), [Zalo](https://docs.openclaw.ai/channels/zalo) (扩展), [Zalo Personal](https://docs.openclaw.ai/channels/zalouser) (扩展), [WebChat](https://docs.openclaw.ai/web/webchat)。
-- **群组路由**：提及门控、回复标签、按渠道分块和路由。渠道规则：[Channels](https://docs.openclaw.ai/channels)。
+- [Channels](https://docs.openclaw.ai/channels): [WhatsApp](https://docs.openclaw.ai/channels/whatsapp) (Baileys), [Telegram](https://docs.openclaw.ai/channels/telegram) (grammY), [Slack](https://docs.openclaw.ai/channels/slack) (Bolt), [Discord](https://docs.openclaw.ai/channels/discord) (discord.js), [Google Chat](https://docs.openclaw.ai/channels/googlechat) (Chat API), [Signal](https://docs.openclaw.ai/channels/signal) (signal-cli), [BlueBubbles](https://docs.openclaw.ai/channels/bluebubbles) (iMessage, recommended), [iMessage](https://docs.openclaw.ai/channels/imessage) (legacy imsg), [IRC](https://docs.openclaw.ai/channels/irc), [Microsoft Teams](https://docs.openclaw.ai/channels/msteams), [Matrix](https://docs.openclaw.ai/channels/matrix), [Feishu](https://docs.openclaw.ai/channels/feishu), [LINE](https://docs.openclaw.ai/channels/line), [Mattermost](https://docs.openclaw.ai/channels/mattermost), [Nextcloud Talk](https://docs.openclaw.ai/channels/nextcloud-talk), [Nostr](https://docs.openclaw.ai/channels/nostr), [Synology Chat](https://docs.openclaw.ai/channels/synology-chat), [Tlon](https://docs.openclaw.ai/channels/tlon), [Twitch](https://docs.openclaw.ai/channels/twitch), [Zalo](https://docs.openclaw.ai/channels/zalo), [Zalo Personal](https://docs.openclaw.ai/channels/zalouser), WeChat (`@tencent-weixin/openclaw-weixin`), [WebChat](https://docs.openclaw.ai/web/webchat).
+- [Group routing](https://docs.openclaw.ai/channels/group-messages): mention gating, reply tags, per-channel chunking and routing. Channel rules: [Channels](https://docs.openclaw.ai/channels).
 
 #### 应用与节点
 
@@ -184,7 +217,7 @@ OpenClaw 连接到真实的即时通讯平台。请将收到的私信（DM）视
 ### 工作原理（简述）
 
 ```
-WhatsApp / Telegram / Slack / Discord / Google Chat / Signal / iMessage / BlueBubbles / IRC / Microsoft Teams / Matrix / Feishu / LINE / Mattermost / Nextcloud Talk / Nostr / Synology Chat / Tlon / Twitch / Zalo / Zalo Personal / WebChat
+WhatsApp / Telegram / Slack / Discord / Google Chat / Signal / iMessage / BlueBubbles / IRC / Microsoft Teams / Matrix / Feishu / LINE / Mattermost / Nextcloud Talk / Nostr / Synology Chat / Tlon / Twitch / Zalo / Zalo Personal / WeChat / WebChat
                │
                ▼
 ┌───────────────────────────────┐
@@ -385,7 +418,13 @@ ClawHub 是一个极简的技能注册表。启用 ClawHub 后，智能体可以
 
 （此处列出了一系列关于各平台内部实现的文档链接，如 macOS dev setup, iOS node, Android node, Windows, Linux 等）
 
-### 邮件钩子（Gmail）
+### WeChat
+
+- Official Tencent plugin via [`@tencent-weixin/openclaw-weixin`](https://www.npmjs.com/package/@tencent-weixin/openclaw-weixin) (iLink Bot API). Private chats only; v2.x requires OpenClaw `>=2026.3.22`.
+- Install: `openclaw plugins install "@tencent-weixin/openclaw-weixin"`, then `openclaw channels login --channel openclaw-weixin` to scan the QR code.
+- Requires the WeChat ClawBot plugin (WeChat > Me > Settings > Plugins); gradual rollout by Tencent.
+
+### [WebChat](https://docs.openclaw.ai/web/webchat)
 
 [docs.openclaw.ai/gmail-pubsub](https://docs.openclaw.ai/automation/gmail-pubsub)
 
