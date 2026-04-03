@@ -3,7 +3,7 @@ services:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
     container_name: openclaw-gateway
     environment:
-      TZ: Asia/Shanghai
+      TZ: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
       HOME: /home/node
       TERM: xterm-256color
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
@@ -54,6 +54,7 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
+      TZ: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
       HOME: /home/node
       TERM: xterm-256color
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
