@@ -5,8 +5,9 @@ docker-compose.override.yml
 docker-compose.extra.yml
 dist
 !extensions/openclaw-qqbot/dist
-!plugins/wecom-openclaw-plugin/dist
-!plugins/wecom-openclaw-plugin/node_modules
+!plugins/*/dist
+!plugins/*/node_modules
+!plugins/**/*.tar.gz
 dist-runtime
 pnpm-lock.yaml
 bun.lock

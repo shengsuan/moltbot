@@ -75,12 +75,6 @@ RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/sto
 
 COPY . .
 
-# Extract complete plugins tree from tar archive (preserves all nested dist/node_modules)
-RUN if [ -f /app/plugins.tar.gz ]; then \
-      tar -xzf /app/plugins.tar.gz -C /app/ && \
-      rm -f /app/plugins.tar.gz; \
-    fi
-
 # Normalize extension paths now so runtime COPY preserves safe modes
 # without adding a second full extensions layer.
 RUN for dir in /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} /app/plugins /app/.agent /app/.agents; do \
@@ -168,9 +162,20 @@ COPY --from=runtime-assets --chown=root:root /app/scripts/cfg.sh /cfg.sh
 
 RUN mkdir -p /run/sshd /root/.ssh && \
     chmod 700 /root/.ssh && \
-    ssh-keygen -A
-    RUN chown node:node /app
+    ssh-keygen -A && \
+    chown node:node /app
+
+# Copy plugins directory from build stage
 COPY --from=build --chown=node:node /app/plugins /app/plugins
+
+# Extract plugins tar.gz files to extensions directory at runtime stage
+# This avoids pnpm prune scanning the extracted plugins during build
+RUN if [ -d /app/plugins ]; then \
+      mkdir -p /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} && \
+      find /app/plugins -name "*.tar.gz" -exec sh -c 'tar -xzf "$1" -C /app/'"${OPENCLAW_BUNDLED_PLUGIN_DIR}"'/ 2>/dev/null || true' _ {} \; && \
+      find /app/plugins -name "*.tar.gz" -delete && \
+      chown -R node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR}; \
+    fi
     
 # In npm-installed Docker images, prefer the copied source extension tree for
 # bundled discovery so package metadata that points at source entries stays valid.
