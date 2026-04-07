@@ -39,6 +39,8 @@ node_modules
 **/.next
 coverage
 **/coverage
+docs/.generated
+**/.generated
 *.log
 tmp
 **/tmp

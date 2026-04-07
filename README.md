@@ -25,7 +25,7 @@ OpenClaw Onboard 会引导您逐步完成网关、工作区、通道和技能的
 
 <table>
   <tr>
-    <td align="center" width="20%">
+    <td align="center" width="16.66%">
       <a href="https://openai.com/">
         <picture>
           <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/openai-light.svg">
@@ -33,7 +33,15 @@ OpenClaw Onboard 会引导您逐步完成网关、工作区、通道和技能的
         </picture>
       </a>
     </td>
-    <td align="center" width="20%">
+    <td align="center" width="16.66%">
+      <a href="https://github.com/">
+        <picture>
+          <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/github-light.svg">
+          <img src="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/github.svg" alt="GitHub" height="28">
+        </picture>
+      </a>
+    </td>
+    <td align="center" width="16.66%">
       <a href="https://www.nvidia.com/">
         <picture>
           <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/nvidia.svg">
@@ -41,7 +49,7 @@ OpenClaw Onboard 会引导您逐步完成网关、工作区、通道和技能的
         </picture>
       </a>
     </td>
-    <td align="center" width="20%">
+    <td align="center" width="16.66%">
       <a href="https://vercel.com/">
         <picture>
           <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/vercel-light.svg">
@@ -49,7 +57,7 @@ OpenClaw Onboard 会引导您逐步完成网关、工作区、通道和技能的
         </picture>
       </a>
     </td>
-    <td align="center" width="20%">
+    <td align="center" width="16.66%">
       <a href="https://blacksmith.sh/">
         <picture>
           <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/blacksmith-light.svg">
@@ -57,7 +65,7 @@ OpenClaw Onboard 会引导您逐步完成网关、工作区、通道和技能的
         </picture>
       </a>
     </td>
-    <td align="center" width="20%">
+    <td align="center" width="16.66%">
       <a href="https://www.convex.dev/">
         <picture>
           <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/openclaw/openclaw/main/docs/assets/sponsors/convex-light.svg">
@@ -354,9 +362,9 @@ ClawHub 是一个极简的技能注册表。启用 ClawHub 后，智能体可以
 
 ```json
 {
-  "agent": {
-    "model": "anthropic/claude-opus-4-6"
-  }
+  agent: {
+    model: "<provider>/<model-id>",
+  },
 }
 ```
 

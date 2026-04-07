@@ -26,6 +26,7 @@ import type { OpenClawConfig } from "../config/config.js";
 import { describeGatewayServiceRestart, resolveGatewayService } from "../daemon/service.js";
 import { isSystemdUserServiceAvailable } from "../daemon/systemd.js";
 import { ensureControlUiAssetsBuilt } from "../infra/control-ui-assets.js";
+import { formatErrorMessage } from "../infra/errors.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { restoreTerminalState } from "../terminal/restore.js";
 import { runTui } from "../tui/tui.js";
@@ -209,7 +210,7 @@ export async function finalizeSetupWizard(
           });
         }
       } catch (err) {
-        installError = err instanceof Error ? err.message : String(err);
+        installError = formatErrorMessage(err);
       } finally {
         progress.stop(installError ? "网关服务安装失败。" : "网关服务已安装。");
       }
@@ -321,8 +322,8 @@ export async function finalizeSetupWizard(
     } catch (error) {
       await prompter.note(
         [
-          "无法解析入门认证所需的 gateway.auth.password SecretRef。",
-          error instanceof Error ? error.message : String(error),
+          "无法解析认证所需的 gateway.auth.password SecretRef。",
+          formatErrorMessage(error),
         ].join("\n"),
         "网关认证",
       );

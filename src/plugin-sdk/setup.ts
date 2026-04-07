@@ -24,12 +24,12 @@ export type {
 export { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
 export { formatCliCommand } from "../cli/command-format.js";
 export { detectBinary } from "../plugins/setup-binary.js";
-export { installSignalCli } from "../plugins/signal-cli-install.js";
 export { formatDocsLink } from "../terminal/links.js";
 export { hasConfiguredSecretInput, normalizeSecretInputString } from "../config/types.secrets.js";
 export { normalizeE164, pathExists } from "../utils.js";
 
 export {
+  moveSingleAccountChannelSectionToDefaultAccount,
   applyAccountNameToChannelSection,
   applySetupAccountConfigPatch,
   createEnvPatchedAccountSetupAdapter,
@@ -68,6 +68,7 @@ export {
   patchNestedChannelConfigSection,
   patchTopLevelChannelConfigSection,
   patchChannelConfigForAccount,
+  promptAccountId,
   promptLegacyChannelAllowFrom,
   promptLegacyChannelAllowFromForAccount,
   promptParsedAllowFromForAccount,
@@ -92,6 +93,7 @@ export {
   setTopLevelChannelGroupPolicy,
   splitSetupEntries,
 } from "../channels/plugins/setup-wizard-helpers.js";
+export { promptChannelAccessConfig } from "../channels/plugins/setup-group-access.js";
 export { createAllowlistSetupWizardProxy } from "../channels/plugins/setup-wizard-proxy.js";
 export {
   createDelegatedFinalize,

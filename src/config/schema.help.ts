@@ -138,25 +138,13 @@ export const FIELD_HELP: Record<string, string> = {
     "启用密码模式时用于远程网关认证的密码凭证。保持此密钥由外部管理并避免在提交的配置中明文值。",
   "gateway.remote.tlsFingerprint": "远程网关的预期 sha256 TLS 指纹（固定以避免中间人攻击）。",
   "gateway.remote.sshTarget":
-    "通过 SSH 的远程网关（将网关端口隧道到 localhost）。格式：user@host 或 user@host:port。",
-  "gateway.remote.sshIdentity": "可选 SSH 身份文件路径（传递给 ssh -i）。",
-  "talk.provider": '活跃的 Talk 提供商 id（例如"elevenlabs"）。',
-  "talk.providers": "按提供商 id 键控的提供商特定 Talk 设置。迁移期间，优先于遗留 talk.* 键。",
-  "talk.providers.*.voiceId": "Talk 模式的提供商默认语音 ID。",
-  "talk.providers.*.voiceAliases": "Talk 指令的可选提供商语音别名映射。",
-  "talk.providers.*.modelId": "Talk 模式的提供商默认模型 ID。",
-  "talk.providers.*.outputFormat": "Talk 模式的提供商默认输出格式。",
-  "talk.providers.*.apiKey": "Talk 模式的提供商 API 密钥。", // pragma: allowlist secret
-  "talk.voiceId":
-    "Talk 模式的遗留 ElevenLabs 默认语音 ID。优先于 talk.providers.elevenlabs.voiceId。",
-  "talk.voiceAliases":
-    '仅在迁移期间使用此遗留 ElevenLabs 语音别名映射（例如 {"Clawd":"EXAVITQu4vr4xnSDxMaL"}）。优先于 talk.providers.elevenlabs.voiceAliases。',
-  "talk.modelId":
-    "Talk 模式的遗留 ElevenLabs 模型 ID（默认：eleven_v3）。优先于 talk.providers.elevenlabs.modelId。",
-  "talk.outputFormat":
-    "仅在迁移期间使用此遗留 ElevenLabs Talk 模式输出格式（例如 pcm_44100 或 mp3_44100_128）。优先于 talk.providers.elevenlabs.outputFormat。",
-  "talk.apiKey":
-    "仅在迁移期间将此遗留 ElevenLabs API 密钥用于 Talk 模式，并在环境支持的存储中保持密钥。优先于 talk.providers.elevenlabs.apiKey（回退：ELEVENLABS_API_KEY）。",
+    "Remote gateway over SSH (tunnels the gateway port to localhost). Format: user@host or user@host:port.",
+  "gateway.remote.sshIdentity": "Optional SSH identity file path (passed to ssh -i).",
+  "talk.provider": 'Active Talk provider id (for example "acme-speech").',
+  "talk.providers":
+    "Provider-specific Talk settings keyed by provider id. During migration, prefer this over legacy talk.* keys.",
+  "talk.providers.*": "Provider-owned Talk config fields for the matching provider id.",
+  "talk.providers.*.apiKey": "Provider API key for Talk mode.", // pragma: allowlist secret
   "talk.interruptOnSpeech":
     "如果为 true（默认），在 Talk 模式下用户开始说话时停止助手语音。保持启用以进行会话轮流。",
   "talk.silenceTimeoutMs": `用户沉默的毫秒数，然后 Talk 模式完成并发送当前转录。保持未设置以保持平台默认暂停窗口（${describeTalkSilenceTimeoutDefaults()}）。`,
@@ -184,13 +172,17 @@ export const FIELD_HELP: Record<string, string> = {
     "ACP 投影的每个 sessionUpdate 可见性覆盖（例如 usage_update、available_commands_update）。",
   "acp.runtime.ttlMinutes": "ACP 会话工作者的空闲运行时 TTL（分钟），在合格清理前。",
   "acp.runtime.installCommand":
-    "可选操作员安装/设置命令，由 `/acp install` 和 `/acp doctor` 在 ACP 后端接线缺失时显示。",
-  "agents.list.*.skills": "此代理的技能可选允许列表（省略 = 所有技能；空 = 无技能）。",
-  "agents.list[].skills": "此代理的技能可选允许列表（省略 = 所有技能；空 = 无技能）。",
+    "Optional operator install/setup command shown by `/acp install` and `/acp doctor` when ACP backend wiring is missing.",
+  "agents.list.*.skills":
+    "Optional allowlist of skills for this agent. If omitted, the agent inherits agents.defaults.skills when set; otherwise skills stay unrestricted. Set [] for no skills. An explicit list fully replaces inherited defaults instead of merging with them.",
+  "agents.list[].skills":
+    "Optional allowlist of skills for this agent. If omitted, the agent inherits agents.defaults.skills when set; otherwise skills stay unrestricted. Set [] for no skills. An explicit list fully replaces inherited defaults instead of merging with them.",
   agents:
     "代理运行时配置根，涵盖用于路由和执行上下文的默认值和显式代理条目。保持此部分明确，以便模型/工具行为跨多代理工作流保持可预测。",
   "agents.defaults":
-    "由 agents.list 中的条目继承的共享默认设置，除非被覆盖。使用默认值强制实施一致的基线行为并减少重复的各代理配置。",
+    "Shared default settings inherited by agents unless overridden per entry in agents.list. Use defaults to enforce consistent baseline behavior and reduce duplicated per-agent configuration.",
+  "agents.defaults.skills":
+    "Optional default skill allowlist inherited by agents that omit agents.list[].skills. Omit for unrestricted skills, set [] to give inheriting agents no skills, and remember explicit agents.list[].skills replaces this default instead of merging with it.",
   "agents.list":
     "Explicit list of configured agents with IDs and optional overrides for model, tools, identity, and workspace. Keep IDs stable over time so bindings, approvals, and session routing remain deterministic.",
   "agents.list[].thinkingDefault":
@@ -255,9 +247,7 @@ export const FIELD_HELP: Record<string, string> = {
   "browser.snapshotDefaults.mode":
     "默认快照提取模式控制页面内容如何转换为代理消费。选择在可读性、保真度和令牌占用之间取得平衡的模式。",
   "browser.ssrfPolicy":
-    "服务器端请求伪造护栏设置，用于可能到达内部主机的浏览器/网络 fetch 路径。在生产中保持严格的默认设置，仅明确批准的目标打开。",
-  "browser.ssrfPolicy.allowPrivateNetwork":
-    "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork 的遗留别名。倾向于危险命名的键，以便风险意图明确。",
+    "Server-side request forgery guardrail settings for browser/network fetch paths that could reach internal hosts. Keep restrictive defaults in production and open only explicitly approved targets.",
   "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork":
     "允许从浏览器工具访问私有网络地址范围。对于可信任网络操作员设置，默认启用；禁用以强制执行严格的仅公共分辨率检查。",
   "browser.ssrfPolicy.allowedHostnames":
@@ -303,7 +293,11 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.agentToAgent.enabled":
     "启用 agent_to_agent 工具表面，以便一个代理可以在运行时调用另一个代理。在简单部署中保持关闭，仅在编排价值超过复杂性时启用。",
   "tools.agentToAgent.allow":
-    "启用编排时允许 agent_to_agent 调用的目标代理 ID 允许列表。使用显式允许列表避免不受控制的跨代理调用图。",
+    "Allowlist of target agent IDs permitted for agent_to_agent calls when orchestration is enabled. Use explicit allowlists to avoid uncontrolled cross-agent call graphs.",
+  "tools.experimental":
+    "Experimental built-in tool flags. Keep these off by default and enable only when you are intentionally testing a preview surface.",
+  "tools.experimental.planTool":
+    "Enable the experimental structured `update_plan` tool for non-trivial multi-step work tracking across all providers. OpenAI and OpenAI Codex runs auto-enable it even when this flag is unset.",
   "tools.elevated":
     "提升工具访问控制，用于只应从受信任发送者到达的特权命令表面。除非操作员工作流明确需要提升的操作，否则保持禁用。",
   "tools.elevated.enabled":
@@ -511,12 +505,16 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.exec.applyPatch.workspaceOnly":
     "将 apply_patch 路径限制在工作区目录中（默认值：true）。设置为 false 允许在工作区外写入（危险）。",
   "tools.exec.applyPatch.allowModels":
-    '可选的模型 ID 白名单（例如 "gpt-5.2" 或 "openai/gpt-5.2"）。',
-  "tools.loopDetection.enabled": "启用重复工具调用循环检测和回退安全检查（默认值：false）。",
-  "tools.loopDetection.historySize": "循环检测的工具历史窗口大小（默认值：30）。",
-  "tools.loopDetection.warningThreshold": "检测器启用时重复模式的警告阈值（默认值：10）。",
-  "tools.loopDetection.criticalThreshold": "检测器启用时重复模式的严重阈值（默认值：20）。",
-  "tools.loopDetection.globalCircuitBreakerThreshold": "全局无进度断路器阈值（默认值：30）。",
+    'Optional allowlist of model ids (e.g. "gpt-5.4" or "openai/gpt-5.4").',
+  "tools.loopDetection.enabled":
+    "Enable repetitive tool-call loop detection and backoff safety checks (default: false).",
+  "tools.loopDetection.historySize": "Tool history window size for loop detection (default: 30).",
+  "tools.loopDetection.warningThreshold":
+    "Warning threshold for repetitive patterns when detector is enabled (default: 10).",
+  "tools.loopDetection.criticalThreshold":
+    "Critical threshold for repetitive patterns when detector is enabled (default: 20).",
+  "tools.loopDetection.globalCircuitBreakerThreshold":
+    "Global no-progress breaker threshold (default: 30).",
   "tools.loopDetection.detectors.genericRepeat":
     "启用通用重复相同工具/相同参数循环检测（默认值：true）。",
   "tools.loopDetection.detectors.knownPollNoProgress":
@@ -562,7 +560,9 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.media.models":
     "当未设置模态特定模型列表时，媒体理解工具使用的共享回退模型列表。保持与可用多模态提供商对齐以避免运行时回退混乱。",
   "tools.media.concurrency":
-    "跨图像、音频和视频任务每轮最大并发媒体理解操作数。在资源受限的部署中降低此值以防止 CPU/网络饱和。",
+    "Maximum number of concurrent media understanding operations per turn across image, audio, and video tasks. Lower this in resource-constrained deployments to prevent CPU/network saturation.",
+  "tools.media.asyncCompletion.directSend":
+    "Enable direct channel sends for completed async music/video generation tasks instead of relying on the requester session wake path. Default off so detached media completion keeps the legacy model-delivery flow unless you opt in.",
   "tools.media.image.enabled":
     "启用图像理解，以便附加或引用的图像可被解释为文本上下文。如果需要仅文本操作或想避免图像处理成本，则禁用。",
   "tools.media.image.maxBytes":
@@ -688,31 +688,13 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.web.fetch.maxCharsCap":
     "Hard cap for web_fetch maxChars (applies to config and tool calls).",
   "tools.web.fetch.maxResponseBytes": "Max download size before truncation.",
+  "tools.web.fetch.provider": "Web fetch fallback provider id.",
   "tools.web.fetch.timeoutSeconds": "Timeout in seconds for web_fetch requests.",
   "tools.web.fetch.cacheTtlMinutes": "Cache TTL in minutes for web_fetch results.",
   "tools.web.fetch.maxRedirects": "Maximum redirects allowed for web_fetch (default: 3).",
   "tools.web.fetch.userAgent": "Override User-Agent header for web_fetch requests.",
   "tools.web.fetch.readability":
     "Use Readability to extract main content from HTML (fallbacks to basic HTML cleanup).",
-  "tools.web.fetch.firecrawl.enabled": "Enable Firecrawl fallback for web_fetch (if configured).",
-  "tools.web.fetch.firecrawl.apiKey": "Firecrawl API key (fallback: FIRECRAWL_API_KEY env var).",
-  "tools.web.fetch.firecrawl.baseUrl":
-    "Firecrawl 基本 URL(例如 https://api.firecrawl.dev 或自定义端点)。",
-  "tools.web.fetch.firecrawl.onlyMainContent":
-    "When true, Firecrawl returns only the main content (default: true).",
-  "tools.web.fetch.firecrawl.maxAgeMs":
-    "Firecrawl maxAge (ms) for cached results when supported by the API.",
-  "tools.web.fetch.firecrawl.timeoutSeconds": "Timeout in seconds for Firecrawl requests.",
-  "tools.web.x_search.enabled":
-    "Enable the x_search tool (requires XAI_API_KEY or tools.web.x_search.apiKey).",
-  "tools.web.x_search.apiKey": "xAI API key for X search (fallback: XAI_API_KEY env var).",
-  "tools.web.x_search.model": 'Model to use for X search (default: "grok-4-1-fast-non-reasoning").',
-  "tools.web.x_search.inlineCitations":
-    "Keep inline citations from xAI in x_search responses when available (default: false).",
-  "tools.web.x_search.maxTurns":
-    "Optional max internal search/tool turns xAI may use per x_search request. Omit to let xAI choose.",
-  "tools.web.x_search.timeoutSeconds": "Timeout in seconds for x_search requests.",
-  "tools.web.x_search.cacheTtlMinutes": "Cache TTL in minutes for x_search results.",
   models:
     "模型目录根用于提供商定义、合并/替换行为和可选的 Bedrock 发现集成。在依赖生产故障转移路径之前保持提供商定义明确和经过验证。",
   "models.mode":
@@ -732,23 +714,59 @@ export const FIELD_HELP: Record<string, string> = {
   "models.providers.*.headers":
     "合并到提供商请求中的静态 HTTP 标头，用于租户路由、代理身份验证或自定义网关要求。谨慎使用此选项并将敏感标头值保存在秘密中。",
   "models.providers.*.authHeader":
-    "当为真时，即使可能有其他身份验证，凭证也会通过 HTTP Authorization 标头发送。仅当您的提供商或代理明确需要 Authorization 转发时使用此选项。",
+    "When true, credentials are sent via the HTTP Authorization header even if alternate auth is possible. Use this only when your provider or proxy explicitly requires Authorization forwarding.",
+  "models.providers.*.request":
+    "Optional request overrides for model-provider requests, including extra headers, auth overrides, proxy routing, and TLS client settings. Use these only when your upstream or enterprise network path requires transport customization.",
+  "models.providers.*.request.headers":
+    "Extra headers merged into provider requests after default attribution and auth resolution.",
+  "models.providers.*.request.auth":
+    "Override provider request authentication behavior for this provider.",
+  "models.providers.*.request.auth.mode":
+    'Auth override mode: "provider-default", "authorization-bearer", or "header".',
+  "models.providers.*.request.auth.token":
+    "Bearer token used when auth mode is authorization-bearer.",
+  "models.providers.*.request.auth.headerName":
+    "Custom auth header name used when auth mode is header.",
+  "models.providers.*.request.auth.value":
+    "Custom auth header value used when auth mode is header.",
+  "models.providers.*.request.auth.prefix":
+    "Optional prefix prepended to request.auth.value when auth mode is header.",
+  "models.providers.*.request.proxy":
+    'Optional proxy override for model-provider requests. Use "env-proxy" to honor environment proxy settings or "explicit-proxy" to route through a specific proxy URL.',
+  "models.providers.*.request.proxy.mode":
+    'Proxy override mode for model-provider requests: "env-proxy" or "explicit-proxy".',
+  "models.providers.*.request.proxy.url":
+    "Explicit proxy URL used when request.proxy.mode is explicit-proxy. Credentials embedded in the URL are treated as sensitive and redacted from snapshots.",
+  "models.providers.*.request.proxy.tls":
+    "Optional TLS settings used when connecting to the configured proxy.",
+  "models.providers.*.request.proxy.tls.ca":
+    "Custom CA bundle used to verify the proxy TLS certificate chain.",
+  "models.providers.*.request.proxy.tls.cert":
+    "Client TLS certificate presented to the proxy when mutual TLS is required.",
+  "models.providers.*.request.proxy.tls.key":
+    "Private key paired with request.proxy.tls.cert for proxy mutual TLS.",
+  "models.providers.*.request.proxy.tls.passphrase":
+    "Optional passphrase used to decrypt request.proxy.tls.key.",
+  "models.providers.*.request.proxy.tls.serverName":
+    "Optional SNI/server-name override used when establishing TLS to the proxy.",
+  "models.providers.*.request.proxy.tls.insecureSkipVerify":
+    "Skips proxy TLS certificate verification. Use only for controlled development environments.",
+  "models.providers.*.request.tls":
+    "Optional TLS settings used when connecting directly to the upstream model endpoint.",
+  "models.providers.*.request.tls.ca":
+    "Custom CA bundle used to verify the upstream TLS certificate chain.",
+  "models.providers.*.request.tls.cert":
+    "Client TLS certificate presented to the upstream endpoint when mutual TLS is required.",
+  "models.providers.*.request.tls.key":
+    "Private key paired with request.tls.cert for upstream mutual TLS.",
+  "models.providers.*.request.tls.passphrase":
+    "Optional passphrase used to decrypt request.tls.key.",
+  "models.providers.*.request.tls.serverName":
+    "Optional SNI/server-name override used when establishing upstream TLS.",
+  "models.providers.*.request.tls.insecureSkipVerify":
+    "Skips upstream TLS certificate verification. Use only for controlled development environments.",
   "models.providers.*.models":
-    "提供商的声明模型列表，包括标识符、元数据和可选的兼容性/成本提示。保持 ID 与提供商目录值完全相同，以便选择和故障转移正确解析。",
-  "models.bedrockDiscovery":
-    "自动 AWS Bedrock 模型发现设置，用于从账户可见性合成提供商模型条目。保持发现范围和刷新间隔保守以减少 API 混乱。",
-  "models.bedrockDiscovery.enabled":
-    "为 Bedrock 支持的提供商启用定期 Bedrock 模型发现和目录刷新。除非 Bedrock 被主动使用且 IAM 权限配置正确，否则保持禁用。",
-  "models.bedrockDiscovery.region":
-    "在您的部署中启用发现时用于 Bedrock 发现调用的 AWS 区域。使用您的 Bedrock 模型被配置的区域以避免空发现结果。",
-  "models.bedrockDiscovery.providerFilter":
-    "可选的提供商白名单过滤器用于 Bedrock 发现，以便仅刷新选定的提供商。使用此在多提供商环境中限制发现范围。",
-  "models.bedrockDiscovery.refreshInterval":
-    "Bedrock 发现轮询的刷新频率（秒）以在一段时间内检测新发现的模型。在生产中使用较长的间隔以减少 API 成本和控制平面噪声。",
-  "models.bedrockDiscovery.defaultContextWindow":
-    "应用于发现的模型的回退上下文窗口值，当提供商元数据缺少明确限制时。使用现实的默认值以避免超大提示超过真实提供商约束。",
-  "models.bedrockDiscovery.defaultMaxTokens":
-    "Fallback max-token value applied to discovered models without explicit output token limits. Use conservative defaults to reduce truncation surprises and unexpected token spend.",
+    "Declared model list for a provider including identifiers, metadata, and optional compatibility/cost hints. Keep IDs exact to provider catalog values so selection and fallback resolve correctly.",
   auth: "Authentication profile root used for multi-profile provider credentials and cooldown-based failover ordering. Keep profiles minimal and explicit so automatic failover behavior stays auditable.",
   "channels.matrix.allowBots":
     'Allow messages from other configured Matrix bot accounts to trigger replies (default: false). Set "mentions" to only accept bot messages that visibly mention this bot.',
@@ -769,6 +787,10 @@ export const FIELD_HELP: Record<string, string> = {
   "auth.cooldowns.billingBackoffHoursByProvider":
     "Optional per-provider overrides for billing backoff (hours).",
   "auth.cooldowns.billingMaxHours": "Cap (hours) for billing backoff (default: 24).",
+  "auth.cooldowns.authPermanentBackoffMinutes":
+    "Base backoff (minutes) for high-confidence auth_permanent failures (default: 10). Keep this shorter than billing so providers recover automatically after transient upstream auth incidents.",
+  "auth.cooldowns.authPermanentMaxMinutes":
+    "Cap (minutes) for auth_permanent backoff (default: 60).",
   "auth.cooldowns.failureWindowHours": "Failure window (hours) for backoff counters (default: 24).",
   "auth.cooldowns.overloadedProfileRotations":
     "Maximum same-provider auth-profile rotations allowed for overloaded errors before switching to model fallback (default: 1).",
@@ -777,7 +799,9 @@ export const FIELD_HELP: Record<string, string> = {
   "auth.cooldowns.rateLimitedProfileRotations":
     "Maximum same-provider auth-profile rotations allowed for rate-limit errors before switching to model fallback (default: 1).",
   "agents.defaults.workspace":
-    "暴露给代理运行时工具的默认工作区路径，用于文件系统上下文和仓库感知行为。在从包装器中运行时明确设置此项，以便路径分辨率保持确定性。",
+    "Default workspace path exposed to agent runtime tools for filesystem context and repo-aware behavior. Set this explicitly when running from wrappers so path resolution stays deterministic.",
+  "agents.defaults.contextInjection":
+    'Controls when workspace bootstrap files are injected into the system prompt: "always" (default) or "continuation-skip" for safe continuation turns after a completed assistant response.',
   "agents.defaults.bootstrapMaxChars":
     "在截断前注入系统提示的每个工作区引导文件的最大字符数（默认：20000）。",
   "agents.defaults.bootstrapTotalMaxChars":
@@ -818,11 +842,11 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.experimental.sessionMemory":
     "将会话转录索引到内存搜索中，以便响应可以参考先前的聊天转轮。除非需要转录召回并且您接受更大的索引变化，否则将此保持关闭。",
   "agents.defaults.memorySearch.provider":
-    '选择用于构建/查询内存向量的嵌入后端："openai"、"gemini"、"voyage"、"mistral"、"ollama" 或 "local"。在此保持您最可靠的提供商并配置回退以获得弹性。',
+    'Selects the embedding backend used to build/query memory vectors: "openai", "gemini", "voyage", "mistral", "bedrock", "ollama", or "local". Keep your most reliable provider here and configure fallback for resilience.',
   "agents.defaults.memorySearch.model":
     "Embedding model override used by the selected memory provider when a non-default model is required. Set this only when you need explicit recall quality/cost tuning beyond provider defaults.",
   "agents.defaults.memorySearch.outputDimensionality":
-    "Gemini embedding-2 only: chooses the output vector size for memory embeddings. Use 768, 1536, or 3072 (default), and expect a full reindex when you change it because stored vector dimensions must stay consistent.",
+    "Provider-specific output vector size override for memory embeddings. Gemini embedding-2 supports 768, 1536, or 3072; Bedrock families such as Titan V2, Cohere V4, and Nova expose their own allowed sizes. Expect a full reindex when you change it because stored vector dimensions must stay consistent.",
   "agents.defaults.memorySearch.remote.baseUrl":
     "覆盖嵌入 API 端点，如 OpenAI 兼容代理或自定义 Gemini 基本 URL。仅在通过您自己的网关或供应商端点进行路由时使用此项；否则保持提供商默认值。",
   "agents.defaults.memorySearch.remote.apiKey":
@@ -966,7 +990,7 @@ export const FIELD_HELP: Record<string, string> = {
   "plugins.enabled":
     "启动和配置重新加载期间全局启用或禁用插件/扩展加载（默认值：true）。仅当部署需要扩展功能时才保持启用状态。",
   "plugins.allow":
-    "可选的插件 ID 白名单；当设置时，只有列出的插件才有资格加载。使用此功能在受控环境中强制执行已批准的扩展清单。",
+    "Optional allowlist of plugin IDs; when set, only listed plugins are eligible to load. Configured bundled chat channels can still activate their bundled plugin when the channel is explicitly enabled in config. Use this to enforce approved extension inventories in controlled environments.",
   "plugins.deny":
     "可选的插件 ID 黑名单，即使白名单或路径中包含它们也会被阻止。使用拒绝规则进行紧急回滚，并对有风险的插件实施硬性阻止。",
   "plugins.load":
@@ -1034,6 +1058,16 @@ export const FIELD_HELP: Record<string, string> = {
     "Optional image-generation model (provider/model) used by the shared image generation capability.",
   "agents.defaults.imageGenerationModel.fallbacks":
     "Ordered fallback image-generation models (provider/model).",
+  "agents.defaults.videoGenerationModel.primary":
+    "Optional video-generation model (provider/model) used by the shared video generation capability.",
+  "agents.defaults.videoGenerationModel.fallbacks":
+    "Ordered fallback video-generation models (provider/model).",
+  "agents.defaults.musicGenerationModel.primary":
+    "Optional music-generation model (provider/model) used by the shared music generation capability.",
+  "agents.defaults.musicGenerationModel.fallbacks":
+    "Ordered fallback music-generation models (provider/model).",
+  "agents.defaults.mediaGenerationAutoProviderFallback":
+    "When true (default), shared image, music, and video generation automatically appends other auth-backed provider defaults after explicit primary/fallback refs. Set false to disable implicit cross-provider fallback while keeping explicit fallbacks.",
   "agents.defaults.pdfModel.primary":
     "PDF 分析工具的可选 PDF 模型（提供程序/模型）。默认为 imageModel，其次为 sessionmodel。",
   "agents.defaults.pdfModel.fallbacks": "有序的备用 PDF 模型（提供商/模型）。",
@@ -1356,15 +1390,7 @@ export const FIELD_HELP: Record<string, string> = {
   "hooks.internal":
     "从模块路径加载的捆绑/自定义事件处理程序的内部网钩运行时设置。将其用于受信任的进程内自动化并保持处理程序加载紧密作用域。",
   "hooks.internal.enabled":
-    "启用内部网钩处理程序处理和内部网钩运行时中的已配置条目。除非有意配置了内部网钩处理程序，否则保持禁用状态。",
-  "hooks.internal.handlers":
-    "内部事件处理程序列表，将事件名称映射到模块和可选导出。保持处理程序定义明确以便事件对代码的路由可审计。",
-  "hooks.internal.handlers[].event":
-    "内部事件名称，在由运行时发出时触发此处理程序模块。使用稳定的事件命名约定以避免处理程序之间的意外重叠。",
-  "hooks.internal.handlers[].module":
-    "在运行时加载的内部网钩处理程序实现的安全相对模块路径。保持模块文件在已审查的目录中并避免动态路径组合。",
-  "hooks.internal.handlers[].export":
-    "内部网钩处理程序函数的可选命名导出，当不使用模块默认导出时。当一个模块运送多个处理程序入口点时设置此选项。",
+    "Enables processing for internal hooks and configured entries in the internal hook runtime. Keep disabled unless internal hooks are intentionally configured.",
   "hooks.internal.entries":
     "已配置的内部网钩条目记录，用于注册具体运行时处理程序和元数据。保持条目明确并版本化以便生产行为可审计。",
   "hooks.internal.load":
@@ -1420,7 +1446,9 @@ export const FIELD_HELP: Record<string, string> = {
   "channels.defaults":
     "应用于未设置特定于提供商的设置的提供商时的默认频道行为。使用此在按提供商调整之前强制执行一致的基线策略。",
   "channels.defaults.groupPolicy":
-    '跨频道的默认群组策略："open"(打开)、"disabled"(禁用)或"allowlist"(允许列表)。为更安全的生产设置保持"allowlist"，除非也打算进行广泛的群组参与。',
+    'Default group policy across channels: "open", "disabled", or "allowlist". Keep "allowlist" for safer production setups unless broad group participation is intentional.',
+  "channels.defaults.contextVisibility":
+    'Default supplemental context visibility for fetched quote/thread/history content: "all" (keep all context), "allowlist" (only allowlisted senders), or "allowlist_quote" (allowlist + keep explicit quotes).',
   "channels.defaults.heartbeat":
     "默认心跳可见性设置，用于提供商/频道发出的状态消息。全局调整此选项以减少嘈杂的健康状态更新，同时保持警报可见。",
   "channels.defaults.heartbeat.showOk":
@@ -1428,7 +1456,11 @@ export const FIELD_HELP: Record<string, string> = {
   "channels.defaults.heartbeat.showAlerts":
     "当为真时显示已降级/错误心跳警报，以便操作员频道及时表现问题。在生产中保持启用状态，以便破损的频道状态是可见的。",
   "channels.defaults.heartbeat.useIndicator":
-    "在支持的位置启用简洁指示符样式心跳呈现，而不是冗长的状态文本。为具有许多活跃频道的密集仪表板使用指示符模式。",
+    "Enables concise indicator-style heartbeat rendering instead of verbose status text where supported. Use indicator mode for dense dashboards with many active channels.",
+  "agents.defaults.heartbeat.includeSystemPromptSection":
+    "Includes the default agent's ## Heartbeats system prompt section when true. Turn this off to keep heartbeat runtime behavior while omitting the heartbeat prompt instructions from the agent system prompt.",
+  "agents.list.*.heartbeat.includeSystemPromptSection":
+    "Per-agent override for whether the default agent's ## Heartbeats system prompt section is injected. Use false to keep heartbeat runtime behavior but omit the heartbeat prompt instructions from that agent's system prompt.",
   "agents.defaults.heartbeat.directPolicy":
     '控制心跳传递是否可能针对直接/DM 聊天："allow"(允许)(默认)允许 DM 传递，"block"(阻止)禁止直接目标发送。',
   "agents.list.*.heartbeat.directPolicy":
@@ -1445,7 +1477,7 @@ export const FIELD_HELP: Record<string, string> = {
   "messages.statusReactions":
     "生命周期状态反应，在代理取得进展时更新触发消息上的表情符号(queued(排队) → thinking(思考) → tool(工具) → done(完成)/error(错误))。",
   "messages.statusReactions.enabled":
-    '为 Telegram 启用生命周期状态反应。启用后，ack 反应变成初始"queued"(排队)状态并自动进行思考、工具、完成/错误。默认值：false。',
+    "Enable lifecycle status reactions on supported channels. Slack and Discord treat unset as enabled when ack reactions are active; Telegram requires this to be true before lifecycle reactions are used.",
   "messages.statusReactions.emojis":
     "Override default status reaction emojis. Keys: thinking, compacting, tool, coding, web, done, error, stallSoft, stallHard. Must be valid Telegram reaction emojis.",
   "messages.statusReactions.timing":

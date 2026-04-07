@@ -8,6 +8,7 @@ import type {
 import type { OpenClawConfig } from "../config/config.js";
 import { readConfigFileSnapshot, resolveGatewayPort, writeConfigFile } from "../config/config.js";
 import { normalizeSecretInputString } from "../config/types.secrets.js";
+import { formatErrorMessage } from "../infra/errors.js";
 import {
   buildPluginCompatibilityNotices,
   formatPluginCompatibilityNotice,
@@ -48,8 +49,7 @@ async function resolveAuthChoiceModelSelectionPolicy(params: {
     config: params.config,
     workspaceDir: params.workspaceDir,
     env: params.env,
-    bundledProviderAllowlistCompat: true,
-    bundledProviderVitestCompat: true,
+    mode: "setup",
   });
   const resolvedChoice = resolveProviderPluginChoice({
     providers,
@@ -363,8 +363,8 @@ export async function runSetupWizard(
   } catch (error) {
     await prompter.note(
       [
-        "无法解析入门探测所需的 gateway.auth.token SecretRef。",
-        error instanceof Error ? error.message : String(error),
+        "无法解析探测所需的 gateway.auth.token SecretRef。",
+        formatErrorMessage(error),
       ].join("\n"),
       "Gateway 认证",
     );
@@ -383,8 +383,8 @@ export async function runSetupWizard(
   } catch (error) {
     await prompter.note(
       [
-        "无法解析入门探测所需的 gateway.auth.password SecretRef。",
-        error instanceof Error ? error.message : String(error),
+        "无法解析探测所需的 gateway.auth.password SecretRef。",
+        formatErrorMessage(error),
       ].join("\n"),
       "网关认证",
     );
@@ -411,7 +411,7 @@ export async function runSetupWizard(
     await prompter.note(
       [
         "Could not resolve gateway.remote.token SecretRef for setup probe.",
-        error instanceof Error ? error.message : String(error),
+        formatErrorMessage(error),
       ].join("\n"),
       "Gateway auth",
     );
@@ -612,6 +612,16 @@ export async function runSetupWizard(
   } else {
     const { setupSkills } = await import("../commands/onboard-skills.js");
     nextConfig = await setupSkills(nextConfig, workspaceDir, runtime, prompter);
+  }
+
+  // Plugin configuration (sandbox backends, tool plugins, etc.)
+  if (flow !== "quickstart") {
+    const { setupPluginConfig } = await import("./setup.plugin-config.js");
+    nextConfig = await setupPluginConfig({
+      config: nextConfig,
+      prompter,
+      workspaceDir,
+    });
   }
 
   // Setup hooks (session memory on /new)

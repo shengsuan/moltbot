@@ -14,6 +14,7 @@ export const CONFIGURE_WIZARD_SECTIONS = [
   "gateway",
   "daemon",
   "channels",
+  "plugins",
   "skills",
   "health",
 ] as const;
@@ -64,7 +65,8 @@ export const CONFIGURE_SECTION_OPTIONS: Array<{
     label: "频道",
     hint: "链接 WhatsApp/Telegram 等和默认设置",
   },
-  { value: "skills", label: "技能", hint: "安装/启用工作空间技能" },
+  { value: "plugins", label: "Plugins", hint: "设置插件 (sandbox, tools, 等.)" },
+  { value: "skills", label: "Skills", hint: "安装/启用工作空间技能" },
   {
     value: "health",
     label: "健康检查",
