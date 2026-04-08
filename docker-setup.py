@@ -261,28 +261,6 @@ upsert_env(ENV_FILE, [
     "OPENCLAW_INSTALL_DOCKER_CLI"
 ])
 
-# ==========================================
-# 构建 gateway 镜像并启动服务
-# ==========================================
-
-# Package plugins directory to bypass .dockerignore nested exclusions
-# plugins_tar = ROOT_DIR / "plugins.tar.gz"
-# plugins_dir = ROOT_DIR / "plugins"
-# if plugins_dir.is_dir() and any(plugins_dir.iterdir()):
-#     print(f"==> 打包 plugins 目录...")
-#     result = subprocess.run(
-#         ["tar", "-czf", str(plugins_tar), "-C", str(ROOT_DIR), "plugins"],
-#         capture_output=True,
-#         text=True
-#     )
-#     if result.returncode == 0:
-#         size_mb = plugins_tar.stat().st_size / (1024 * 1024)
-#         print(f"    已创建 plugins.tar.gz ({size_mb:.1f}MB)")
-#     else:
-#         print(f"警告：打包 plugins 失败: {result.stderr}", file=sys.stderr)
-# else:
-#     print("==> 跳过 plugins 打包（目录不存在或为空）")
-
 if IMAGE_NAME:
     print(f"==> 构建 Docker 镜像：{IMAGE_NAME}")
     #corss build support for amd64 on x86_64
@@ -300,8 +278,6 @@ if IMAGE_NAME:
                 build_cmd.extend(["--build-arg", f"{arg}={os.environ[arg]}"])
         build_cmd.extend(["-t", IMAGE_NAME, "-f", str(ROOT_DIR / "Dockerfile"), str(ROOT_DIR)])
         subprocess.run(build_cmd, check=True)
-
-
 
 print("\n==> 修复数据目录权限")
 chown_script = (

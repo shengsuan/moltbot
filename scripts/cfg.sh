@@ -29,15 +29,28 @@ if [ -n "$SSH_ROOT_PASSWORD" ] || [ -n "$SSH_AUTHORIZED_KEYS" ]; then
       -o "PubkeyAuthentication=$([ -n "$SSH_AUTHORIZED_KEYS" ] && echo "yes" || echo "no")" && echo "SSH server started on port 22" || echo "Warning: SSH server failed to start"
 fi
 
-# Restore plugins to .openclaw/extensions/ directory before starting gateway
-if [ -d "/app/plugins" ]; then
-    echo "Restoring plugins to .openclaw/extensions/..."
+# Extract plugin tarballs to .openclaw/extensions/ directory before starting gateway
+if [ -d "/app/plugins" ] && [ -n "$(ls -A /app/plugins/*.tar.gz 2>/dev/null)" ]; then
+    echo "Extracting plugins to .openclaw/extensions/..."
     OPENCLAW_DIR="${HOME}/.openclaw"
     mkdir -p "${OPENCLAW_DIR}/extensions"
-    cp -r /app/plugins/* "${OPENCLAW_DIR}/extensions/" 2>/dev/null || echo "Warning: No plugins to restore or copy failed"
+
+    for tarball in /app/plugins/*.tar.gz; do
+        if [ -f "$tarball" ]; then
+            echo "  Extracting $(basename "$tarball")..."
+            if tar -xzf "$tarball" -C "${OPENCLAW_DIR}/extensions/" 2>&1; then
+                echo "    ✓ Extracted successfully"
+            else
+                echo "    ✗ Failed to extract $tarball" >&2
+            fi
+        fi
+    done
+
     # Fix ownership to match the current user running the script
     chown -R "$(id -u):$(id -g)" "${OPENCLAW_DIR}/extensions/" 2>/dev/null || echo "Warning: Could not change ownership"
-    echo "Plugins restored successfully"
+
+    echo "Installed plugins:"
+    ls -la "${OPENCLAW_DIR}/extensions/" 2>/dev/null || echo "  (no plugins found)"
 fi
 
 node dist/index.js gateway --allow-unconfigured --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port 18789 &
@@ -77,7 +90,6 @@ node dist/index.js config set tools.exec.security 'full'
 node dist/index.js config set tools.elevated.enabled true
 node dist/index.js config set tools.elevated.allowFrom.webchat '["*"]'
 node dist/index.js config set tools.elevated.allowFrom.direct '["*"]'
-# node dist/index.js config set tools.alsoAllow '["wecom_mcp","qqbot_channel_api","qqbot_remind","openai_gpt_image_1_5","bytedance_doubao_seedream_5_0_lite","ali_qwen_image_plus","google_gemini_3_1_flash_image_preview","ali_z_image_turbo","ali_wan2_6_i2v","bytedance_doubao_seedream_4_0","openai_sora2","google_gemini_3_pro_image_preview","google_veo3_1_fast_preview","google_veo3_1_preview","bytedance_doubao_seedream_4_5","black_forest_labs_flux_1_1_pro_ultra","openai_gpt_image_1","google_veo3","bytedance_jimeng_i2v_first_v30","bytedance_doubao_seedance_1_0_lite_t2v","ali_wan2_2_animate_mix","ali_wan2_2_t2v_plus","ali_wan2_2_i2v_plus","kling_kling_v2_5_turbo","ali_wan2_5_i2i_preview","bytedance_doubao_seedance_1_0_lite_i2v","ali_wan2_5_t2v_preview","ali_wan2_2_i2v_flash","black_forest_labs_flux_kontext_pro","openai_sora","kling_kling_v2_1","kling_kling_v2_1_master","ali_wan2_5_t2i_preview","ali_wan2_5_i2v_preview","vidu_vidu2_0","black_forest_labs_flux_kontext_dev","black_forest_labs_flux_kontext_max","google_gemini_2_5_flash_image","ali_wan2_2_s2v","ali_wan2_2_kf2v_flash","ali_wan2_2_animate_move","ali_wan_2_2_t2v_fast_lora","ali_wan_2_2_i2v_fast_lora","black_forest_labs_flux_1_1_pro_ultra_finetuned","bytedance_jimeng_v40","black_forest_labs_flux_1_1_pro","black_forest_labs_flux_kontext_dev_lora","black_forest_labs_flux_dev_lora","ali_wan_2_2_t2i_lora","bytedance_jimeng_i2i_v30","bytedance_jimeng_i2v_first_v30_1080","bytedance_jimeng_t2i_v30","bytedance_jimeng_t2i_v31","openai_gpt_image_1_mini","bytedance_doubao_seedream_3_0_t2i","bytedance_doubao_seededit_3_0_i2i","vidu_viduq3_pro","ali_qwen_image_edit_plus","bytedance_jimeng_i2v_first_tail_v30","minimax_s2v_01","minimax_i2v_01_live","kling_kling_v2","bytedance_jimeng_i2v_recamera_v30","minimax_i2v_01_director","bytedance_jimeng_t2v_v30_1080p","bytedance_doubao_seedance_1_0_pro","google_gemini_2_5_flash_image_preview","minimax_t2v_01_director","kling_lipsync","bytedance_jimeng_t2v_v30","bytedance_jimeng_ti2v_v30_pro","kling_kling_v1_6","vidu_vidu1_5","vidu_viduq2_turbo","vidu_viduq1","vidu_viduq1_image","runway_eleven_text_to_sound_v2","runway_eleven_multilingual_v2","bytedance_image_enhance","bytedance_image_upscale","runway_gen4_turbo","runway_gen3a_turbo","openai_whisper","ali_paraformer_v2","runway_gen4_aleph","tencent_hunyuan_3d_pro","tencent_hunyuan_3d_uv","bytedance_doubao_seed3d","tencent_hunyuan_3d_reduce_face","tencent_hunyuan_3d_part","tencent_hunyuan_3d_rapid","tencent_hunyuan_3d_texture"]'
 node dist/index.js config set tools.alsoAllow '["wecom_mcp","qqbot_channel_api","qqbot_remind"]'
 node dist/index.js config set plugins.allow '["shengsuanyun","wecom-openclaw-plugin","openclaw-weixin","qqbot"]'
 node dist/index.js config set plugins.entries.shengsuanyun.enabled true
@@ -87,6 +99,10 @@ node dist/index.js config set plugins.entries.qqbot.enabled true
 node dist/index.js config set plugins.installs.wecom-openclaw-plugin.source "npm"
 node dist/index.js config set plugins.installs.wecom-openclaw-plugin.spec "@wecom/wecom-openclaw-plugin@latest"
 node dist/index.js config set plugins.installs.wecom-openclaw-plugin.installPath "/home/node/.openclaw/extensions/wecom-openclaw-plugin"
+node dist/index.js config set plugins.installs.openclaw-weixin.source "npm"
+node dist/index.js config set plugins.installs.openclaw-weixin.installPath "/home/node/.openclaw/extensions/openclaw-weixin"
+node dist/index.js config set plugins.installs.openclaw-weixin.resolvedSpec "@tencent-weixin/openclaw-weixin@2.1.7"
+
 node dist/index.js config set channels '{"openclaw-weixin": {"accounts": {}},"wecom": {"enabled": true,"botId": "aib-jqQBaC681e9nmdAXNEWPVf0uqAq8zWL","secret": "Un9xdaeNFq5AgNJcTprq3s3ILw6vESGf8iVmRC4Yvnk"},"qqbot": {"enabled": true,"allowFrom": ["*"],"appId": "1903681724","clientSecret": "oZ8TbXFk15vXv51i"}}'
 # node dist/index.js channels add --channel qqbot --token "1903681724:oZ8TbXFk15vXv51i"
 # node dist/index.js channels login --channel openclaw-weixin

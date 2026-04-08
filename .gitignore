@@ -4,15 +4,8 @@ node_modules
 docker-compose.override.yml
 docker-compose.extra.yml
 dist
-<<<<<<< HEAD
-!extensions/openclaw-qqbot/dist
-!plugins/*/dist
-!plugins/*/node_modules
 !plugins/**/*.tar.gz
 dist-runtime
-=======
-dist-runtime/
->>>>>>> 24d4acb274ffc46e3c8c8c767ef94cbf8c83a228
 pnpm-lock.yaml
 bun.lock
 bun.lockb

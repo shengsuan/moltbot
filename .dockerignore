@@ -49,8 +49,10 @@ tmp
 dist
 **/dist
 # But keep plugins dist directories for runtime
-!plugins/*/dist
-
+!plugins/*
+!/app/plugins/*
+!plugins/
+!plugins/*.tar.gz
 apps/macos/.build
 apps/ios/build
 **/*.trace
