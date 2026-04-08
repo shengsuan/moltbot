@@ -362,9 +362,9 @@ ClawHub 是一个极简的技能注册表。启用 ClawHub 后，智能体可以
 
 ```json
 {
-  agent: {
-    model: "<provider>/<model-id>",
-  },
+  "agent": {
+    "model": "<provider>/<model-id>"
+  }
 }
 ```
 

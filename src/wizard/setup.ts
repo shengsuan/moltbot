@@ -362,10 +362,7 @@ export async function runSetupWizard(
     }
   } catch (error) {
     await prompter.note(
-      [
-        "无法解析探测所需的 gateway.auth.token SecretRef。",
-        formatErrorMessage(error),
-      ].join("\n"),
+      ["无法解析探测所需的 gateway.auth.token SecretRef。", formatErrorMessage(error)].join("\n"),
       "Gateway 认证",
     );
   }
@@ -382,10 +379,9 @@ export async function runSetupWizard(
     }
   } catch (error) {
     await prompter.note(
-      [
-        "无法解析探测所需的 gateway.auth.password SecretRef。",
-        formatErrorMessage(error),
-      ].join("\n"),
+      ["无法解析探测所需的 gateway.auth.password SecretRef。", formatErrorMessage(error)].join(
+        "\n",
+      ),
       "网关认证",
     );
   }

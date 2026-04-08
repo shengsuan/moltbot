@@ -29,6 +29,9 @@ if [ -n "$SSH_ROOT_PASSWORD" ] || [ -n "$SSH_AUTHORIZED_KEYS" ]; then
       -o "PubkeyAuthentication=$([ -n "$SSH_AUTHORIZED_KEYS" ] && echo "yes" || echo "no")" && echo "SSH server started on port 22" || echo "Warning: SSH server failed to start"
 fi
 
+npm install @coohu/coding-helper@latest -g || echo "Warning: Failed to install coding helper globally"
+alias ch="coding-helper"
+
 # Extract plugin tarballs to .openclaw/extensions/ directory before starting gateway
 if [ -d "/app/plugins" ] && [ -n "$(ls -A /app/plugins/*.tar.gz 2>/dev/null)" ]; then
     echo "Extracting plugins to .openclaw/extensions/..."
@@ -102,7 +105,6 @@ node dist/index.js config set plugins.installs.wecom-openclaw-plugin.installPath
 node dist/index.js config set plugins.installs.openclaw-weixin.source "npm"
 node dist/index.js config set plugins.installs.openclaw-weixin.installPath "/home/node/.openclaw/extensions/openclaw-weixin"
 node dist/index.js config set plugins.installs.openclaw-weixin.resolvedSpec "@tencent-weixin/openclaw-weixin@2.1.7"
-
 node dist/index.js config set channels '{"openclaw-weixin": {"accounts": {}},"wecom": {"enabled": true,"botId": "aib-jqQBaC681e9nmdAXNEWPVf0uqAq8zWL","secret": "Un9xdaeNFq5AgNJcTprq3s3ILw6vESGf8iVmRC4Yvnk"},"qqbot": {"enabled": true,"allowFrom": ["*"],"appId": "1903681724","clientSecret": "oZ8TbXFk15vXv51i"}}'
 # node dist/index.js channels add --channel qqbot --token "1903681724:oZ8TbXFk15vXv51i"
 # node dist/index.js channels login --channel openclaw-weixin

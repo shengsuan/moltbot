@@ -312,15 +312,6 @@ if OPENCLAW_GATEWAY_BIND != "loopback":
         run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "gateway.controlUi.allowedOrigins", allowed_json, "--strict-json", check=False)
         print(f"为非环回绑定将 gateway.controlUi.allowedOrigins 设置为 {allowed_json}。")
 
-# print("\n==> 客户端设置（可选）")
-# print("WhatsApp (QR)：")
-# print(f"  {compose_hint} run --rm openclaw-cli channels login")
-# print("Telegram (机器人令牌)：")
-# print(f"  {compose_hint} run --rm openclaw-cli channels add --channel telegram --token <token>")
-# print("Discord (机器人令牌)：")
-# print(f"  {compose_hint} run --rm openclaw-cli channels add --channel discord --token <token>")
-# print("文档：https://docs.openclaw.ai/channels")
-
 print("\n==> 启动网关")
 run_compose(compose_args, "up", "-d", "openclaw-gateway")
 
@@ -334,5 +325,5 @@ if OPENCLAW_BROWSER_IMAGE:
     print("\n==> 启动沙盒浏览器")
     run_compose(compose_args, "-f", "docker-compose-browser.yml", "up", "-d", "openclaw-browser")
     port = os.environ.get("OPENCLAW_BROWSER_CDP_PORT", "9222")
-    run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "browser.cdpUrl", f"ws://192.168.97.2:{port}", check=False)
+    # run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "browser.cdpUrl", f"ws://192.168.97.2:{port}", check=False)
     run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "browser.attachOnly", "true", check=False)
