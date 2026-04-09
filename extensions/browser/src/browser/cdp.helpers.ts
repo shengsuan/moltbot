@@ -12,11 +12,8 @@ export { isLoopbackHost };
 export function parseBrowserHttpUrl(raw: string, label: string) {
   const trimmed = raw.trim();
   const allowed = ["http:", "https:", "ws:", "wss:"];
-  for (const it of allowed) {
-    if (trimmed.toLowerCase().startsWith(it)) {
-      break;
-    }
-    throw new Error(`parseBrowserHttpUrl() ${label} must be http(s) or ws(s)`);
+  if (!allowed.some((scheme) => trimmed.startsWith(scheme))) {
+    throw new Error(`${label} must be http(s) or ws(s), got: ${trimmed}`);
   }
   const parsed = new URL(trimmed);
   if (!allowed.includes(parsed.protocol)) {
