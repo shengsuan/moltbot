@@ -1,35 +1,41 @@
 #!/bin/bash
 set -e
 
-if [ -n "$SSH_ROOT_PASSWORD" ] || [ -n "$SSH_AUTHORIZED_KEYS" ]; then
-    echo "Configuring SSH server..."
-
-    # Generate SSH host keys only if they don't exist
-    if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
-        ssh-keygen -A || echo "Warning: Failed to generate SSH host keys"
+if [ "$(id -u)" = "0" ]; then
+    if [ -n "$SSH_ROOT_PASSWORD" ] || [ -n "$SSH_AUTHORIZED_KEYS" ]; then
+        echo "Configuring SSH server..."
+        # Generate SSH host keys only if they don't exist
+        if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
+            ssh-keygen -A || echo "Warning: Failed to generate SSH host keys"
+        fi
+        if [ -n "$SSH_ROOT_PASSWORD" ]; then
+            echo "root:$SSH_ROOT_PASSWORD" | chpasswd 2>/dev/null || echo "Warning: Failed to set root password, using SSH keys only"
+        fi
+        if [ -n "$SSH_AUTHORIZED_KEYS" ]; then
+            mkdir -p /root/.ssh
+            echo "$SSH_AUTHORIZED_KEYS" > /root/.ssh/authorized_keys
+            chmod 700 /root/.ssh
+            chmod 600 /root/.ssh/authorized_keys
+            echo "SSH public key authentication configured"
+        fi
+        # Start SSH daemon
+        /usr/sbin/sshd \
+        -o "PermitRootLogin=yes" \
+        -o "UsePAM=no" \
+        -o "PasswordAuthentication=$([ -n "$SSH_ROOT_PASSWORD" ] && echo "yes" || echo "no")" \
+        -o "PubkeyAuthentication=$([ -n "$SSH_AUTHORIZED_KEYS" ] && echo "yes" || echo "no")" && echo "SSH server started on port 22" || echo "Warning: SSH server failed to start"
     fi
 
-    if [ -n "$SSH_ROOT_PASSWORD" ]; then
-        echo "root:$SSH_ROOT_PASSWORD" | chpasswd 2>/dev/null || echo "Warning: Failed to set root password, using SSH keys only"
-    fi
+    npm install @coohu/coding-helper@latest -g || echo "Warning: Failed to install coding helper globally"
+    echo "Fixing permissions for /home/node/.openclaw..."
+    mkdir -p /home/node/.openclaw/extensions
+    chown -R node:node /home/node
 
-    if [ -n "$SSH_AUTHORIZED_KEYS" ]; then
-        mkdir -p /root/.ssh
-        echo "$SSH_AUTHORIZED_KEYS" > /root/.ssh/authorized_keys
-        chmod 700 /root/.ssh
-        chmod 600 /root/.ssh/authorized_keys
-        echo "SSH public key authentication configured"
-    fi
-
-    # Start SSH daemon
-    /usr/sbin/sshd \
-      -o "PermitRootLogin=yes" \
-      -o "UsePAM=no" \
-      -o "PasswordAuthentication=$([ -n "$SSH_ROOT_PASSWORD" ] && echo "yes" || echo "no")" \
-      -o "PubkeyAuthentication=$([ -n "$SSH_AUTHORIZED_KEYS" ] && echo "yes" || echo "no")" && echo "SSH server started on port 22" || echo "Warning: SSH server failed to start"
+    export HOME=/home/node
+    export USER=node
+    exec su -p node -c "/bin/bash $0 $@"
 fi
 
-npm install @coohu/coding-helper@latest -g || echo "Warning: Failed to install coding helper globally"
 alias ch="coding-helper"
 
 # Extract plugin tarballs to .openclaw/extensions/ directory before starting gateway
