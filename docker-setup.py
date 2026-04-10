@@ -185,9 +185,9 @@ def write_extra_compose(home_vol: str, mounts: list):
     
     gw_home_mount = gw_config_mount = gw_workspace_mount = ""
     if home_vol:
-        gw_home_mount = f"{home_vol}:/home/node"
-        gw_config_mount = f"{OPENCLAW_CONFIG_DIR}:/home/node/.openclaw"
-        gw_workspace_mount = f"{OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace"
+        gw_home_mount = f"{home_vol}:/root"
+        gw_config_mount = f"{OPENCLAW_CONFIG_DIR}:/root/.openclaw"
+        gw_workspace_mount = f"{OPENCLAW_WORKSPACE_DIR}:/root/.openclaw/workspace"
         for m in [gw_home_mount, gw_config_mount, gw_workspace_mount]:
             validate_mount_spec(m)
             lines.append(f"      - {m}")
@@ -279,39 +279,13 @@ if IMAGE_NAME:
         build_cmd.extend(["-t", IMAGE_NAME, "-f", str(ROOT_DIR / "Dockerfile"), str(ROOT_DIR)])
         subprocess.run(build_cmd, check=True)
 
-print("\n==> 修复数据目录权限")
-chown_script = (
-    "find /home/node/.openclaw -xdev -exec chown node:node {} +; "
-    "[ -d /home/node/.openclaw/workspace/.openclaw ] && chown -R node:node /home/node/.openclaw/workspace/.openclaw || true"
-)
-run_compose(compose_args, "run", "--rm", "--user", "root", "--entrypoint", "sh", "openclaw-cli", "-c", chown_script)
+# print("\n==> 修复数据目录权限")
+# chown_script = (
+#     "find /home/node/.openclaw -xdev -exec chown node:node {} +; "
+#     "[ -d /home/node/.openclaw/workspace/.openclaw ] && chown -R node:node /home/node/.openclaw/workspace/.openclaw || true"
+# )
+# run_compose(compose_args, "run", "--rm", "--user", "root", "--entrypoint", "sh", "openclaw-cli", "-c", chown_script)
 # run_compose(compose_args, "run", "--rm", "openclaw-cli", "onboard", "--mode", "local", "--no-install-daemon")
-
-print("\n==> 引导（交互式）")
-print("Docker 设置将网关模式固定为本地。")
-print(f"网关运行时绑定来自 OPENCLAW_GATEWAY_BIND（默认：lan）。")
-print(f"当前运行时绑定：{OPENCLAW_GATEWAY_BIND}")
-print(f"网关令牌：{OPENCLAW_GATEWAY_TOKEN}")
-print("Tailscale 暴露：关闭（单独使用主机级 tailnet/Tailscale 设置）。")
-print("安装网关守护进程：否（由 Docker Compose 管理）\n")
-
-print("\n==> Docker 网关默认值")
-run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "gateway.mode", "local", check=False)
-run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "gateway.bind", OPENCLAW_GATEWAY_BIND, check=False)
-print(f"为 Docker 设置固定 gateway.mode=local 和 gateway.bind={OPENCLAW_GATEWAY_BIND}。")
-
-print("\n==> 控制 UI 源白名单")
-if OPENCLAW_GATEWAY_BIND != "loopback":
-    port = os.environ.get("OPENCLAW_GATEWAY_PORT", "8080")
-    allowed_json = f'["http://127.0.0.1:{port}","http://localhost:{port}"]'
-    res = run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "get", "gateway.controlUi.allowedOrigins", capture=True, check=False)
-    current = res.stdout.strip()
-    if current and current not in ("null", "[]"):
-        print("控制 UI 白名单已配置；保持 gateway.controlUi.allowedOrigins 不变。")
-    else:
-        run_compose(compose_args, "run", "--rm", "openclaw-cli", "config", "set", "gateway.controlUi.allowedOrigins", allowed_json, "--strict-json", check=False)
-        print(f"为非环回绑定将 gateway.controlUi.allowedOrigins 设置为 {allowed_json}。")
-
 print("\n==> 启动网关")
 run_compose(compose_args, "up", "-d", "openclaw-gateway")
 

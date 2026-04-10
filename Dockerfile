@@ -225,12 +225,12 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     if [ "$OPENCLAW_INSTALL_BROWSER" = "1" ] || [ "$OPENCLAW_INSTALL_BROWSER" = "true" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
-      mkdir -p /home/node/.cache/ms-playwright && \
-      export PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright && \
+      mkdir -p /root/.cache/ms-playwright && \
+      export PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright && \
       node /app/node_modules/playwright-core/cli.js install-deps chromium && \
       node /app/node_modules/playwright-core/cli.js install chromium && \
-      chown -R node:node /home/node/.cache && \
-      ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
+      chown -R node:node /root/.cache && \
+      ACTUAL_CHROME=$(find /root/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
       if [ -z "$ACTUAL_CHROME" ]; then echo "Browser binary not found" >&2; exit 1; fi; \
       for TARGET in /usr/bin/chromium \
                     /usr/bin/chromium-browser \
@@ -275,6 +275,17 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         docker-ce-cli docker-compose-plugin; \
     fi
+RUN npm install @coohu/coding-helper@latest -g && \
+    echo 'alias ch="coding-helper"' >> /root/.bashrc
+RUN npm i -g @openai/codex
+RUN curl -fsSL -o /tmp/claude_install.sh https://claude.ai/install.sh && \
+    chmod +x /tmp/claude_install.sh && \
+    /tmp/claude_install.sh && \
+    echo 'export PATH="$HOME/.local/bin:$PATH"' >> /root/.bashrc && \
+    rm /tmp/claude_install.sh
+
+# RUN chmod -R 755 /usr/local/lib/node_modules && \
+#     chmod -R 755 /usr/local/bin
 
 # Expose the CLI binary without requiring npm global writes as non-root.
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
