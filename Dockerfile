@@ -275,6 +275,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         docker-ce-cli docker-compose-plugin; \
     fi
+
 RUN npm install @coohu/coding-helper@latest -g && \
     echo 'alias ch="coding-helper"' >> /root/.bashrc
 RUN npm i -g @openai/codex
