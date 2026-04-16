@@ -2,13 +2,14 @@
 set -e
 
 echo "Fixing permissions for /home/node/.openclaw..."
-home_dir="/home/node"
-cfg_dir="$home_dir/.openclaw"
-mkdir -p "$cfg_dir/extensions"
-chown -R node:node "$home_dir"
-
-if [ -f cfg.templates.json ]; then
-    envsubst < cfg.templates.json > "$cfg_dir/openclaw.json"
+HOME_DIR="/home/node"
+CFG_DIR="$HOME_DIR/.openclaw"
+mkdir -p "$CFG_DIR/extensions"
+chown -R node:node "$HOME_DIR"
+TEMPLATE_FILE="/app/cfg.templates.json"
+if [ -f "$TEMPLATE_FILE" ]; then
+    envsubst < "$TEMPLATE_FILE" > "$CFG_DIR/openclaw.json"
+    cat "$CFG_DIR/openclaw.json"
 fi
 
 if [ "$(id -u)" = "0" ]; then
@@ -41,7 +42,7 @@ if [ -d "/app/plugins" ] && [ -n "$(ls -A /app/plugins/*.tar.gz 2>/dev/null)" ];
     for tarball in /app/plugins/*.tar.gz; do
         if [ -f "$tarball" ]; then
             echo "  Extracting $(basename "$tarball")..."
-            if tar -xzf "$tarball" -C "${OPENCLAW_DIR}/extensions/" 2>&1; then
+            if tar -xzf "$tarball" -C "${CFG_DIR}/extensions/" 2>&1; then
                 echo "    ✓ Extracted successfully"
             else
                 echo "    ✗ Failed to extract $tarball" >&2
@@ -49,10 +50,10 @@ if [ -d "/app/plugins" ] && [ -n "$(ls -A /app/plugins/*.tar.gz 2>/dev/null)" ];
         fi
     done
     echo "Installed plugins:"
-    ls -la "${OPENCLAW_DIR}/extensions/" 2>/dev/null || echo "  (no plugins found)"
+    ls -la "${CFG_DIR}/extensions/" 2>/dev/null || echo "  (no plugins found)"
 fi
-
-node dist/index.js gateway --allow-unconfigured --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port 18789 &
+chown -R node:node "$HOME_DIR"
+runuser -u node -- node dist/index.js gateway --allow-unconfigured --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port 18789 &
 GATEWAY_PID=$!
 MAX_WAIT=60
 COUNTER=0
@@ -69,5 +70,5 @@ if [ $COUNTER -eq $MAX_WAIT ]; then
     exit 1
 fi
 
-node dist/index.js onboard --non-interactive --accept-risk --auth-choice shengsuanyun-api-key --shengsuanyun-api-key "${SHENGSUANYUN_API_KEY}"
+runuser -u node -- node dist/index.js onboard --non-interactive --accept-risk --auth-choice shengsuanyun-api-key --shengsuanyun-api-key "${SHENGSUANYUN_API_KEY}"
 wait $GATEWAY_PID

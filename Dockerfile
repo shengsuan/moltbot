@@ -173,8 +173,8 @@ COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
 COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
 COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
-COPY --from=runtime-assets --chown=node:node /app/scripts/cfg.sh /cfg.sh
-COPY --from=runtime-assets --chown=node:node /app/cfg.templates.json /app/cfg.templates.json
+COPY --from=runtime-assets --chown=node:node /app/scripts/cfg.sh ./scripts/cfg.sh
+COPY --from=runtime-assets --chown=node:node /app/scripts/cfg.templates.json ./cfg.templates.json
 RUN mkdir -p /run/sshd /root/.ssh && \
     chmod 700 /root/.ssh && \
     ssh-keygen -A && \
@@ -225,12 +225,12 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     if [ "$OPENCLAW_INSTALL_BROWSER" = "1" ] || [ "$OPENCLAW_INSTALL_BROWSER" = "true" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
-      mkdir -p /root/.cache/ms-playwright && \
-      export PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright && \
+      mkdir -p /home/node/.cache/ms-playwright && \
+      export PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright && \
       node /app/node_modules/playwright-core/cli.js install-deps chromium && \
       node /app/node_modules/playwright-core/cli.js install chromium && \
-      chown -R node:node /root/.cache && \
-      ACTUAL_CHROME=$(find /root/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
+      chown -R node:node /home/node/.cache && \
+      ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
       if [ -z "$ACTUAL_CHROME" ]; then echo "Browser binary not found" >&2; exit 1; fi; \
       for TARGET in /usr/bin/chromium \
                     /usr/bin/chromium-browser \
@@ -277,12 +277,12 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     fi
 
 # RUN npm install @coohu/coding-helper@latest -g && \
-#     echo 'alias ch="coding-helper"' >> /root/.bashrc
+#     echo 'alias ch="coding-helper"' >> /home/node/.bashrc
 # RUN npm i -g @openai/codex
 # RUN curl -fsSL -o /tmp/claude_install.sh https://claude.ai/install.sh && \
 #     chmod +x /tmp/claude_install.sh && \
 #     /tmp/claude_install.sh && \
-#     echo 'export PATH="$HOME/.local/bin:$PATH"' >> /root/.bashrc && \
+#     echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/node/.bashrc && \
 #     rm /tmp/claude_install.sh
 
 # RUN chmod -R 755 /usr/local/lib/node_modules && \
@@ -291,7 +291,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 # Expose the CLI binary without requiring npm global writes as non-root.
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
  && chmod 755 /app/openclaw.mjs \
- && chmod 755 /cfg.sh
+ && chmod 755 /app/scripts/cfg.sh
 
 ENV NODE_ENV=production
 
@@ -315,4 +315,4 @@ ENV NODE_ENV=production
 EXPOSE 18789 18790 22
 # HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
 #   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-ENTRYPOINT ["/cfg.sh"]
+ENTRYPOINT ["/app/scripts/cfg.sh"]
