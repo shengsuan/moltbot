@@ -78,12 +78,11 @@ wait $GATEWAY_PID
 
 node dist/index.js config set auth.profiles '{"shengsuanyun:default":{"provider":"shengsuanyun","mode":"api_key"}}'
 node dist/index.js onboard --non-interactive --accept-risk --auth-choice shengsuanyun-api-key --shengsuanyun-api-key "${SHENGSUANYUN_API_KEY}"
-# node dist/index.js config set agents '{"defaults": {"model": {"primary": "shengsuanyun/anthropic/claude-haiku-4.5"},"workspace": "/root/.openclaw/workspace","compaction": {"mode": "safeguard"}}}'
 node dist/index.js config set auth.cooldowns.failureWindowHours 0.03
 node dist/index.js config set gateway.auth.token "${OPENCLAW_GATEWAY_TOKEN}"
 node dist/index.js config set gateway.controlUi.dangerouslyDisableDeviceAuth true
 node dist/index.js config set gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback true
-node dist/index.js config set gateway.controlUi.allowedOrigins '["http://100.64.0.1:18787","http://100.64.0.1:18788","http://100.64.0.1:18789"]'
+node dist/index.js config set gateway.controlUi.allowedOrigins '["http://localhost:18787","http://127.0.0.1:18788","http://100.64.0.1:18789"]'
 node dist/index.js config set gateway.mode "local"
 node dist/index.js config set gateway.bind ${OPENCLAW_GATEWAY_BIND:-lan}
 node dist/index.js config set browser.enabled true
@@ -91,7 +90,7 @@ node dist/index.js config set browser.evaluateEnabled true
 node dist/index.js config set browser.headless true
 node dist/index.js config set browser.noSandbox true
 node dist/index.js config set browser.attachOnly true
-# node dist/index.js config set browser.cdpUrl 'ws://${OPENCLAW_BROWSER_CDP_HOST:-localhost}:${OPENCLAW_BROWSER_CDP_PORT:-9222}'
+node dist/index.js config set browser.cdpUrl "ws://${OPENCLAW_BROWSER_CDP_HOST:-localhost}:${OPENCLAW_BROWSER_CDP_PORT:-9222}"
 node dist/index.js config set tools.sessions.visibility 'all'
 node dist/index.js config set tools.profile 'full'
 node dist/index.js config set tools.exec.security 'full'
@@ -116,7 +115,7 @@ node dist/index.js config set channels '{"openclaw-weixin": {"accounts": {}},"we
 # node dist/index.js config set bindings '[{"agentId": "main","match": {"channel": "wecom","accountId": "default"}}]'
 node dist/index.js config set agents.defaults.model '{"primary": "shengsuanyun/anthropic/claude-haiku-4.5"}'
 node dist/index.js config set agents.defaults.models '{"shengsuanyun/anthropic/claude-sonnet-4.5": {},"shengsuanyun/anthropic/claude-haiku-4.5:thinking": {},"shengsuanyun/anthropic/claude-opus-4.5": {},"shengsuanyun/anthropic/claude-opus-4.6": {},"shengsuanyun/anthropic/claude-sonnet-4": {},"shengsuanyun/anthropic/claude-sonnet-4.5:thinking": {},"shengsuanyun/anthropic/claude-sonnet-4:thinking": {},"shengsuanyun/google/gemini-2.5-flash": {},"shengsuanyun/google/gemini-2.5-pro": {},"shengsuanyun/google/gemini-3-flash": {},"shengsuanyun/google/gemini-3-pro-preview": {},"shengsuanyun/google/gemini-3.1-flash-image-preview": {},"shengsuanyun/google/gemini-3.1-flash-lite-preview": {},"shengsuanyun/google/gemini-3.1-pro-preview": {},"shengsuanyun/openai/gpt-4.1-nano": {},"shengsuanyun/openai/gpt-5": {},"shengsuanyun/openai/gpt-5-nano": {},"shengsuanyun/openai/gpt-5.1": {},"shengsuanyun/x-ai/grok-4-fast": {}}'
-node dist/index.js config set agents.defaults.userTimezone "${OPENCLAW_GATEWAY_TOKEN}"   
+node dist/index.js config set agents.defaults.userTimezone "${OPENCLAW_TIMEZONE}"   
 # node dist/index.js config set agents.defaults.contextTokens 348576
 # Keep the container running by waiting for the gateway process
 node dist/index.js gateway --allow-unconfigured --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port 18789 &
