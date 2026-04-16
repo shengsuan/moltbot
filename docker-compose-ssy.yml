@@ -3,8 +3,8 @@ services:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
     container_name: openclaw-gateway
     environment:
-      TZ: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
-      HOME: /root
+      OPENCLAW_TIMEZONE: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
+      OPENCLAW_HOME: ${OPENCLAW_HOME:-/home/node}
       TERM: xterm-256color
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
       OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
@@ -14,6 +14,7 @@ services:
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE:-}
       SSH_ROOT_PASSWORD: ${SSH_ROOT_PASSWORD:-}
       SSH_AUTHORIZED_KEYS: ${SSH_AUTHORIZED_KEYS:-}
+      OPENCLAW_GATEWAY_ORIGIN: ${OPENCLAW_GATEWAY_ORIGIN:-*}
     # volumes:
       # - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       # - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace

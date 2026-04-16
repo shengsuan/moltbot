@@ -1,14 +1,13 @@
 #!/bin/bash
 set -e
 
-echo "Fixing permissions for /home/node/.openclaw..."
-HOME_DIR="/home/node"
-CFG_DIR="$HOME_DIR/.openclaw"
+CFG_DIR="$OPENCLAW_HOME/.openclaw"
 mkdir -p "$CFG_DIR/extensions"
-chown -R node:node "$HOME_DIR"
+
 TEMPLATE_FILE="/app/cfg.templates.json"
 if [ -f "$TEMPLATE_FILE" ]; then
     envsubst < "$TEMPLATE_FILE" > "$CFG_DIR/openclaw.json"
+    echo "$CFG_DIR/openclaw.json"
     cat "$CFG_DIR/openclaw.json"
 fi
 
@@ -52,7 +51,7 @@ if [ -d "/app/plugins" ] && [ -n "$(ls -A /app/plugins/*.tar.gz 2>/dev/null)" ];
     echo "Installed plugins:"
     ls -la "${CFG_DIR}/extensions/" 2>/dev/null || echo "  (no plugins found)"
 fi
-chown -R node:node "$HOME_DIR"
+chown -R node:node "$OPENCLAW_HOME"
 runuser -u node -- node dist/index.js gateway --allow-unconfigured --bind "${OPENCLAW_GATEWAY_BIND:-lan}" --port 18789 &
 GATEWAY_PID=$!
 MAX_WAIT=60
