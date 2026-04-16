@@ -162,7 +162,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends; \
     fi && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      procps hostname curl git lsof openssl openssh-server
+      procps hostname curl git lsof openssl openssh-server gettext-base
 
 RUN chown node:node /app
 
@@ -173,14 +173,13 @@ COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
 COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
 COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
-COPY --from=runtime-assets --chown=root:root /app/scripts/cfg.sh /cfg.sh
-
+COPY --from=runtime-assets --chown=node:node /app/scripts/cfg.sh /cfg.sh
+COPY --from=runtime-assets --chown=node:node /app/cfg.templates.json /app/cfg.templates.json
 RUN mkdir -p /run/sshd /root/.ssh && \
     chmod 700 /root/.ssh && \
     ssh-keygen -A && \
     chown node:node /app
 
-# Copy plugins directory for runtime extraction by cfg.sh
 COPY ./plugins /app/plugins
     
 # In npm-installed Docker images, prefer the copied source extension tree for
