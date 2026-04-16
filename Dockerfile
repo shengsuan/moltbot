@@ -118,6 +118,7 @@ RUN printf 'packages:\n  - .\n  - ui\n' > /tmp/pnpm-workspace.runtime.yaml && \
     done && \
     cp /tmp/pnpm-workspace.runtime.yaml pnpm-workspace.yaml && \
     CI=true NPM_CONFIG_FROZEN_LOCKFILE=false pnpm prune --prod && \
+    node scripts/postinstall-bundled-plugins.mjs && \
     find dist -type f \( -name '*.d.ts' -o -name '*.d.mts' -o -name '*.d.cts' -o -name '*.map' \) -delete
 
 # ── Runtime base images ─────────────────────────────────────────
@@ -276,14 +277,14 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
         docker-ce-cli docker-compose-plugin; \
     fi
 
-RUN npm install @coohu/coding-helper@latest -g && \
-    echo 'alias ch="coding-helper"' >> /root/.bashrc
-RUN npm i -g @openai/codex
-RUN curl -fsSL -o /tmp/claude_install.sh https://claude.ai/install.sh && \
-    chmod +x /tmp/claude_install.sh && \
-    /tmp/claude_install.sh && \
-    echo 'export PATH="$HOME/.local/bin:$PATH"' >> /root/.bashrc && \
-    rm /tmp/claude_install.sh
+# RUN npm install @coohu/coding-helper@latest -g && \
+#     echo 'alias ch="coding-helper"' >> /root/.bashrc
+# RUN npm i -g @openai/codex
+# RUN curl -fsSL -o /tmp/claude_install.sh https://claude.ai/install.sh && \
+#     chmod +x /tmp/claude_install.sh && \
+#     /tmp/claude_install.sh && \
+#     echo 'export PATH="$HOME/.local/bin:$PATH"' >> /root/.bashrc && \
+#     rm /tmp/claude_install.sh
 
 # RUN chmod -R 755 /usr/local/lib/node_modules && \
 #     chmod -R 755 /usr/local/bin

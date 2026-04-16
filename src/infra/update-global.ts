@@ -3,7 +3,13 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { BUNDLED_RUNTIME_SIDECAR_PATHS } from "../plugins/runtime-sidecar-paths.js";
+import { normalizeLowercaseStringOrEmpty } from "../shared/string-coerce.js";
 import { pathExists } from "../utils.js";
+import { NPM_UPDATE_COMPAT_SIDECAR_PATHS } from "./npm-update-compat-sidecars.js";
+import {
+  collectPackageDistInventory,
+  readPackageDistInventoryIfPresent,
+} from "./package-dist-inventory.js";
 import { readPackageVersion } from "./package-json.js";
 import { applyPathPrepend } from "./path-prepend.js";
 
@@ -28,6 +34,7 @@ const PRIMARY_PACKAGE_NAME = "openclaw";
 const ALL_PACKAGE_NAMES = [PRIMARY_PACKAGE_NAME] as const;
 const GLOBAL_RENAME_PREFIX = ".";
 export const OPENCLAW_MAIN_PACKAGE_SPEC = "github:openclaw/openclaw#main";
+const COREPACK_ENABLE_DOWNLOAD_PROMPT_DEFAULT = "0";
 const NPM_GLOBAL_INSTALL_QUIET_FLAGS = ["--no-fund", "--no-audit", "--loglevel=error"] as const;
 const NPM_GLOBAL_INSTALL_OMIT_OPTIONAL_FLAGS = [
   "--omit=optional",
@@ -39,7 +46,7 @@ function normalizePackageTarget(value: string): string {
 }
 
 export function isMainPackageTarget(value: string): boolean {
-  return normalizePackageTarget(value).toLowerCase() === "main";
+  return normalizeLowercaseStringOrEmpty(normalizePackageTarget(value)) === "main";
 }
 
 export function isExplicitPackageInstallSpec(value: string): boolean {
@@ -87,9 +94,77 @@ export async function collectInstalledGlobalPackageErrors(params: {
       `expected installed version ${params.expectedVersion}, found ${installedVersion ?? "<missing>"}`,
     );
   }
-  for (const relativePath of BUNDLED_RUNTIME_SIDECAR_PATHS) {
-    if (!(await pathExists(path.join(params.packageRoot, relativePath)))) {
-      errors.push(`missing bundled runtime sidecar ${relativePath}`);
+  errors.push(...(await collectInstalledPackageDistErrors(params.packageRoot)));
+  return errors;
+}
+
+async function collectInstalledPackageDistErrors(packageRoot: string): Promise<string[]> {
+  const inventoryFiles = await readPackageDistInventoryIfPresent(packageRoot);
+  if (inventoryFiles !== null) {
+    return await collectInstalledPathErrors({
+      packageRoot,
+      expectedFiles: inventoryFiles,
+      actualFiles: await collectPackageDistInventory(packageRoot),
+      missingMessage: (relativePath) => `missing packaged dist file ${relativePath}`,
+      unexpectedMessage: (relativePath) => `unexpected packaged dist file ${relativePath}`,
+    });
+  }
+  return await collectInstalledPathErrors({
+    packageRoot,
+    expectedFiles: await collectLegacyInstalledPackageDistPaths(packageRoot),
+    actualFiles: null,
+    missingMessage: (relativePath) => `missing bundled runtime sidecar ${relativePath}`,
+  });
+}
+
+async function collectLegacyInstalledPackageDistPaths(packageRoot: string): Promise<string[]> {
+  const expectedFiles = new Set(NPM_UPDATE_COMPAT_SIDECAR_PATHS);
+  await Promise.all(
+    BUNDLED_RUNTIME_SIDECAR_PATHS.map(async (relativePath) => {
+      const pluginRoot = resolveBundledPluginRoot(relativePath);
+      if (pluginRoot === null) {
+        return;
+      }
+      if (
+        (await pathExists(path.join(packageRoot, pluginRoot, "package.json"))) ||
+        (await pathExists(path.join(packageRoot, pluginRoot, "openclaw.plugin.json")))
+      ) {
+        expectedFiles.add(relativePath);
+      }
+    }),
+  );
+  return [...expectedFiles].toSorted((left, right) => left.localeCompare(right));
+}
+
+function resolveBundledPluginRoot(relativePath: string): string | null {
+  const match = /^dist\/extensions\/[^/]+/u.exec(relativePath);
+  return match ? match[0] : null;
+}
+
+async function collectInstalledPathErrors(params: {
+  packageRoot: string;
+  expectedFiles: string[];
+  actualFiles: string[] | null;
+  missingMessage: (relativePath: string) => string;
+  unexpectedMessage?: ((relativePath: string) => string) | undefined;
+}): Promise<string[]> {
+  const errors: string[] = [];
+  const actualSet = params.actualFiles ? new Set(params.actualFiles) : null;
+  for (const relativePath of params.expectedFiles) {
+    const exists =
+      actualSet !== null
+        ? actualSet.has(relativePath)
+        : await pathExists(path.join(params.packageRoot, relativePath));
+    if (!exists) {
+      errors.push(params.missingMessage(relativePath));
+    }
+  }
+  if (actualSet !== null && params.unexpectedMessage) {
+    const expectedSet = new Set(params.expectedFiles);
+    for (const relativePath of params.actualFiles ?? []) {
+      if (!expectedSet.has(relativePath)) {
+        errors.push(params.unexpectedMessage(relativePath));
+      }
     }
   }
   return errors;
@@ -136,8 +211,14 @@ function applyWindowsPackageInstallEnv(env: Record<string, string>) {
   env.NPM_CONFIG_UPDATE_NOTIFIER = "false";
   env.NPM_CONFIG_FUND = "false";
   env.NPM_CONFIG_AUDIT = "false";
-  env.NPM_CONFIG_SCRIPT_SHELL = "cmd.exe";
   env.NODE_LLAMA_CPP_SKIP_DOWNLOAD = "1";
+}
+
+function applyCorepackDownloadPromptEnv(env: Record<string, string>) {
+  const current = env.COREPACK_ENABLE_DOWNLOAD_PROMPT?.trim();
+  if (!current) {
+    env.COREPACK_ENABLE_DOWNLOAD_PROMPT = COREPACK_ENABLE_DOWNLOAD_PROMPT_DEFAULT;
+  }
 }
 
 export function resolveGlobalInstallSpec(params: {
@@ -165,16 +246,23 @@ export async function createGlobalInstallEnv(
   env?: NodeJS.ProcessEnv,
 ): Promise<NodeJS.ProcessEnv | undefined> {
   const pathPrepend = await resolvePortableGitPathPrepend(env);
-  if (pathPrepend.length === 0 && process.platform !== "win32") {
+  const sourceEnv = env ?? process.env;
+  const hasCorepackDownloadPromptSetting = Boolean(
+    sourceEnv.COREPACK_ENABLE_DOWNLOAD_PROMPT?.trim(),
+  );
+  const requiresMergedEnv =
+    pathPrepend.length > 0 || process.platform === "win32" || !hasCorepackDownloadPromptSetting;
+  if (!requiresMergedEnv) {
     return env;
   }
   const merged = Object.fromEntries(
-    Object.entries(env ?? process.env)
+    Object.entries(sourceEnv)
       .filter(([, value]) => value != null)
       .map(([key, value]) => [key, String(value)]),
   ) as Record<string, string>;
   applyPathPrepend(merged, pathPrepend);
   applyWindowsPackageInstallEnv(merged);
+  applyCorepackDownloadPromptEnv(merged);
   return merged;
 }
 
@@ -205,7 +293,10 @@ function inferNpmPrefixFromPackageRoot(pkgRoot?: string | null): string | null {
   if (path.basename(parentDir) === "lib") {
     return path.dirname(parentDir);
   }
-  if (process.platform === "win32" && path.basename(parentDir).toLowerCase() === "npm") {
+  if (
+    process.platform === "win32" &&
+    normalizeLowercaseStringOrEmpty(path.basename(parentDir)) === "npm"
+  ) {
     return parentDir;
   }
   return null;

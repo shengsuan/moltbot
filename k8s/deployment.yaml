@@ -1,0 +1,256 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openclaw
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openclaw-config
+  namespace: openclaw
+data:
+  TZ: "Asia/Shanghai"
+  HOME: "/root"
+  TERM: "xterm-256color"
+  OPENCLAW_GATEWAY_BIND: "lan"
+  OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: "true"
+  BROWSER: "echo"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openclaw-secrets
+  namespace: openclaw
+type: Opaque
+stringData:
+  OPENCLAW_GATEWAY_TOKEN: ""  # 将在 Makefile 中自动生成或从环境变量注入
+  CLAUDE_AI_SESSION_KEY: ""
+  SHENGSUANYUN_API_KEY: ""
+  CLAUDE_WEB_SESSION_KEY: ""
+  CLAUDE_WEB_COOKIE: ""
+  SSH_ROOT_PASSWORD: ""
+  SSH_AUTHORIZED_KEYS: ""
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openclaw-config-pvc
+  namespace: openclaw
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  # storageClassName: 根据你的 K8s 集群配置设置
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: openclaw-workspace-pvc
+  namespace: openclaw
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  # storageClassName: 根据你的 K8s 集群配置设置
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openclaw-gateway
+  namespace: openclaw
+  labels:
+    app: openclaw-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openclaw-gateway
+  template:
+    metadata:
+      labels:
+        app: openclaw-gateway
+    spec:
+      initContainers:
+      - name: init-dirs
+        image: busybox:latest
+        command:
+        - sh
+        - -c
+        - |
+          mkdir -p /root/.openclaw/identity
+          mkdir -p /root/.openclaw/agents/main/agent
+          mkdir -p /root/.openclaw/agents/main/sessions
+          mkdir -p /root/.openclaw/workspace
+          chmod -R 755 /root/.openclaw
+        volumeMounts:
+        - name: config-volume
+          mountPath: /root/.openclaw
+        - name: workspace-volume
+          mountPath: /root/.openclaw/workspace
+      containers:
+      - name: gateway
+        image: openclaw:latest  # 使用环境变量或 Makefile 注入
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: gateway
+          containerPort: 18789
+          protocol: TCP
+        - name: bridge
+          containerPort: 18790
+          protocol: TCP
+        - name: ssh
+          containerPort: 22
+          protocol: TCP
+        env:
+        - name: TZ
+          valueFrom:
+            configMapKeyRef:
+              name: openclaw-config
+              key: TZ
+        - name: HOME
+          valueFrom:
+            configMapKeyRef:
+              name: openclaw-config
+              key: HOME
+        - name: TERM
+          valueFrom:
+            configMapKeyRef:
+              name: openclaw-config
+              key: TERM
+        - name: OPENCLAW_GATEWAY_BIND
+          valueFrom:
+            configMapKeyRef:
+              name: openclaw-config
+              key: OPENCLAW_GATEWAY_BIND
+        - name: OPENCLAW_ALLOW_INSECURE_PRIVATE_WS
+          valueFrom:
+            configMapKeyRef:
+              name: openclaw-config
+              key: OPENCLAW_ALLOW_INSECURE_PRIVATE_WS
+        - name: OPENCLAW_GATEWAY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: OPENCLAW_GATEWAY_TOKEN
+        - name: CLAUDE_AI_SESSION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: CLAUDE_AI_SESSION_KEY
+              optional: true
+        - name: SHENGSUANYUN_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: SHENGSUANYUN_API_KEY
+              optional: true
+        - name: CLAUDE_WEB_SESSION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: CLAUDE_WEB_SESSION_KEY
+              optional: true
+        - name: CLAUDE_WEB_COOKIE
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: CLAUDE_WEB_COOKIE
+              optional: true
+        - name: SSH_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: SSH_ROOT_PASSWORD
+              optional: true
+        - name: SSH_AUTHORIZED_KEYS
+          valueFrom:
+            secretKeyRef:
+              name: openclaw-secrets
+              key: SSH_AUTHORIZED_KEYS
+              optional: true
+        volumeMounts:
+        - name: config-volume
+          mountPath: /root/.openclaw
+        - name: workspace-volume
+          mountPath: /root/.openclaw/workspace
+        # 如果需要 Docker socket (沙盒支持)，取消注释:
+        # - name: docker-socket
+        #   mountPath: /var/run/docker.sock
+        livenessProbe:
+          exec:
+            command:
+            - node
+            - -e
+            - fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+          initialDelaySeconds: 20
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 5
+        readinessProbe:
+          exec:
+            command:
+            - node
+            - -e
+            - fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+      volumes:
+      - name: config-volume
+        persistentVolumeClaim:
+          claimName: openclaw-config-pvc
+      - name: workspace-volume
+        persistentVolumeClaim:
+          claimName: openclaw-workspace-pvc
+      # 如果需要 Docker socket (沙盒支持)，取消注释:
+      # - name: docker-socket
+      #   hostPath:
+      #     path: /var/run/docker.sock
+      #     type: Socket
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openclaw-gateway-service
+  namespace: openclaw
+spec:
+  type: NodePort  # 或使用 LoadBalancer/ClusterIP 根据需求
+  selector:
+    app: openclaw-gateway
+  ports:
+  - name: gateway
+    protocol: TCP
+    port: 18789
+    targetPort: 18789
+    nodePort: 30789  # 可自定义，范围 30000-32767
+  - name: bridge
+    protocol: TCP
+    port: 18790
+    targetPort: 18790
+    nodePort: 30790  # 可自定义
+  - name: ssh
+    protocol: TCP
+    port: 22
+    targetPort: 22
+    nodePort: 30722  # 可自定义

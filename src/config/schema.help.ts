@@ -200,12 +200,21 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.list[].runtime.acp.agent":
     "Optional ACP harness agent id to use for this OpenClaw agent (for example codex, claude, cursor, gemini, openclaw).",
   "agents.list[].runtime.acp.backend":
-    "此代理的 ACP 会话的可选 ACP 后端覆盖（回退到全局 acp.backend）。",
-  "agents.list[].runtime.acp.mode": "此代理的可选 ACP 会话模式默认值（persistent 或 oneshot）。",
-  "agents.list[].runtime.acp.cwd": "此代理的 ACP 会话的可选默认工作目录。",
-  "agents.list[].identity.avatar": "头像图像路径（仅相对于代理工作区）或远程 URL/数据 URL。",
-  "agents.defaults.heartbeat.suppressToolErrorWarnings": "在心跳运行期间抑制工具错误警告有效载荷。",
-  "agents.list[].heartbeat.suppressToolErrorWarnings": "在心跳运行期间抑制工具错误警告有效载荷。",
+    "Optional ACP backend override for this agent's ACP sessions (falls back to global acp.backend).",
+  "agents.list[].runtime.acp.mode":
+    "Optional ACP session mode default for this agent (persistent or oneshot).",
+  "agents.list[].runtime.acp.cwd":
+    "Optional default working directory for this agent's ACP sessions.",
+  "agents.list[].identity.avatar":
+    "Avatar image path (relative to the agent workspace only) or a remote URL/data URL.",
+  "agents.defaults.heartbeat.suppressToolErrorWarnings":
+    "Suppress tool error warning payloads during heartbeat runs.",
+  "agents.list[].heartbeat.suppressToolErrorWarnings":
+    "Suppress tool error warning payloads during heartbeat runs.",
+  "agents.defaults.heartbeat.timeoutSeconds":
+    "Maximum time in seconds allowed for a heartbeat agent turn before it is aborted. Leave unset to use agents.defaults.timeoutSeconds.",
+  "agents.list[].heartbeat.timeoutSeconds":
+    "Per-agent maximum time in seconds allowed for a heartbeat agent turn before it is aborted. Leave unset to inherit the merged heartbeat/default agent timeout.",
   browser:
     "浏览器运行时控制，用于本地或远程 CDP 附件、配置文件路由和屏幕截图/快照行为。保持默认值，除非您的自动化工作流需要自定义浏览器传输设置。",
   "browser.enabled":
@@ -249,7 +258,7 @@ export const FIELD_HELP: Record<string, string> = {
   "browser.ssrfPolicy":
     "Server-side request forgery guardrail settings for browser/network fetch paths that could reach internal hosts. Keep restrictive defaults in production and open only explicitly approved targets.",
   "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork":
-    "允许从浏览器工具访问私有网络地址范围。对于可信任网络操作员设置，默认启用；禁用以强制执行严格的仅公共分辨率检查。",
+    "Allows access to private-network address ranges from browser tooling. Default is disabled when unset; enable only for explicitly trusted private-network destinations.",
   "browser.ssrfPolicy.allowedHostnames":
     "浏览器/网络请求上 SSRF 策略检查的显式主机名允许列表异常。保持此列表最少，并定期审查条目以避免陈旧的宽泛访问。",
   "browser.ssrfPolicy.hostnameAllowlist":
@@ -297,7 +306,7 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.experimental":
     "Experimental built-in tool flags. Keep these off by default and enable only when you are intentionally testing a preview surface.",
   "tools.experimental.planTool":
-    "Enable the experimental structured `update_plan` tool for non-trivial multi-step work tracking across all providers. OpenAI and OpenAI Codex runs auto-enable it even when this flag is unset.",
+    "Enable the experimental structured `update_plan` tool for non-trivial multi-step work tracking. Leave this off unless you explicitly want the tool outside strict-agentic embedded Pi runs.",
   "tools.elevated":
     "提升工具访问控制，用于只应从受信任发送者到达的特权命令表面。除非操作员工作流明确需要提升的操作，否则保持禁用。",
   "tools.elevated.enabled":
@@ -350,10 +359,17 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.list[].sandbox.docker.dangerouslyAllowContainerNamespaceJoin":
     "沙箱 Docker 网络模式中的容器命名空间联接的各代理危险覆盖。",
   "agents.defaults.sandbox.browser.cdpSourceRange":
-    "容器边 CDP 入口的可选 CIDR 允许列表（例如 172.21.0.1/32）。",
-  "agents.list[].sandbox.browser.cdpSourceRange": "CDP 源 CIDR 允许列表的各代理覆盖。",
-  "gateway.controlUi.basePath": "提供控制 UI 的可选 URL 前缀（例如 /openclaw）。",
-  "gateway.controlUi.root": "控制 UI 资产的可选文件系统根（默认为 dist/control-ui）。",
+    "Optional CIDR allowlist for container-edge CDP ingress (for example 172.21.0.1/32).",
+  "agents.list[].sandbox.browser.cdpSourceRange":
+    "Per-agent override for CDP source CIDR allowlist.",
+  "gateway.controlUi.basePath":
+    "Optional URL prefix where the Control UI is served (e.g. /openclaw).",
+  "gateway.controlUi.root":
+    "Optional filesystem root for Control UI assets (defaults to dist/control-ui).",
+  "gateway.controlUi.embedSandbox":
+    'Iframe sandbox policy for hosted Control UI embeds. "strict" disables scripts, "scripts" allows interactive embeds while keeping origin isolation (default), and "trusted" adds `allow-same-origin` for same-site documents that intentionally need stronger privileges.',
+  "gateway.controlUi.allowExternalEmbedUrls":
+    "DANGEROUS toggle that allows hosted embeds to load absolute external http(s) URLs. Keep this off unless your Control UI intentionally embeds trusted third-party pages; hosted /__openclaw__/canvas and /__openclaw__/a2ui documents do not need it.",
   "gateway.controlUi.allowedOrigins":
     'Allowed browser origins for Control UI/WebChat websocket connections (full origins only, e.g. https://control.example.com). Required for non-loopback Control UI deployments unless dangerous Host-header fallback is explicitly enabled. Setting ["*"] means allow any browser origin and should be avoided outside tightly controlled local testing.',
   "gateway.controlUi.dangerouslyAllowHostHeaderOriginFallback":
@@ -511,6 +527,8 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.loopDetection.historySize": "Tool history window size for loop detection (default: 30).",
   "tools.loopDetection.warningThreshold":
     "Warning threshold for repetitive patterns when detector is enabled (default: 10).",
+  "tools.loopDetection.unknownToolThreshold":
+    "Block repeated calls to the same unavailable tool after this many misses (default: 10).",
   "tools.loopDetection.criticalThreshold":
     "Critical threshold for repetitive patterns when detector is enabled (default: 20).",
   "tools.loopDetection.globalCircuitBreakerThreshold":
@@ -695,6 +713,10 @@ export const FIELD_HELP: Record<string, string> = {
   "tools.web.fetch.userAgent": "Override User-Agent header for web_fetch requests.",
   "tools.web.fetch.readability":
     "Use Readability to extract main content from HTML (fallbacks to basic HTML cleanup).",
+  "tools.web.fetch.ssrfPolicy":
+    "Scoped SSRF policy overrides for web_fetch. Keep this narrow and opt in only for known local-network proxy environments.",
+  "tools.web.fetch.ssrfPolicy.allowRfc2544BenchmarkRange":
+    "Allow RFC 2544 benchmark-range IPs (198.18.0.0/15) for fake-IP proxy compatibility such as Clash or Surge.",
   models:
     "模型目录根用于提供商定义、合并/替换行为和可选的 Bedrock 发现集成。在依赖生产故障转移路径之前保持提供商定义明确和经过验证。",
   "models.mode":
@@ -716,7 +738,7 @@ export const FIELD_HELP: Record<string, string> = {
   "models.providers.*.authHeader":
     "When true, credentials are sent via the HTTP Authorization header even if alternate auth is possible. Use this only when your provider or proxy explicitly requires Authorization forwarding.",
   "models.providers.*.request":
-    "Optional request overrides for model-provider requests, including extra headers, auth overrides, proxy routing, and TLS client settings. Use these only when your upstream or enterprise network path requires transport customization.",
+    "Optional request overrides for model-provider requests, including extra headers, auth overrides, proxy routing, TLS client settings, and optional allowPrivateNetwork for trusted self-hosted endpoints. Use these only when your upstream or enterprise network path requires transport customization.",
   "models.providers.*.request.headers":
     "Extra headers merged into provider requests after default attribution and auth resolution.",
   "models.providers.*.request.auth":
@@ -765,6 +787,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Optional SNI/server-name override used when establishing upstream TLS.",
   "models.providers.*.request.tls.insecureSkipVerify":
     "Skips upstream TLS certificate verification. Use only for controlled development environments.",
+  "models.providers.*.request.allowPrivateNetwork":
+    "When true, allow HTTPS to the model base URL when DNS resolves to private, CGNAT, or similar ranges, via the provider HTTP fetch guard (fetchWithSsrFGuard). OpenAI Responses WebSocket reuses request for headers/TLS but does not use that fetch SSRF path. Use only for operator-controlled self-hosted OpenAI-compatible endpoints (LAN, overlay, split DNS). Default is false.",
   "models.providers.*.models":
     "Declared model list for a provider including identifiers, metadata, and optional compatibility/cost hints. Keep IDs exact to provider catalog values so selection and fallback resolve correctly.",
   auth: "Authentication profile root used for multi-profile provider credentials and cooldown-based failover ordering. Keep profiles minimal and explicit so automatic failover behavior stays auditable.",
@@ -805,10 +829,27 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.bootstrapMaxChars":
     "在截断前注入系统提示的每个工作区引导文件的最大字符数（默认：20000）。",
   "agents.defaults.bootstrapTotalMaxChars":
-    "所有注入的工作区引导文件中的最大总字符数（默认：150000）。",
+    "Max total characters across all injected workspace bootstrap files (default: 150000).",
+  "agents.defaults.localModelMode":
+    'Local-model prompt profile: "default" keeps the standard tool surface, while "lean" drops heavyweight non-essential tools for smaller or weaker models.',
   "agents.defaults.bootstrapPromptTruncationWarning":
-    '当引导文件被截断时注入代理可见警告文本："off"、"once"（默认）或 "always"。',
-  "agents.defaults.repoRoot": "在系统提示运行时行中显示的可选仓库根（覆盖自动检测）。",
+    'Inject agent-visible warning text when bootstrap files are truncated: "off", "once" (default), or "always".',
+  "agents.defaults.startupContext":
+    'Runtime-owned first-turn prelude for bare "/new" and "/reset". Use this to control whether recent daily memory files are preloaded into the first prompt instead of asking the model to decide what to read.',
+  "agents.defaults.startupContext.enabled":
+    "Enable the startup-context prelude for bare session resets (default: true). Disable this to fall back to prompt-only behavior with no runtime-loaded daily memory.",
+  "agents.defaults.startupContext.applyOn":
+    'Chooses which bare reset commands get startup context: include "new", "reset", or both (default: ["new","reset"]).',
+  "agents.defaults.startupContext.dailyMemoryDays":
+    "Number of dated memory files to load counting backward from today in the configured user timezone (default: 2 for today + yesterday).",
+  "agents.defaults.startupContext.maxFileBytes":
+    "Maximum bytes allowed per daily memory file when building startup context (default: 16384). Files over this boundary-safe read limit are skipped.",
+  "agents.defaults.startupContext.maxFileChars":
+    "Maximum characters retained from each loaded daily memory file in the startup prelude (default: 2000).",
+  "agents.defaults.startupContext.maxTotalChars":
+    "Maximum total characters retained across all loaded daily memory files in the startup prelude (default: 4500). Additional files are truncated from the prelude once this cap is reached.",
+  "agents.defaults.repoRoot":
+    "Optional repository root shown in the system prompt runtime line (overrides auto-detect).",
   "agents.defaults.envelopeTimezone":
     '消息信封的时区（"utc"、"local"、"user" 或 IANA 时区字符串）。',
   "agents.defaults.envelopeTimestamp": '在消息信封中包括绝对时间戳（"on" 或 "off"）。',
@@ -842,7 +883,7 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.experimental.sessionMemory":
     "将会话转录索引到内存搜索中，以便响应可以参考先前的聊天转轮。除非需要转录召回并且您接受更大的索引变化，否则将此保持关闭。",
   "agents.defaults.memorySearch.provider":
-    'Selects the embedding backend used to build/query memory vectors: "openai", "gemini", "voyage", "mistral", "bedrock", "ollama", or "local". Keep your most reliable provider here and configure fallback for resilience.',
+    'Selects the embedding backend used to build/query memory vectors: "openai", "gemini", "voyage", "mistral", "bedrock", "lmstudio", "ollama", or "local". Keep your most reliable provider here and configure fallback for resilience.',
   "agents.defaults.memorySearch.model":
     "Embedding model override used by the selected memory provider when a non-default model is required. Set this only when you need explicit recall quality/cost tuning beyond provider defaults.",
   "agents.defaults.memorySearch.outputDimensionality":
@@ -866,7 +907,7 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.local.modelPath":
     "为本地内存搜索指定本地嵌入模型源，如 GGUF 文件路径或 `hf:` URI。仅在提供商为 `local` 时使用此项，并在大型索引重建前验证模型兼容性。",
   "agents.defaults.memorySearch.fallback":
-    '用于在主嵌入失败时的备用提供商："openai"、"gemini"、"voyage"、"mistral"、"ollama"、"local" 或 "none"。为生产可靠性设置真实回退；仅在您倾向于显式故障时使用 "none"。',
+    'Backup provider used when primary embeddings fail: "openai", "gemini", "voyage", "mistral", "bedrock", "lmstudio", "ollama", "local", or "none". Set a real fallback for production reliability; use "none" only if you prefer explicit failures.',
   "agents.defaults.memorySearch.store.path":
     "设置针对每个代理在磁盘上存储 SQLite 内存索引的位置。保持默认 `~/.openclaw/memory/{agentId}.sqlite`，除非您需要自定义存储放置或备份策略对齐。",
   "agents.defaults.memorySearch.store.vector.enabled":
@@ -1049,8 +1090,21 @@ export const FIELD_HELP: Record<string, string> = {
     "Plugin entry name inside the source marketplace, used for later updates.",
   "agents.list.*.identity.avatar":
     "Agent avatar (workspace-relative path, http(s) URL, or data URI).",
-  "agents.defaults.model.primary": "主模型(提供商/模型)。",
-  "agents.defaults.model.fallbacks": "有序备用模型（提供者/模型）。当主模型失效时使用。",
+  "agents.defaults.model.primary": "Primary model (provider/model).",
+  "agents.defaults.model.fallbacks":
+    "Ordered fallback models (provider/model). Used when the primary model fails.",
+  "agents.defaults.embeddedHarness":
+    "Default embedded agent harness policy. Use runtime=auto for plugin harness selection, runtime=pi for built-in PI, or a registered harness id such as codex.",
+  "agents.defaults.embeddedHarness.runtime":
+    "Embedded harness runtime: auto, pi, or a registered plugin harness id such as codex.",
+  "agents.defaults.embeddedHarness.fallback":
+    "Embedded harness fallback when no plugin harness matches or an auto-selected plugin harness fails before side effects. Set none to disable automatic PI fallback.",
+  "agents.list.*.embeddedHarness":
+    "Per-agent embedded harness policy override. Use fallback=none to make this agent fail instead of falling back to PI.",
+  "agents.list.*.embeddedHarness.runtime":
+    "Per-agent embedded harness runtime: auto, pi, or a registered plugin harness id such as codex.",
+  "agents.list.*.embeddedHarness.fallback":
+    "Per-agent embedded harness fallback. Set none to disable automatic PI fallback for this agent.",
   "agents.defaults.imageModel.primary":
     "Optional image model (provider/model) used when the primary model lacks image input.",
   "agents.defaults.imageModel.fallbacks": "Ordered fallback image models (provider/model).",
@@ -1079,7 +1133,9 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.compaction":
     "当上下文接近令牌限制时，可进行压缩调整，包括历史记录共享、预留空间和压缩前内存刷新行为。当长时间运行的会话需要在紧凑的上下文窗口内保持稳定连续性时，请使用此功能。",
   "agents.defaults.compaction.mode":
-    "压缩策略模式：“默认”使用基线行为，“安全”则应用更严格的限制来保留最近的上下文。除非您观察到在接近限制边界时历史记录丢失严重，否则请保持“默认”模式。",
+    'Compaction strategy mode: "default" uses baseline behavior, while "safeguard" applies stricter guardrails to preserve recent context. Keep "default" unless you observe aggressive history loss near limit boundaries.',
+  "agents.defaults.compaction.provider":
+    "Id of a registered compaction provider plugin used for summarization. When set and the provider is registered, its summarize() method is called instead of the built-in summarizeInStages pipeline. Falls back to built-in on provider failure. Leave unset to use the default built-in summarization.",
   "agents.defaults.compaction.reserveTokens":
     "压缩运行后，会预留令牌空间用于生成回复和工具输出。对于需要执行大量详细操作或工具密集型任务的会话，应使用更高的预留空间；而当最大化保留历史记录更为重要时，则应使用更低的预留空间。",
   "agents.defaults.compaction.keepRecentTokens":
@@ -1127,11 +1183,16 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.embeddedPi":
     "嵌入式 Pi 运行器强化控制，用于控制如何在 OpenClaw 会话中信任和应用工作区本地 Pi 设置。",
   "agents.defaults.embeddedPi.projectSettingsPolicy":
-    "嵌入式 Pi 如何处理工作区本地的 `.pi/config/settings.json`：`sanitize`（默认）会移除 shellPath/shellCommandPrefix，`ignore` 会完全禁用项目设置，而 `trusted` 会按原样应用项目设置。",
-  "agents.defaults.humanDelay.mode":
-    '块回复的延迟样式（“关闭”、“自然”、“自定义”）。 ("off", "natural", "custom").',
-  "agents.defaults.humanDelay.minMs": "自定义 humanDelay 的最小延迟时间（毫秒）（默认值：800）。",
-  "agents.defaults.humanDelay.maxMs": "自定义 humanDelay 的最大延迟时间（毫秒）（默认值：2500）。",
+    'How embedded Pi handles workspace-local `.pi/config/settings.json`: "sanitize" (default) strips shellPath/shellCommandPrefix, "ignore" disables project settings entirely, and "trusted" applies project settings as-is.',
+  "agents.defaults.embeddedPi.executionContract":
+    'Embedded Pi execution contract: "default" keeps the standard runner behavior, while "strict-agentic" keeps OpenAI/OpenAI Codex GPT-5-family runs acting until they hit a real blocker instead of stopping at plans or filler.',
+  "agents.list[].embeddedPi":
+    "Optional per-agent embedded Pi overrides. Use this to opt specific agents into stricter GPT-5 execution behavior without changing the global default.",
+  "agents.list[].embeddedPi.executionContract":
+    'Optional per-agent embedded Pi execution contract override. Set "strict-agentic" to keep that agent acting through plan-only turns on OpenAI/OpenAI Codex GPT-5-family runs, or "default" to inherit the standard runner behavior.',
+  "agents.defaults.humanDelay.mode": 'Delay style for block replies ("off", "natural", "custom").',
+  "agents.defaults.humanDelay.minMs": "Minimum delay in ms for custom humanDelay (default: 800).",
+  "agents.defaults.humanDelay.maxMs": "Maximum delay in ms for custom humanDelay (default: 2500).",
   commands:
     "控制聊天命令界面、所有者权限设置以及跨服务提供商的高级命令访问权限。除非您需要更严格的操作员控制或更广泛的命令权限，否则请保留默认设置。",
   "commands.native":

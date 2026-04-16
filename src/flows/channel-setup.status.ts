@@ -1,12 +1,9 @@
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { listChatChannels } from "../channels/chat-meta.js";
 import { listChannelPluginCatalogEntries } from "../channels/plugins/catalog.js";
 import { listChannelSetupPlugins } from "../channels/plugins/setup-registry.js";
 import type { ChannelSetupPlugin } from "../channels/plugins/setup-wizard-types.js";
-import {
-  formatChannelPrimerLine,
-  formatChannelSelectionLine,
-  listChatChannels,
-} from "../channels/registry.js";
+import { formatChannelPrimerLine, formatChannelSelectionLine } from "../channels/registry.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { resolveChannelSetupEntries } from "../commands/channel-setup/discovery.js";
 import { shouldShowChannelInSetup } from "../commands/channel-setup/discovery.js";
@@ -18,7 +15,7 @@ import type {
 } from "../commands/channel-setup/types.js";
 import type { ChannelChoice } from "../commands/onboard-types.js";
 import { isChannelConfigured } from "../config/channel-configured.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { formatDocsLink } from "../terminal/links.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import type { FlowContribution } from "./types.js";
@@ -31,7 +28,7 @@ export type ChannelStatusSummary = {
   statusLines: string[];
 };
 
-export type ChannelSetupSelectionContribution = FlowContribution<ChannelChoice> & {
+export type ChannelSetupSelectionContribution = FlowContribution & {
   kind: "channel";
   surface: "setup";
   channel: ChannelChoice;
@@ -170,7 +167,7 @@ export async function noteChannelStatus(params: {
     resolveAdapter: params.resolveAdapter,
   });
   if (statusLines.length > 0) {
-    await params.prompter.note(statusLines.join("\n"), "Channel status");
+    await params.prompter.note(statusLines.join("\n"), "频道");
   }
 }
 
