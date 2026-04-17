@@ -78,7 +78,29 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     echo "[INFO] 修复文件权限..."
     chown -R node:node "${OPENCLAW_HOME:-/home/node}"
 
-    # 4. 执行 onboard
+    # 4. 启动 Gateway（onboard 需要它）
+    echo "[INFO] 启动 OpenClaw Gateway..."
+    runuser -u node -- node dist/index.js gateway \
+        --allow-unconfigured \
+        --bind "${OPENCLAW_GATEWAY_BIND:-lan}" \
+        --port 18789 &
+    GATEWAY_PID=$!
+
+    MAX_WAIT=60
+    COUNTER=0
+    echo "[INFO] 等待网关健康检查..."
+    until curl -sf http://127.0.0.1:18789/healthz > /dev/null 2>&1; do
+        if [ "${COUNTER}" -ge "${MAX_WAIT}" ]; then
+            echo "[ERROR] 网关在 ${MAX_WAIT}s 内未就绪，退出。" >&2
+            kill "${GATEWAY_PID}" 2>/dev/null || true
+            exit 1
+        fi
+        sleep 1
+        COUNTER=$((COUNTER + 1))
+    done
+    echo "[INFO] 网关已就绪（${COUNTER}s）"
+
+    # 5. 执行 onboard（现在 gateway 已经运行）
     echo "[INFO] 运行 onboard 初始化..."
     runuser -u node -- node dist/index.js onboard \
         --non-interactive \
@@ -86,35 +108,37 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
         --auth-choice shengsuanyun-api-key \
         --shengsuanyun-api-key "${SHENGSUANYUN_API_KEY}"
 
-    # 5. 写入初始化标记
+    # 6. 写入初始化标记
     echo "0" > "$INITIALIZED_FLAG"
     echo "[INFO] 初始化完成，已创建标记文件。"
 else
-    # 非首次启动，仅更新重启计数
+    # 非首次启动，仅更新重启计数并启动 gateway
     RESTART_COUNT=$(cat "$INITIALIZED_FLAG")
     NEW_COUNT=$((RESTART_COUNT + 1))
     echo "$NEW_COUNT" > "$INITIALIZED_FLAG"
     echo "[INFO] 检测到标记文件，跳过初始化。当前已重启次数: $NEW_COUNT"
+
+    echo "[INFO] 启动 OpenClaw Gateway..."
+    runuser -u node -- node dist/index.js gateway \
+        --allow-unconfigured \
+        --bind "${OPENCLAW_GATEWAY_BIND:-lan}" \
+        --port 18789 &
+    GATEWAY_PID=$!
+
+    MAX_WAIT=60
+    COUNTER=0
+    echo "[INFO] 等待网关健康检查..."
+    until curl -sf http://127.0.0.1:18789/healthz > /dev/null 2>&1; do
+        if [ "${COUNTER}" -ge "${MAX_WAIT}" ]; then
+            echo "[ERROR] 网关在 ${MAX_WAIT}s 内未就绪，退出。" >&2
+            kill "${GATEWAY_PID}" 2>/dev/null || true
+            exit 1
+        fi
+        sleep 1
+        COUNTER=$((COUNTER + 1))
+    done
+    echo "[INFO] 网关已就绪（${COUNTER}s）"
 fi
 
-echo "[INFO] 启动 OpenClaw Gateway..."
-runuser -u node -- node dist/index.js gateway \
-    --allow-unconfigured \
-    --bind "${OPENCLAW_GATEWAY_BIND:-lan}" \
-    --port 18789 &
-GATEWAY_PID=$!
-
-MAX_WAIT=60
-COUNTER=0
-echo "[INFO] 等待网关健康检查..."
-until curl -sf http://127.0.0.1:18789/healthz > /dev/null 2>&1; do
-    if [ "${COUNTER}" -ge "${MAX_WAIT}" ]; then
-        echo "[ERROR] 网关在 ${MAX_WAIT}s 内未就绪，退出。" >&2
-        kill "${GATEWAY_PID}" 2>/dev/null || true
-        exit 1
-    fi
-    sleep 1
-    COUNTER=$((COUNTER + 1))
-done
-echo "[INFO] 网关已就绪（${COUNTER}s)"
+# 保持 gateway 运行
 wait "${GATEWAY_PID}"
