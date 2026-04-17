@@ -20,8 +20,8 @@ services:
       SSH_ROOT_PASSWORD: ${SSH_ROOT_PASSWORD:-}
       SSH_AUTHORIZED_KEYS: ${SSH_AUTHORIZED_KEYS:-}
     volumes:
-      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      # - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
+      # - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
       # 启用沙盒隔离（agents.defaults.sandbox）需要镜像内有 Docker CLI
       # 构建时加 --build-arg OPENCLAW_INSTALL_DOCKER_CLI=1，或使用 OPENCLAW_SANDBOX=1 自动配置。
       # DOCKER_GID 设为宿主机 docker 组 GID（命令：stat -c '%g' /var/run/docker.sock）。
@@ -45,34 +45,34 @@ services:
       retries: 5
       start_period: 30s
 
-  openclaw-cli:
-    image: ${OPENCLAW_IMAGE:-openclaw:latest}
-    network_mode: "service:openclaw-gateway"
-    cap_drop:
-      - NET_RAW
-      - NET_ADMIN
-    security_opt:
-      - no-new-privileges:true
-    environment:
-      TZ: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
-      HOME: /root
-      TERM: xterm-256color
-      BROWSER: echo
-      # 网关通信
-      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
-      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-false}
-      # API 密钥
-      SHENGSUANYUN_API_KEY: ${SHENGSUANYUN_API_KEY:-}
-      CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY:-}
-      CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY:-}
-      CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE:-}
-    volumes:
-      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
-      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
-    stdin_open: true
-    tty: true
-    init: true
-    entrypoint: ["node", "dist/index.js"]
-    depends_on:
-      openclaw-gateway:
-        condition: service_healthy
+  # openclaw-cli:
+  #   image: ${OPENCLAW_IMAGE:-openclaw:latest}
+  #   network_mode: "service:openclaw-gateway"
+  #   cap_drop:
+  #     - NET_RAW
+  #     - NET_ADMIN
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   environment:
+  #     OPENCLAW_TIMEZONE: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
+  #     OPENCLAW_HOME: ${OPENCLAW_HOME:-/home/node}
+  #     TERM: xterm-256color
+  #     BROWSER: echo
+  #     # 网关通信
+  #     OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+  #     OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-false}
+  #     # API 密钥
+  #     SHENGSUANYUN_API_KEY: ${SHENGSUANYUN_API_KEY:-}
+  #     CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY:-}
+  #     CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY:-}
+  #     CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE:-}
+  #   # volumes:
+  #   #   - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
+  #   #   - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+  #   stdin_open: true
+  #   tty: true
+  #   init: true
+  #   entrypoint: ["node", "dist/index.js"]
+  #   depends_on:
+  #     openclaw-gateway:
+  #       condition: service_healthy

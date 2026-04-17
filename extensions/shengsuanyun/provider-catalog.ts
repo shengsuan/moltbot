@@ -412,9 +412,14 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
 
 export async function buildShengSuanYunProvider(): Promise<ModelProviderConfig> {
   const models = await discoverShengSuanYunModels();
+  // Ensure each model has baseUrl set (required by pi-ai Model interface)
+  const modelsWithBaseUrl = models.map((model) => ({
+    ...model,
+    baseUrl: SHENGSUANYUN_BASE_URL,
+  }));
   return {
     baseUrl: SHENGSUANYUN_BASE_URL,
     api: "openai-completions",
-    models,
+    models: modelsWithBaseUrl,
   };
 }
