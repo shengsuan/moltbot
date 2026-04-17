@@ -19,13 +19,13 @@ services:
       # SSH（可选）
       SSH_ROOT_PASSWORD: ${SSH_ROOT_PASSWORD:-}
       SSH_AUTHORIZED_KEYS: ${SSH_AUTHORIZED_KEYS:-}
-    # volumes:
-      # - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
-      # - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
-      ## 启用沙盒隔离（agents.defaults.sandbox）需要镜像内有 Docker CLI
-      ## 构建时加 --build-arg OPENCLAW_INSTALL_DOCKER_CLI=1，或使用 OPENCLAW_SANDBOX=1 自动配置。
-      ## DOCKER_GID 设为宿主机 docker 组 GID（命令：stat -c '%g' /var/run/docker.sock）。
-      # - /var/run/docker.sock:/var/run/docker.sock
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      # 启用沙盒隔离（agents.defaults.sandbox）需要镜像内有 Docker CLI
+      # 构建时加 --build-arg OPENCLAW_INSTALL_DOCKER_CLI=1，或使用 OPENCLAW_SANDBOX=1 自动配置。
+      # DOCKER_GID 设为宿主机 docker 组 GID（命令：stat -c '%g' /var/run/docker.sock）。
+      - /var/run/docker.sock:/var/run/docker.sock
     # group_add:
     #   - "${DOCKER_GID:-999}"
     ports:
