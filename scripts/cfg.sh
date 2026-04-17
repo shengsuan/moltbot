@@ -71,6 +71,13 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
         fi
     fi
 
+    # 3.5. 确保目录存在并修复权限（在 onboard 之前）
+    mkdir -p "${CFG_DIR}/agents/main/agent"
+    mkdir -p "${CFG_DIR}/agents/main/sessions"
+    mkdir -p "${CFG_DIR}/identity"
+    echo "[INFO] 修复文件权限..."
+    chown -R node:node "${OPENCLAW_HOME:-/home/node}"
+
     # 4. 执行 onboard
     echo "[INFO] 运行 onboard 初始化..."
     runuser -u node -- node dist/index.js onboard \
@@ -82,7 +89,6 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     # 5. 写入初始化标记
     echo "0" > "$INITIALIZED_FLAG"
     echo "[INFO] 初始化完成，已创建标记文件。"
-    chown -R node:node "${OPENCLAW_HOME:-/home/node}"
 else
     # 非首次启动，仅更新重启计数
     RESTART_COUNT=$(cat "$INITIALIZED_FLAG")
