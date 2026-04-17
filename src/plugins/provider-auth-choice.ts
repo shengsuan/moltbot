@@ -232,8 +232,8 @@ export async function applyAuthChoiceLoadedPluginProvider(
         workspaceDir,
       });
       await params.prompter.note(
-        `Default model set to ${applied.defaultModel}`,
-        "Model configured",
+        `默认模型 ${applied.defaultModel}`,
+        "模型已配置",
       );
       return { config: nextConfig };
     }
@@ -319,15 +319,15 @@ export async function applyAuthChoicePluginProvider(
         workspaceDir,
       });
       await params.prompter.note(
-        `Default model set to ${applied.defaultModel}`,
-        "Model configured",
+        `默认模型 ${applied.defaultModel}`,
+        "模型已配置",
       );
       return { config: nextConfig };
     }
     if (params.agentId) {
       await params.prompter.note(
-        `Default model set to ${applied.defaultModel} for agent "${params.agentId}".`,
-        "Model configured",
+        `默认模型 ${applied.defaultModel} 已设置为代理 "${params.agentId}".`,
+        "模型已配置",
       );
     }
     nextConfig = restoreConfiguredPrimaryModel(nextConfig, params.config);
