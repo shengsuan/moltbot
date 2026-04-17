@@ -1,6 +1,6 @@
 {
   "name": "@openclaw/tlon",
-  "version": "2026.4.12",
+  "version": "2026.4.16",
   "description": "OpenClaw Tlon/Urbit channel plugin",
   "type": "module",
   "dependencies": {
@@ -13,7 +13,7 @@
     "@coohu/openclaw": "workspace:*"
   },
   "peerDependencies": {
-    "@coohu/openclaw": ">=2026.4.12"
+    "@coohu/openclaw": ">=2026.4.16"
   },
   "peerDependenciesMeta": {
     "@coohu/openclaw": {

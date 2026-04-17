@@ -13,6 +13,7 @@ minimumReleaseAgeExclude:
   - "follow-redirects"
   - "hono"
   - "openclaw"
+  - "protobufjs"
   - "@buape/carbon"
   - "vite"
   - "@cloudflare/workers-types"

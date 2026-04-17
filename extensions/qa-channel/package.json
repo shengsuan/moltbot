@@ -1,6 +1,6 @@
 {
   "name": "@openclaw/qa-channel",
-  "version": "2026.4.12",
+  "version": "2026.4.16",
   "private": true,
   "description": "OpenClaw QA synthetic channel plugin",
   "type": "module",
@@ -9,10 +9,10 @@
     "@openclaw/plugin-sdk": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.4.12"
+    "@coohu/openclaw": ">=2026.4.16"
   },
   "peerDependenciesMeta": {
-    "openclaw": {
+    "@coohu/openclaw": {
       "optional": true
     }
   },
