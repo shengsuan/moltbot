@@ -1,28 +1,30 @@
 services:
   openclaw-gateway:
-    image: ${OPENCLAW_IMAGE:-openclaw:local}
+    image: ${OPENCLAW_IMAGE:-openclaw:latest}
     container_name: openclaw-gateway
     environment:
       OPENCLAW_TIMEZONE: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
       OPENCLAW_HOME: ${OPENCLAW_HOME:-/home/node}
       TERM: xterm-256color
+      # 网关核心配置
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
-      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
-      CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY:-}
+      OPENCLAW_GATEWAY_BIND: ${OPENCLAW_GATEWAY_BIND:-lan}
+      OPENCLAW_GATEWAY_ORIGIN: ${OPENCLAW_GATEWAY_ORIGIN:-*}
+      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-false}
+      # API 密钥
       SHENGSUANYUN_API_KEY: ${SHENGSUANYUN_API_KEY:-}
+      CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY:-}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY:-}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE:-}
+      # SSH（可选）
       SSH_ROOT_PASSWORD: ${SSH_ROOT_PASSWORD:-}
       SSH_AUTHORIZED_KEYS: ${SSH_AUTHORIZED_KEYS:-}
-      OPENCLAW_GATEWAY_ORIGIN: ${OPENCLAW_GATEWAY_ORIGIN:-*}
     # volumes:
       # - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       # - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
-      ## Uncomment the lines below to enable sandbox isolation
-      ## (agents.defaults.sandbox). Requires Docker CLI in the image
-      ## (build with --build-arg OPENCLAW_INSTALL_DOCKER_CLI=1) or use
-      ## docker-setup.sh with OPENCLAW_SANDBOX=1 for automated setup.
-      ## Set DOCKER_GID to the host's docker group GID (run: stat -c '%g' /var/run/docker.sock).
+      ## 启用沙盒隔离（agents.defaults.sandbox）需要镜像内有 Docker CLI
+      ## 构建时加 --build-arg OPENCLAW_INSTALL_DOCKER_CLI=1，或使用 OPENCLAW_SANDBOX=1 自动配置。
+      ## DOCKER_GID 设为宿主机 docker 组 GID（命令：stat -c '%g' /var/run/docker.sock）。
       # - /var/run/docker.sock:/var/run/docker.sock
     # group_add:
     #   - "${DOCKER_GID:-999}"
@@ -32,22 +34,19 @@ services:
       - "${SSH_EXPOSE_PORT:-10722}:22"
     init: true
     restart: unless-stopped
-    user: "0:0" # Run as root to allow SSH server access to host keys
+    user: "0:0"  # root：允许 SSH 服务访问宿主密钥
     healthcheck:
       test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
+        - "CMD-SHELL"
+        - >
+          curl -sf http://127.0.0.1:18789/healthz || exit 1
       interval: 30s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 30s
 
   openclaw-cli:
-    image: ${OPENCLAW_IMAGE:-openclaw:local}
+    image: ${OPENCLAW_IMAGE:-openclaw:latest}
     network_mode: "service:openclaw-gateway"
     cap_drop:
       - NET_RAW
@@ -58,13 +57,15 @@ services:
       TZ: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
       HOME: /root
       TERM: xterm-256color
-      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
-      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
       BROWSER: echo
+      # 网关通信
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-false}
+      # API 密钥
+      SHENGSUANYUN_API_KEY: ${SHENGSUANYUN_API_KEY:-}
       CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY:-}
       CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY:-}
       CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE:-}
-      SHENGSUANYUN_API_KEY: ${SHENGSUANYUN_API_KEY:-}
     volumes:
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
@@ -73,4 +74,5 @@ services:
     init: true
     entrypoint: ["node", "dist/index.js"]
     depends_on:
-      - openclaw-gateway
+      openclaw-gateway:
+        condition: service_healthy

@@ -22,28 +22,31 @@ export function parseBrowserHttpUrl(raw: string, label: string) {
   if (!allowed.some((scheme) => trimmed.startsWith(scheme))) {
     throw new Error(`${label} must be http(s) or ws(s), got: ${trimmed}`);
   }
-  const parsed = new URL(trimmed);
-  if (!allowed.includes(parsed.protocol)) {
-    throw new Error(`${label} must be http(s) or ws(s), got: ${parsed.protocol.replace(":", "")}`);
+  try {
+    const parsed = new URL(trimmed);
+    if (!allowed.includes(parsed.protocol)) {
+      throw new Error(`${label} must be http(s) or ws(s), got: ${parsed.protocol.replace(":", "")}`);
+    }
+    const isSecure = parsed.protocol === "https:" || parsed.protocol === "wss:";
+    const port =
+      parsed.port && Number.parseInt(parsed.port, 10) > 0
+        ? Number.parseInt(parsed.port, 10)
+        : isSecure
+          ? 443
+          : 80;
+  
+    if (Number.isNaN(port) || port <= 0 || port > 65535) {
+      throw new Error(`${label} has invalid port: ${parsed.port}`);
+    }
+  
+    return {
+      parsed,
+      port,
+      normalized: parsed.toString().replace(/\/$/, ""),
+    };
+  } catch {
+    throw new Error(`${label} is not a valid URL: ${trimmed}`);
   }
-
-  const isSecure = parsed.protocol === "https:" || parsed.protocol === "wss:";
-  const port =
-    parsed.port && Number.parseInt(parsed.port, 10) > 0
-      ? Number.parseInt(parsed.port, 10)
-      : isSecure
-        ? 443
-        : 80;
-
-  if (Number.isNaN(port) || port <= 0 || port > 65535) {
-    throw new Error(`${label} has invalid port: ${parsed.port}`);
-  }
-
-  return {
-    parsed,
-    port,
-    normalized: parsed.toString().replace(/\/$/, ""),
-  };
 }
 
 /**
@@ -69,7 +72,8 @@ export async function assertCdpEndpointAllowed(
   }
   const parsed = new URL(cdpUrl);
   if (!["http:", "https:", "ws:", "wss:"].includes(parsed.protocol)) {
-    throw new Error(`Invalid CDP URL protocol: ${parsed.protocol.replace(":", "")}`);
+    console.error(`Invalid CDP URL protocol: ${parsed.protocol.replace(":", "")}`);
+    return
   }
   try {
     const policy = isLoopbackHost(parsed.hostname)
@@ -144,6 +148,13 @@ export function getHeadersWithAuth(url: string, headers: Record<string, string> 
 }
 
 export function appendCdpPath(cdpUrl: string, path: string): string {
+  try {
+    new URL(cdpUrl);
+  } catch {
+    // If it's not a valid URL, just concatenate with a slash.
+    const separator = cdpUrl.endsWith("/") || path.startsWith("/") ? "" : "/";
+    return `${cdpUrl}${separator}${path}`;
+  }
   const url = new URL(cdpUrl);
   const basePath = url.pathname.replace(/\/$/, "");
   const suffix = path.startsWith("/") ? path : `/${path}`;
