@@ -45,6 +45,9 @@ services:
       retries: 5
       start_period: 30s
 
+secrets:
+  ssh_key:
+    file: ${SSH_AUTHORIZED_KEYS:-~/.ssh/id_ed25519.pub}
   # openclaw-cli:
   #   image: ${OPENCLAW_IMAGE:-openclaw:latest}
   #   network_mode: "service:openclaw-gateway"

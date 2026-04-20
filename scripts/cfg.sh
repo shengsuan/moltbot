@@ -19,7 +19,7 @@ start_gateway() {
     echo "[INFO] 等待网关健康检查..."
     for i in {1..60}; do
         if curl -sf http://127.0.0.1:18789/healthz >/dev/null 2>&1; then
-            echo "[INFO] 网关已就绪（${i}s）"
+            echo "[INFO] 网关已就绪（${i}s)"
             return 0
         fi
         sleep 1
@@ -29,6 +29,15 @@ start_gateway() {
     kill "${GATEWAY_PID}" 2>/dev/null || true
     exit 1
 }
+
+echo "[INFO] 配置 SSH 服务..."
+if [ -n "$SSH_ROOT_PASSWORD" ]; then
+    echo "root:${SSH_ROOT_PASSWORD}" | chpasswd
+fi
+
+/usr/sbin/sshd \
+    && echo "[INFO] SSH 服务已启动（端口 22)" \
+    || echo "[WARN] SSH 服务启动失败"
 
 if [ ! -f "$INITIALIZED_FLAG" ]; then
     echo "[INFO] 首次启动，开始执行初始化配置..."
@@ -45,14 +54,6 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
         fi
     fi
 
-    echo "[INFO] 配置 SSH 服务..."
-    if [ -n "$DEVPOD_ROOT_PASSWORD" ]; then
-        echo "root:${DEVPOD_ROOT_PASSWORD}" | chpasswd
-    fi
-
-    /usr/sbin/sshd \
-        && echo "[INFO] SSH 服务已启动（端口 22）" \
-        || echo "[WARN] SSH 服务启动失败"
 
 
     # 3. 解压插件
@@ -81,11 +82,7 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     mkdir -p "${CFG_DIR}/identity"
     echo "[INFO] 修复文件权限..."
     chown -R node:node "${OPENCLAW_HOME:-/home/node}"
-
-    # 4. 启动网关（后台运行，不阻塞）
     start_gateway
-
-    # 5. 执行 onboard（现在 gateway 已经运行）
     echo "[INFO] 运行 onboard 初始化..."
     runuser -u node -- node dist/index.js onboard \
         --non-interactive \
@@ -93,7 +90,6 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
         --auth-choice shengsuanyun-api-key \
         --shengsuanyun-api-key "${SHENGSUANYUN_API_KEY}"
 
-    # 6. 写入初始化标记
     echo "0" > "$INITIALIZED_FLAG"
     echo "[INFO] 初始化完成，已创建标记文件。"
 
