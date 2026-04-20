@@ -45,35 +45,15 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
         fi
     fi
 
-    # 2. 配置并启动 SSH 服务 (维护网关使用)
-    if [ "$(id -u)" = "0" ] && { [ -n "${SSH_ROOT_PASSWORD:-}" ] || [ -n "${SSH_AUTHORIZED_KEYS:-}" ]; }; then
-        echo "[INFO] 配置 SSH 服务..."
-        if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
-            ssh-keygen -A || echo "[WARN] 生成 SSH host key 失败"
-        fi
-
-        if [ -n "${SSH_ROOT_PASSWORD:-}" ]; then
-            echo "root:${SSH_ROOT_PASSWORD}" | chpasswd 2>/dev/null \
-                || echo "[WARN] 设置 root 密码失败，将仅使用密钥认证"
-        fi
-
-        if [ -n "${SSH_AUTHORIZED_KEYS:-}" ]; then
-            mkdir -p /root/.ssh
-            printf '%s\n' "${SSH_AUTHORIZED_KEYS}" > /root/.ssh/authorized_keys
-            chmod 700 /root/.ssh
-            chmod 600 /root/.ssh/authorized_keys
-            echo "[INFO] SSH 公钥认证已配置"
-        fi
-
-        /usr/sbin/sshd \
-            -p 22 \
-            -o "PermitRootLogin=yes" \
-            -o "UsePAM=no" \
-            -o "PasswordAuthentication=$([ -n "${SSH_ROOT_PASSWORD:-}" ] && echo yes || echo no)" \
-            -o "PubkeyAuthentication=$([ -n "${SSH_AUTHORIZED_KEYS:-}" ] && echo yes || echo no)" \
-            && echo "[INFO] SSH 服务已启动（端口 22）" \
-            || echo "[WARN] SSH 服务启动失败"
+    echo "[INFO] 配置 SSH 服务..."
+    if [ -n "$DEVPOD_ROOT_PASSWORD" ]; then
+        echo "root:${DEVPOD_ROOT_PASSWORD}" | chpasswd
     fi
+
+    /usr/sbin/sshd \
+        && echo "[INFO] SSH 服务已启动（端口 22）" \
+        || echo "[WARN] SSH 服务启动失败"
+
 
     # 3. 解压插件
     if [ -d "/app/plugins" ]; then

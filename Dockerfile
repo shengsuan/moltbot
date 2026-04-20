@@ -169,6 +169,17 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     fi && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       procps hostname curl git lsof openssl openssh-server gettext-base nano
+      
+RUN --mount=type=secret,id=ssh_key \
+if [ -f /run/secrets/ssh_key ]; then \
+cat /run/secrets/ssh_key > /root/.ssh/authorized_keys && \
+chmod 600 /root/.ssh/authorized_keys; \
+fi
+
+# 配置 SSH 服务
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 
 RUN chown node:node /app
 
