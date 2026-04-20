@@ -43,7 +43,6 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     echo "[INFO] 首次启动，开始执行初始化配置..."
     mkdir -p "${CFG_DIR}/extensions"
 
-    # 1. 配置文件初始化
     TEMPLATE_FILE="/app/cfg.templates.json"
     if [ -f "${TEMPLATE_FILE}" ]; then
         if [ ! -f "${CFG_DIR}/openclaw.json" ]; then
@@ -54,9 +53,6 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
         fi
     fi
 
-
-
-    # 3. 解压插件
     if [ -d "/app/plugins" ]; then
         shopt -s nullglob
         tarballs=(/app/plugins/*.tar.gz)
@@ -76,7 +72,6 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
         fi
     fi
 
-    # 3.5. 确保目录存在并修复权限（在 onboard 之前）
     mkdir -p "${CFG_DIR}/agents/main/agent"
     mkdir -p "${CFG_DIR}/agents/main/sessions"
     mkdir -p "${CFG_DIR}/identity"
@@ -94,7 +89,6 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     echo "[INFO] 初始化完成，已创建标记文件。"
 
 else
-    # 非首次启动，仅更新重启计数并启动 gateway
     RESTART_COUNT=$(cat "$INITIALIZED_FLAG")
     NEW_COUNT=$((RESTART_COUNT + 1))
     echo "$NEW_COUNT" > "$INITIALIZED_FLAG"
@@ -103,6 +97,5 @@ else
     start_gateway
 fi
 
-# 统一在此处等待 gateway 进程结束，保持容器运行
 echo "[INFO] 网关运行中，等待进程结束..."
 wait "${GATEWAY_PID}"

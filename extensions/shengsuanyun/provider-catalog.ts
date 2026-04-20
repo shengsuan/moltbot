@@ -134,7 +134,7 @@ function supportsVision(model: ShengSuanYunModel): boolean {
 // Default models shown before API discovery (e.g., during onboarding)
 export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
   {
-    id: "google/gemini-3-flash",
+    id: "shengsuanyun/google/gemini-3-flash",
     name: "Gemini 3 Flash Preview",
     reasoning: false,
     api: "openai-completions",
@@ -144,7 +144,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 65535,
   },
   {
-    id: "anthropic/claude-opus-4.5",
+    id: "shengsuanyun/anthropic/claude-opus-4.5",
     name: "Claude Opus 4.5",
     reasoning: false,
     api: "openai-completions",
@@ -154,7 +154,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "anthropic/claude-sonnet-4.5:thinking",
+    id: "shengsuanyun/anthropic/claude-sonnet-4.5:thinking",
     name: "Claude Sonnet 4.5 Thinking",
     reasoning: true,
     api: "openai-completions",
@@ -164,7 +164,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "anthropic/claude-haiku-4.5",
+    id: "shengsuanyun/anthropic/claude-haiku-4.5",
     name: "Claude Haiku 4.5",
     reasoning: false,
     api: "openai-completions",
@@ -174,7 +174,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "anthropic/claude-sonnet-4.5",
+    id: "shengsuanyun/anthropic/claude-sonnet-4.5",
     name: "Claude Sonnet 4.5",
     reasoning: false,
     api: "openai-completions",
@@ -184,7 +184,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "anthropic/claude-haiku-4.5:thinking",
+    id: "shengsuanyun/anthropic/claude-haiku-4.5:thinking",
     name: "Claude Haiku 4.5 Thinking",
     reasoning: true,
     api: "openai-completions",
@@ -194,7 +194,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "anthropic/claude-opus-4.6",
+    id: "shengsuanyun/anthropic/claude-opus-4.6",
     name: "Claude Opus 4.6",
     reasoning: false,
     api: "openai-completions",
@@ -204,7 +204,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 128000,
   },
   {
-    id: "anthropic/claude-sonnet-4.6",
+    id: "shengsuanyun/anthropic/claude-sonnet-4.6",
     name: "Claude Sonnet 4.6",
     reasoning: false,
     api: "openai-completions",
@@ -214,7 +214,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "anthropic/claude-opus-4",
+    id: "shengsuanyun/anthropic/claude-opus-4",
     name: "Claude Opus 4",
     reasoning: false,
     api: "openai-completions",
@@ -224,7 +224,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 32000,
   },
   {
-    id: "anthropic/claude-opus-4.1",
+    id: "shengsuanyun/anthropic/claude-opus-4.1",
     name: "Claude Opus 4.1",
     reasoning: false,
     api: "openai-completions",
@@ -266,7 +266,7 @@ export async function discoverShengSuanYunModels(): Promise<ModelDefinitionConfi
       const hasVision = supportsVision(apiModel);
       const reasoning = isReasoningModel(apiModel);
       models.push({
-        id: apiModel.id,
+        id: `shengsuanyun/${apiModel.id}`,
         name: apiModel.name,
         reasoning,
         api: "openai-completions",

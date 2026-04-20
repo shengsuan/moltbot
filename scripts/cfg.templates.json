@@ -60,8 +60,8 @@
         "http://127.0.0.1:10789",
         "${OPENCLAW_GATEWAY_ORIGIN}"
       ],
-      "dangerouslyDisableDeviceAuth": false,
-      "dangerouslyAllowHostHeaderOriginFallback": false
+      "dangerouslyDisableDeviceAuth": true,
+      "dangerouslyAllowHostHeaderOriginFallback": true
     },
     "mode": "local",
     "port": 18789,
