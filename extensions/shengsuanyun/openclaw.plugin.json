@@ -1,6 +1,7 @@
 {
   "id": "shengsuanyun",
   "providers": ["shengsuanyun"],
+  "providerDiscoveryEntry": "./provider-discovery.ts",
   "providerAuthEnvVars": {
     "shengsuanyun": ["SHENGSUANYUN_API_KEY"]
   },

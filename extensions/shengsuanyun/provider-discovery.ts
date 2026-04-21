@@ -1,0 +1,58 @@
+import type { ProviderCatalogContext } from "openclaw/plugin-sdk/provider-catalog-shared";
+import { buildShengSuanYunProvider } from "./provider-catalog.js";
+
+const PROVIDER_ID = "shengsuanyun";
+
+type ShengSuanYunProviderPlugin = {
+  id: string;
+  label: string;
+  docsPath: string;
+  auth: [];
+  catalog: {
+    order: "profile";
+    run: (ctx: ProviderCatalogContext) => ReturnType<typeof runShengSuanYunCatalog>;
+  };
+};
+
+async function runShengSuanYunCatalog(ctx: ProviderCatalogContext) {
+  console.log("[shengsuanyun] catalog.run called");
+  console.log("[shengsuanyun] agentDir:", ctx.agentDir);
+
+  const authResult = ctx.resolveProviderAuth(PROVIDER_ID);
+  console.log("[shengsuanyun] authResult:", {
+    hasApiKey: !!authResult.apiKey,
+    mode: authResult.mode,
+    source: authResult.source,
+    profileId: authResult.profileId,
+  });
+
+  const { apiKey } = authResult;
+  if (!apiKey) {
+    console.log("[shengsuanyun] No API key found, returning null");
+    return null;
+  }
+
+  console.log("[shengsuanyun] Building provider with API key");
+  const provider = await buildShengSuanYunProvider();
+  console.log("[shengsuanyun] Provider built, models count:", provider.models.length);
+
+  return {
+    provider: {
+      ...provider,
+      apiKey,
+    },
+  };
+}
+
+export const shengsuanyunProviderDiscovery: ShengSuanYunProviderPlugin = {
+  id: PROVIDER_ID,
+  label: "胜算云",
+  docsPath: "/providers/shengsuanyun",
+  auth: [],
+  catalog: {
+    order: "profile",
+    run: runShengSuanYunCatalog,
+  },
+};
+
+export default shengsuanyunProviderDiscovery;

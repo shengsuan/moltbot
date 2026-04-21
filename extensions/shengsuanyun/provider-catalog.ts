@@ -7,7 +7,7 @@ import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
 const log = createSubsystemLogger("models");
 
 export const SHENGSUANYUN_BASE_URL = "https://router.shengsuanyun.com/api/v1";
-export const SHENGSUANYUN_MODALITIES_BASE_URL = "https://api.com/modelrouter";
+export const SHENGSUANYUN_MODALITIES_BASE_URL = "https://api.shengsuanyun.com/modelrouter";
 
 export const SHENGSUANYUN_DEFAULT_COST = {
   input: 0,

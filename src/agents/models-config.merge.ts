@@ -195,6 +195,15 @@ function shouldPreserveExistingApiKey(params: {
   );
 }
 
+function extractBaseUrlDomain(baseUrl: string): string {
+  try {
+    const url = new URL(baseUrl);
+    return url.hostname;
+  } catch {
+    return "";
+  }
+}
+
 function shouldPreserveExistingBaseUrl(params: {
   existing: ExistingProviderConfig;
   nextEntry: ProviderConfig;
@@ -202,6 +211,17 @@ function shouldPreserveExistingBaseUrl(params: {
   const { existing, nextEntry } = params;
   if (typeof existing.baseUrl !== "string" || existing.baseUrl.length === 0) {
     return false;
+  }
+
+  // If next entry has a non-empty baseUrl from the same domain (likely a plugin update),
+  // prefer the new value to allow plugin updates to fix baseUrl
+  if (typeof nextEntry.baseUrl === "string" && nextEntry.baseUrl.length > 0) {
+    const existingDomain = extractBaseUrlDomain(existing.baseUrl);
+    const nextDomain = extractBaseUrlDomain(nextEntry.baseUrl);
+    if (existingDomain && nextDomain && existingDomain === nextDomain) {
+      // Same domain - prefer the new value (plugin update)
+      return false;
+    }
   }
 
   const existingApi = resolveProviderApiSurface(existing);
