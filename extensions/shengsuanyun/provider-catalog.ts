@@ -4,10 +4,10 @@ import { type ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-sha
 import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-shared";
 import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
 import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
-const log = createSubsystemLogger("shengsuanyun-models");
+const log = createSubsystemLogger("models");
 
 export const SHENGSUANYUN_BASE_URL = "https://router.shengsuanyun.com/api/v1";
-export const SHENGSUANYUN_MODALITIES_BASE_URL = "https://api.shengsuanyun.com/modelrouter";
+export const SHENGSUANYUN_MODALITIES_BASE_URL = "https://api.com/modelrouter";
 
 export const SHENGSUANYUN_DEFAULT_COST = {
   input: 0,
@@ -134,7 +134,17 @@ function supportsVision(model: ShengSuanYunModel): boolean {
 // Default models shown before API discovery (e.g., during onboarding)
 export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
   {
-    id: "shengsuanyun/google/gemini-3-flash",
+    id: "openai/gpt-5-nano",
+    name: "GPT-5 Nano",
+    reasoning: false,
+    api: "openai-completions",
+    input: ["text"],
+    cost: SHENGSUANYUN_DEFAULT_COST,
+    contextWindow: 128000,
+    maxTokens: 16384,
+  },
+  {
+    id: "google/gemini-3-flash",
     name: "Gemini 3 Flash Preview",
     reasoning: false,
     api: "openai-completions",
@@ -144,7 +154,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 65535,
   },
   {
-    id: "shengsuanyun/anthropic/claude-opus-4.5",
+    id: "anthropic/claude-opus-4.5",
     name: "Claude Opus 4.5",
     reasoning: false,
     api: "openai-completions",
@@ -154,7 +164,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "shengsuanyun/anthropic/claude-sonnet-4.5:thinking",
+    id: "anthropic/claude-sonnet-4.5:thinking",
     name: "Claude Sonnet 4.5 Thinking",
     reasoning: true,
     api: "openai-completions",
@@ -164,7 +174,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "shengsuanyun/anthropic/claude-haiku-4.5",
+    id: "anthropic/claude-haiku-4.5",
     name: "Claude Haiku 4.5",
     reasoning: false,
     api: "openai-completions",
@@ -174,7 +184,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "shengsuanyun/anthropic/claude-sonnet-4.5",
+    id: "anthropic/claude-sonnet-4.5",
     name: "Claude Sonnet 4.5",
     reasoning: false,
     api: "openai-completions",
@@ -184,7 +194,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "shengsuanyun/anthropic/claude-haiku-4.5:thinking",
+    id: "anthropic/claude-haiku-4.5:thinking",
     name: "Claude Haiku 4.5 Thinking",
     reasoning: true,
     api: "openai-completions",
@@ -194,7 +204,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "shengsuanyun/anthropic/claude-opus-4.6",
+    id: "anthropic/claude-opus-4.6",
     name: "Claude Opus 4.6",
     reasoning: false,
     api: "openai-completions",
@@ -204,7 +214,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 128000,
   },
   {
-    id: "shengsuanyun/anthropic/claude-sonnet-4.6",
+    id: "anthropic/claude-sonnet-4.6",
     name: "Claude Sonnet 4.6",
     reasoning: false,
     api: "openai-completions",
@@ -214,7 +224,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 64000,
   },
   {
-    id: "shengsuanyun/anthropic/claude-opus-4",
+    id: "anthropic/claude-opus-4",
     name: "Claude Opus 4",
     reasoning: false,
     api: "openai-completions",
@@ -224,7 +234,7 @@ export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
     maxTokens: 32000,
   },
   {
-    id: "shengsuanyun/anthropic/claude-opus-4.1",
+    id: "anthropic/claude-opus-4.1",
     name: "Claude Opus 4.1",
     reasoning: false,
     api: "openai-completions",
@@ -266,7 +276,7 @@ export async function discoverShengSuanYunModels(): Promise<ModelDefinitionConfi
       const hasVision = supportsVision(apiModel);
       const reasoning = isReasoningModel(apiModel);
       models.push({
-        id: `shengsuanyun/${apiModel.id}`,
+        id: apiModel.id,
         name: apiModel.name,
         reasoning,
         api: "openai-completions",
@@ -306,10 +316,10 @@ async function loadCachedModalities(): Promise<MModel[] | null> {
     const cacheData = fs.readFileSync(cachePath, "utf-8");
     const cache = JSON.parse(cacheData) as ModalitiesCache;
     if (Date.now() - cache.timestamp < CACHE_TTL_MS) {
-      // console.log(`[shengsuanyun-models] Loaded ${cache.models.length} modality models from cache`);
+      // console.log(`[models] Loaded ${cache.models.length} modality models from cache`);
       return cache.models;
     }
-    // console.log(`[shengsuanyun-models] Cache expired, will fetch fresh data`);
+    // console.log(`[models] Cache expired, will fetch fresh data`);
     return null;
   } catch (err) {
     log.warn(`Failed to load modalities cache: ${String(err)}`);
@@ -353,14 +363,14 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
     );
     if (!res.ok) {
       // console.log(
-      //   `[shengsuanyun-models] Modalities list fetch failed: ${res.status} ${res.statusText}`,
+      //   `[models] Modalities list fetch failed: ${res.status} ${res.statusText}`,
       // );
       return [];
     }
     const data = (await res.json()) as ShengSuanYunModalitiesResponse;
     if (data.code !== 0 || !Array.isArray(data.data.infos) || data.data.infos.length === 0) {
       // console.log(
-      //   `[shengsuanyun-models] Invalid response: code=${data.code}, infos=${data.data?.infos?.length ?? 0}`,
+      //   `[models] Invalid response: code=${data.code}, infos=${data.data?.infos?.length ?? 0}`,
       // );
       return [];
     }
@@ -384,7 +394,7 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
           if (data.code !== 0 || !data.data) {
             return null;
           }
-          return { ...data.data, api: "shengsuanyun-modality" } as MModel;
+          return { ...data.data, api: "modality" } as MModel;
         } catch (err) {
           log.warn(`failed to fetch modality model ${model.id}: ${String(err)}`);
           return null;
@@ -399,7 +409,7 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
       }
     }
 
-    // console.log(`[shengsuanyun-models] Loaded ${results.length} modality models total`);
+    // console.log(`[models] Loaded ${results.length} modality models total`);
     if (results.length > 0) {
       await saveCachedModalities(results);
     }
@@ -412,14 +422,13 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
 
 export async function buildShengSuanYunProvider(): Promise<ModelProviderConfig> {
   const models = await discoverShengSuanYunModels();
-  // Ensure each model has baseUrl set (required by pi-ai Model interface)
-  const modelsWithBaseUrl = models.map((model) => ({
-    ...model,
-    baseUrl: SHENGSUANYUN_BASE_URL,
-  }));
   return {
     baseUrl: SHENGSUANYUN_BASE_URL,
     api: "openai-completions",
-    models: modelsWithBaseUrl,
+    models: models,
+    headers: {
+      "HTTP-Referer": "https://openclaw.ai",
+      "X-Title": "OpenClaw",
+    },
   };
 }

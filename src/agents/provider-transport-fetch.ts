@@ -1,5 +1,6 @@
 import type { Api, Model } from "@mariozechner/pi-ai";
 import { fetchWithSsrFGuard } from "../infra/net/fetch-guard.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveDebugProxySettings } from "../proxy-capture/env.js";
 import {
   buildProviderRequestDispatcherPolicy,
@@ -7,6 +8,8 @@ import {
   mergeModelProviderRequestOverrides,
   resolveProviderRequestPolicyConfig,
 } from "./provider-request-config.js";
+
+const log = createSubsystemLogger("provider-fetch");
 
 function buildManagedResponse(response: Response, release: () => Promise<void>): Response {
   if (!response.body) {
@@ -111,6 +114,15 @@ export function buildGuardedModelFetch(model: Model<Api>): typeof fetch {
         signal: request.signal,
         ...(request.body ? ({ duplex: "half" } as const) : {}),
       } satisfies RequestInit & { duplex?: "half" });
+
+    log.info("provider fetch request", {
+      provider: model.provider,
+      modelId: model.id,
+      baseUrl: model.baseUrl,
+      url: url,
+      method: request?.method || init?.method || "GET",
+    });
+
     const result = await fetchWithSsrFGuard({
       url,
       init: requestInit ?? init,
@@ -127,6 +139,14 @@ export function buildGuardedModelFetch(model: Model<Api>): typeof fetch {
       allowCrossOriginUnsafeRedirectReplay: false,
       ...(requestConfig.allowPrivateNetwork ? { policy: { allowPrivateNetwork: true } } : {}),
     });
+
+    log.info("provider fetch response", {
+      provider: model.provider,
+      url: url,
+      status: result.response.status,
+      statusText: result.response.statusText,
+    });
+
     return buildManagedResponse(result.response, result.release);
   };
 }

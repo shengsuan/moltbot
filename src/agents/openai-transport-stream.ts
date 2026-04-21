@@ -19,6 +19,7 @@ import type {
   ResponseInput,
   ResponseInputMessageContentList,
 } from "openai/resources/responses/responses.js";
+import { createSubsystemLogger } from "../logging/subsystem.js";
 import type { ProviderRuntimeModel } from "../plugins/provider-runtime-model.types.js";
 import { resolveProviderTransportTurnStateWithPlugin } from "../plugins/provider-runtime.js";
 import { buildCopilotDynamicHeaders, hasCopilotVisionInput } from "./copilot-dynamic-headers.js";
@@ -46,6 +47,8 @@ import { buildGuardedModelFetch } from "./provider-transport-fetch.js";
 import { stripSystemPromptCacheBoundary } from "./system-prompt-cache-boundary.js";
 import { transformTransportMessages } from "./transport-message-transform.js";
 import { mergeTransportMetadata, sanitizeTransportPayloadText } from "./transport-stream-shared.js";
+
+const log = createSubsystemLogger("openai-transport");
 
 const DEFAULT_AZURE_OPENAI_API_VERSION = "2024-12-01-preview";
 
@@ -972,12 +975,30 @@ function createOpenAICompletionsClient(
   apiKey: string,
   optionHeaders?: Record<string, string>,
 ) {
+  log.info("creating OpenAI completions client", {
+    provider: model.provider,
+    modelId: model.id,
+    baseUrl: model.baseUrl,
+    hasApiKey: !!apiKey,
+    apiKeyPrefix: apiKey ? `${apiKey.slice(0, 10)}...` : "none",
+  });
+
+  const guardedFetch = buildGuardedModelFetch(model);
+  const wrappedFetch: typeof fetch = async (input, init) => {
+    console.error("[OPENAI-CLIENT-FETCH]", {
+      input: input.toString(),
+      method: init?.method,
+      provider: model.provider,
+    });
+    return guardedFetch(input, init);
+  };
+
   return new OpenAI({
     apiKey,
     baseURL: model.baseUrl,
     dangerouslyAllowBrowser: true,
     defaultHeaders: buildOpenAIClientHeaders(model, context, optionHeaders),
-    fetch: buildGuardedModelFetch(model),
+    fetch: wrappedFetch,
   });
 }
 
@@ -1004,8 +1025,17 @@ export function createOpenAICompletionsTransportStreamFn(): StreamFn {
         timestamp: Date.now(),
       };
       try {
+        console.error("[OPENAI-STREAM] Starting request", {
+          provider: model.provider,
+          modelId: model.id,
+          baseUrl: model.baseUrl,
+        });
+
         const apiKey = options?.apiKey || getEnvApiKey(model.provider) || "";
         const client = createOpenAICompletionsClient(model, context, apiKey, options?.headers);
+
+        console.error("[OPENAI-STREAM] Client created, building params");
+
         let params = buildOpenAICompletionsParams(
           model as OpenAIModeModel,
           context,
@@ -1015,6 +1045,15 @@ export function createOpenAICompletionsTransportStreamFn(): StreamFn {
         if (nextParams !== undefined) {
           params = nextParams as typeof params;
         }
+        log.info("sending OpenAI completions request", {
+          provider: model.provider,
+          modelId: model.id,
+          baseUrl: model.baseUrl,
+          paramsKeys: Object.keys(params),
+        });
+
+        console.error("[OPENAI-STREAM] Creating completion stream");
+
         const responseStream = (await client.chat.completions.create(params as never, {
           signal: options?.signal,
         })) as unknown as AsyncIterable<ChatCompletionChunk>;
@@ -1026,6 +1065,13 @@ export function createOpenAICompletionsTransportStreamFn(): StreamFn {
         stream.push({ type: "done", reason: output.stopReason as never, message: output as never });
         stream.end();
       } catch (error) {
+        console.error("[OPENAI-STREAM] Error caught:", {
+          provider: model.provider,
+          modelId: model.id,
+          baseUrl: model.baseUrl,
+          error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack?.substring(0, 500) : undefined,
+        });
         output.stopReason = options?.signal?.aborted ? "aborted" : "error";
         output.errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
         stream.push({ type: "error", reason: output.stopReason as never, error: output as never });

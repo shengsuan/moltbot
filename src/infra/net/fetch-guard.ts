@@ -285,6 +285,8 @@ export async function fetchWithSsrFGuard(params: GuardedFetchOptions): Promise<G
     throw new Error("fetch is not available");
   }
 
+  console.error("[FETCH-DEBUG] fetchWithSsrFGuard:", {url: params.url});
+
   const maxRedirects =
     typeof params.maxRedirects === "number" && Number.isFinite(params.maxRedirects)
       ? Math.max(0, Math.floor(params.maxRedirects))
@@ -430,6 +432,14 @@ export async function fetchWithSsrFGuard(params: GuardedFetchOptions): Promise<G
         currentUrl = nextUrl;
         continue;
       }
+        const responseText = response.status === 405 ? await response.clone().text() : "";
+        console.error("[FETCH-DEBUG] response:", {
+          url: currentUrl,
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+          responsePreview: responseText.substring(0, 500),
+        });
 
       return {
         response,

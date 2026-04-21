@@ -1,9 +1,4 @@
 import { defineSingleProviderPluginEntry } from "openclaw/plugin-sdk/provider-entry";
-import {
-  createOpenRouterSystemCacheWrapper,
-  createOpenRouterWrapper,
-  isProxyReasoningUnsupported,
-} from "openclaw/plugin-sdk/provider-stream";
 import { applyShengSuanYunConfig, SHENGSUANYUN_DEFAULT_MODEL_REF } from "./onboard.ts";
 import { buildShengSuanYunProvider } from "./provider-catalog.js";
 
@@ -38,25 +33,6 @@ export default defineSingleProviderPluginEntry({
     ],
     catalog: {
       buildProvider: buildShengSuanYunProvider,
-    },
-    wrapStreamFn: (ctx) => {
-      let streamFn = ctx.streamFn;
-      const skipReasoningInjection = isProxyReasoningUnsupported(ctx.modelId);
-      const openRouterThinkingLevel = skipReasoningInjection ? undefined : ctx.thinkingLevel;
-      streamFn = createOpenRouterWrapper(streamFn, openRouterThinkingLevel);
-      streamFn = createOpenRouterSystemCacheWrapper(streamFn);
-      const wrappedStreamFn = streamFn;
-      streamFn = (model, context, options) => {
-        return wrappedStreamFn(model, context, {
-          ...options,
-          headers: {
-            ...options?.headers,
-            "HTTP-Referer": "https://openclaw.ai",
-            "X-Title": "OpenClaw",
-          },
-        });
-      };
-      return streamFn;
     },
   },
 });
