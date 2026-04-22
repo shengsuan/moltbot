@@ -370,7 +370,6 @@ export async function resolveImplicitProviders(
   });
 
   for (const order of PLUGIN_DISCOVERY_ORDERS) {
-    console.log(`[resolveImplicitProviders] Processing order: ${order}`);
     mergeImplicitProviderSet(
       providers,
       await resolvePluginImplicitProviders(context, discoveryProviders, order),

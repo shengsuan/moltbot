@@ -179,29 +179,41 @@ RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/
   sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
   sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 
-RUN chown node:node /app
+# RUN chown node:node /app
+# COPY --from=runtime-assets --chown=node:node /app/dist ./dist
+# COPY --from=runtime-assets --chown=node:node /app/node_modules ./node_modules
+# COPY --from=runtime-assets --chown=node:node /app/package.json .
+# COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
+# COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
+# COPY --from=runtime-assets --chown=node:node /app/skills ./skills
+# COPY --from=runtime-assets --chown=node:node /app/docs ./docs
+# COPY --from=runtime-assets --chown=node:node /app/scripts/cfg.sh ./scripts/cfg.sh
+# COPY --from=runtime-assets --chown=node:node /app/scripts/cfg.templates.json ./cfg.templates.json
+# RUN mkdir -p /run/sshd /root/.ssh && \
+#     chmod 700 /root/.ssh && \
+#     ssh-keygen -A && \
+#     chown node:node /app
 
-COPY --from=runtime-assets --chown=node:node /app/dist ./dist
-COPY --from=runtime-assets --chown=node:node /app/node_modules ./node_modules
-COPY --from=runtime-assets --chown=node:node /app/package.json .
-COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
-COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
-COPY --from=runtime-assets --chown=node:node /app/skills ./skills
-COPY --from=runtime-assets --chown=node:node /app/docs ./docs
-COPY --from=runtime-assets --chown=node:node /app/scripts/cfg.sh ./scripts/cfg.sh
-COPY --from=runtime-assets --chown=node:node /app/scripts/cfg.templates.json ./cfg.templates.json
+COPY --from=runtime-assets /app/dist ./dist
+COPY --from=runtime-assets /app/node_modules ./node_modules
+COPY --from=runtime-assets /app/package.json .
+COPY --from=runtime-assets /app/openclaw.mjs .
+COPY --from=runtime-assets /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
+COPY --from=runtime-assets /app/skills ./skills
+COPY --from=runtime-assets /app/docs ./docs
+COPY --from=runtime-assets /app/scripts/cfg.sh ./scripts/cfg.sh
+COPY --from=runtime-assets /app/scripts/cfg.templates.json ./cfg.templates.json
 RUN mkdir -p /run/sshd /root/.ssh && \
     chmod 700 /root/.ssh && \
-    ssh-keygen -A && \
-    chown node:node /app
-
+    ssh-keygen -A 
+    
 COPY ./plugins /app/plugins
     
 # In npm-installed Docker images, prefer the copied source extension tree for
 # bundled discovery so package metadata that points at source entries stays valid.
 ENV OPENCLAW_BUNDLED_PLUGINS_DIR=/app/${OPENCLAW_BUNDLED_PLUGIN_DIR}
-COPY --from=runtime-assets --chown=node:node /app/qa ./qa
-
+# COPY --from=runtime-assets --chown=node:node /app/qa ./qa
+COPY --from=runtime-assets /app/qa ./qa
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a
 # first-run network fetch when invoking pnpm.
@@ -234,18 +246,40 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 # Adds ~300MB but eliminates the 60-90s Playwright install on every container start.
 # Must run after node_modules COPY so playwright-core is available.
 ARG OPENCLAW_INSTALL_BROWSER=""
+# RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+#     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+#     set -e; \
+#     if [ "$OPENCLAW_INSTALL_BROWSER" = "1" ] || [ "$OPENCLAW_INSTALL_BROWSER" = "true" ]; then \
+#       apt-get update && \
+#       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
+#       mkdir -p /home/node/.cache/ms-playwright && \
+#       export PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright && \
+#       node /app/node_modules/playwright-core/cli.js install-deps chromium && \
+#       node /app/node_modules/playwright-core/cli.js install chromium && \
+#       chown -R node:node /home/node/.cache && \
+#       ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
+#       if [ -z "$ACTUAL_CHROME" ]; then echo "Browser binary not found" >&2; exit 1; fi; \
+#       for TARGET in /usr/bin/chromium \
+#                     /usr/bin/chromium-browser \
+#                     /usr/bin/google-chrome \
+#                     /usr/bin/google-chrome-stable \
+#                     /usr/bin/msedge \
+#                     /usr/bin/brave-browser \
+#                     /snap/bin/chromium; do \
+#         mkdir -p $(dirname "$TARGET") && ln -sf "$ACTUAL_CHROME" "$TARGET"; \
+#       done; \
+#     fi
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     set -e; \
     if [ "$OPENCLAW_INSTALL_BROWSER" = "1" ] || [ "$OPENCLAW_INSTALL_BROWSER" = "true" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
-      mkdir -p /home/node/.cache/ms-playwright && \
-      export PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright && \
+      mkdir -p /root/.cache/ms-playwright && \
+      export PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright && \
       node /app/node_modules/playwright-core/cli.js install-deps chromium && \
       node /app/node_modules/playwright-core/cli.js install chromium && \
-      chown -R node:node /home/node/.cache && \
-      ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
+      ACTUAL_CHROME=$(find /root/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
       if [ -z "$ACTUAL_CHROME" ]; then echo "Browser binary not found" >&2; exit 1; fi; \
       for TARGET in /usr/bin/chromium \
                     /usr/bin/chromium-browser \
@@ -257,7 +291,6 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
         mkdir -p $(dirname "$TARGET") && ln -sf "$ACTUAL_CHROME" "$TARGET"; \
       done; \
     fi
-
 # Optionally install Docker CLI for sandbox container management.
 # Build with: docker build --build-arg OPENCLAW_INSTALL_DOCKER_CLI=1 ...
 # Adds ~50MB. Only the CLI is installed — no Docker daemon.

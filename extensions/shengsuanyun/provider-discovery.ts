@@ -15,27 +15,22 @@ type ShengSuanYunProviderPlugin = {
 };
 
 async function runShengSuanYunCatalog(ctx: ProviderCatalogContext) {
-  console.log("[shengsuanyun] catalog.run called");
-  console.log("[shengsuanyun] agentDir:", ctx.agentDir);
-
+  // console.log("[shengsuanyun] catalog.run called");
+  // console.log("[shengsuanyun] agentDir:", ctx.agentDir);
   const authResult = ctx.resolveProviderAuth(PROVIDER_ID);
-  console.log("[shengsuanyun] authResult:", {
-    hasApiKey: !!authResult.apiKey,
-    mode: authResult.mode,
-    source: authResult.source,
-    profileId: authResult.profileId,
-  });
+  // console.log("[shengsuanyun] authResult:", {
+  //   hasApiKey: !!authResult.apiKey,
+  //   mode: authResult.mode,
+  //   source: authResult.source,
+  //   profileId: authResult.profileId,
+  // });
 
   const { apiKey } = authResult;
   if (!apiKey) {
-    console.log("[shengsuanyun] No API key found, returning null");
+    // console.log("[shengsuanyun] No API key found, returning null");
     return null;
   }
-
-  console.log("[shengsuanyun] Building provider with API key");
   const provider = await buildShengSuanYunProvider();
-  console.log("[shengsuanyun] Provider built, models count:", provider.models.length);
-
   return {
     provider: {
       ...provider,

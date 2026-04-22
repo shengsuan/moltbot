@@ -8,9 +8,11 @@ GATEWAY_PID=""
 
 start_gateway() {
     echo "[INFO] 启动 OpenClaw Gateway..."
-    chown -R node:node "${OPENCLAW_HOME:-/home/node}"
-
-    runuser -u node -- node dist/index.js gateway \
+    # chown -R node:node "${OPENCLAW_HOME:-/home/node}"
+    # runuser -u node -- node dist/index.js gateway \
+    #     --bind "${OPENCLAW_GATEWAY_BIND:-lan}" \
+    #     --port 18789 &
+    node dist/index.js gateway \
         --bind "${OPENCLAW_GATEWAY_BIND:-lan}" \
         --port 18789 &
     GATEWAY_PID=$!
@@ -75,7 +77,7 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     mkdir -p "${CFG_DIR}/agents/main/sessions"
     mkdir -p "${CFG_DIR}/identity"
     echo "[INFO] 修复文件权限..."
-    chown -R node:node "${OPENCLAW_HOME:-/home/node}"
+    # chown -R node:node "${OPENCLAW_HOME:-/home/node}"
     start_gateway
     echo "0" > "$INITIALIZED_FLAG"
     echo "[INFO] 初始化完成，已创建标记文件。"
