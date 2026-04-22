@@ -202,12 +202,9 @@ async function resolvePluginImplicitProviders(
   order: import("../plugins/types.js").ProviderDiscoveryOrder,
 ): Promise<Record<string, ProviderConfig> | undefined> {
   const byOrder = groupPluginDiscoveryProvidersByOrder(providers);
-  console.log(`[resolvePluginImplicitProviders] order=${order}, providers in this order:`, byOrder[order].map(p => p.id));
   const discovered: Record<string, ProviderConfig> = {};
   const catalogConfig = buildPluginCatalogConfig(ctx);
   for (const provider of byOrder[order]) {
-    console.log(`[resolvePluginImplicitProviders] Processing provider: ${provider.id}`);
-    console.log(`[resolvePluginImplicitProviders] Provider catalog type:`, provider.catalog?.order || 'buildProvider');
     const resolveCatalogProviderApiKey = (providerId?: string) => {
       const resolvedProviderId = providerId?.trim() || provider.id;
       const resolved = ctx.resolveProviderApiKey(resolvedProviderId);
@@ -246,7 +243,6 @@ async function resolvePluginImplicitProviders(
       };
     };
 
-    console.log(`[resolvePluginImplicitProviders] Calling runProviderCatalogWithTimeout for ${provider.id}`);
     const result = await runProviderCatalogWithTimeout({
       provider,
       config: catalogConfig,
@@ -258,9 +254,7 @@ async function resolvePluginImplicitProviders(
         ctx.resolveProviderAuth(providerId?.trim() || provider.id, options),
       timeoutMs: resolveLiveProviderCatalogTimeoutMs(ctx.env),
     });
-    console.log(`[resolvePluginImplicitProviders] Result for ${provider.id}:`, result ? 'has result' : 'null');
     if (!result) {
-      console.log(`[resolvePluginImplicitProviders] Skipping ${provider.id} - no result`);
       continue;
     }
     const normalizedResult = normalizePluginDiscoveryResult({
@@ -345,9 +339,6 @@ async function runProviderCatalogWithTimeout(
 export async function resolveImplicitProviders(
   params: ImplicitProviderParams,
 ): Promise<NonNullable<OpenClawConfig["models"]>["providers"]> {
-  console.log("[resolveImplicitProviders] Starting provider discovery");
-  console.log("[resolveImplicitProviders] agentDir:", params.agentDir);
-
   const providers: Record<string, ProviderConfig> = {};
   const env = params.env ?? process.env;
   let authStore: ReturnType<typeof ensureAuthProfileStore> | undefined;
@@ -370,7 +361,6 @@ export async function resolveImplicitProviders(
     workspaceDir: params.workspaceDir,
     env,
   });
-  console.log("[resolveImplicitProviders] discoveryFilter:", discoveryFilter);
 
   const discoveryProviders = await resolvePluginDiscoveryProviders({
     config: params.config,
@@ -378,8 +368,6 @@ export async function resolveImplicitProviders(
     env,
     onlyPluginIds: discoveryFilter,
   });
-  console.log("[resolveImplicitProviders] discoveryProviders count:", discoveryProviders.length);
-  console.log("[resolveImplicitProviders] discoveryProviders ids:", discoveryProviders.map(p => p.id));
 
   for (const order of PLUGIN_DISCOVERY_ORDERS) {
     console.log(`[resolveImplicitProviders] Processing order: ${order}`);
@@ -388,8 +376,5 @@ export async function resolveImplicitProviders(
       await resolvePluginImplicitProviders(context, discoveryProviders, order),
     );
   }
-
-  console.log("[resolveImplicitProviders] Final providers:", Object.keys(providers));
-
   return providers;
 }

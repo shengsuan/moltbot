@@ -29,17 +29,6 @@ start_gateway() {
     exit 1
 }
 
-generate_models_json() {
-    echo "[INFO] 生成 models.json..."
-    runuser -u node -- node dist/index.js models list --quiet > /dev/null 2>&1 || true
-
-    if [ -f "${CFG_DIR}/agents/main/agent/models.json" ]; then
-        echo "[INFO] ✓ models.json 已生成"
-    else
-        echo "[WARN] models.json 未生成，将在首次使用时自动创建"
-    fi
-}
-
 echo "[INFO] 配置 SSH 服务..."
 if [ -n "$SSH_ROOT_PASSWORD" ]; then
     echo "root:${SSH_ROOT_PASSWORD}" | chpasswd
@@ -88,15 +77,6 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     echo "[INFO] 修复文件权限..."
     chown -R node:node "${OPENCLAW_HOME:-/home/node}"
     start_gateway
-    echo "[INFO] 运行 onboard 初始化..."
-    runuser -u node -- node dist/index.js onboard \
-        --non-interactive \
-        --accept-risk \
-        --auth-choice shengsuanyun-api-key \
-        --shengsuanyun-api-key "${SHENGSUANYUN_API_KEY}"
-
-    # Generate models.json after onboard completes
-    generate_models_json
     echo "0" > "$INITIALIZED_FLAG"
     echo "[INFO] 初始化完成，已创建标记文件。"
 
@@ -105,13 +85,7 @@ else
     NEW_COUNT=$((RESTART_COUNT + 1))
     echo "$NEW_COUNT" > "$INITIALIZED_FLAG"
     echo "[INFO] 检测到标记文件，跳过初始化。当前已重启次数: $NEW_COUNT"
-
     start_gateway
-
-    # Generate models.json on restart if it doesn't exist
-    if [ ! -f "${CFG_DIR}/agents/main/agent/models.json" ]; then
-        generate_models_json
-    fi
 fi
 
 echo "[INFO] 网关运行中，等待进程结束..."
