@@ -6,6 +6,8 @@ import shutil
 import secrets
 import subprocess
 from pathlib import Path
+from urllib import request
+from urllib.error import URLError
 
 ROOT_DIR = Path(__file__).resolve().parent
 COMPOSE_FILE = ROOT_DIR / "docker-compose-ssy.yml"
@@ -16,10 +18,53 @@ def fail(msg: str) -> None:
     print(f"[ERROR] {msg}", file=sys.stderr)
     sys.exit(1)
 
+def fetch_and_update_models() -> None:
+    api_url = "https://router.shengsuanyun.com/api/v1/models"
+    templates_file = ROOT_DIR / "scripts" / "cfg.templates.json"
 
-def info(msg: str) -> None:
-    print(f"[INFO]  {msg}")
+    print(f"正在从 {api_url} 获取模型列表...")
+    try:
+        with request.urlopen(api_url, timeout=10) as response:
+            models_data = json.loads(response.read().decode('utf-8'))
 
+        if "data" in models_data and isinstance(models_data["data"], list):
+            model_ids = [
+                model["id"] 
+                for model in models_data["data"] 
+                if "id" in model 
+                and model.get("support_apis") 
+                and "/v1/chat/completions" in model.get("support_apis")
+            ]
+        else:
+            print(f"API 返回数据格式不正确: {models_data}")
+            return
+
+        model_ids.sort()
+        print(f"成功获取 {len(model_ids)} 个支持 chat/completions 的模型")
+        if not templates_file.exists():
+            print(f"配置文件不存在: {templates_file}")
+            return
+
+        with open(templates_file, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        if "agents" not in config:
+            config["agents"] = {}
+        if "defaults" not in config["agents"]:
+            config["agents"]["defaults"] = {}
+
+        config["agents"]["defaults"]["models"] = {"shengsuanyun/"+model_id: {} for model_id in model_ids}
+        with open(templates_file, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        print(f"已更新 {templates_file} 中的模型列表")
+
+    except URLError as e:
+        print(f"无法连接到 API: {e}")
+    except json.JSONDecodeError as e:
+        print(f"解析 JSON 数据失败: {e}")
+    except Exception as e:
+        print(f"更新模型列表时发生错误: {e}")
 
 def load_env_file(env_path: Path) -> None:
     """将 .env 文件中的变量加载到 os.environ（已设置的变量不会被覆盖）。"""
@@ -32,7 +77,6 @@ def load_env_file(env_path: Path) -> None:
                 continue
             key, _, val = line.partition("=")
             key = key.strip()
-            # 去除首尾引号（单引号或双引号）
             val = val.strip().strip("'\"")
             if key and key not in os.environ:
                 os.environ[key] = val
@@ -85,6 +129,7 @@ def run_compose(compose_args: list, *cmd_args, capture: bool = False, check: boo
     return result
 
 load_env_file(ENV_FILE)
+fetch_and_update_models()
 
 IMAGE_NAME = os.environ.get("OPENCLAW_IMAGE", "openclaw:latest")
 EXTRA_MOUNTS = os.environ.get("OPENCLAW_EXTRA_MOUNTS", "")
@@ -186,19 +231,29 @@ OPENCLAW_GATEWAY_TOKEN = os.environ.get("OPENCLAW_GATEWAY_TOKEN", "")
 if not OPENCLAW_GATEWAY_TOKEN:
     if token := get_config_token():
         OPENCLAW_GATEWAY_TOKEN = token
-        info(f"复用 {OPENCLAW_CONFIG_DIR}/openclaw.json 中的 gateway token")
+        print(f"复用 {OPENCLAW_CONFIG_DIR}/openclaw.json 中的 gateway token")
     elif token := get_env_file_token():
         OPENCLAW_GATEWAY_TOKEN = token
-        info(f"复用 {ENV_FILE} 中的 gateway token")
+        print(f"复用 {ENV_FILE} 中的 gateway token")
     else:
         OPENCLAW_GATEWAY_TOKEN = secrets.token_hex(32)
-        info("已生成新的 gateway token")
+        print("已生成新的 gateway token")
 
 os.environ["OPENCLAW_GATEWAY_TOKEN"] = OPENCLAW_GATEWAY_TOKEN
 
-# ──────────────────────────────────────────────────────────────
-# 动态 Compose 文件生成
-# ──────────────────────────────────────────────────────────────
+cfg_template_file = ROOT_DIR / "scripts" / "cfg.templates.json"
+cfg_target_file = ROOT_DIR / "scripts" / "openclaw.json"
+if cfg_template_file.is_file():
+    try:
+        with open(cfg_template_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        content = re.sub(r'\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}', lambda m: os.environ.get(m.group(1), ""), content)
+        content = re.sub(r'\$([a-zA-Z_][a-zA-Z0-9_]+)', lambda m: os.environ.get(m.group(1), ""), content)
+        with open(cfg_target_file, "w", encoding="utf-8") as f:
+            f.write(content)
+        print(f"配置文件已初始化：{cfg_template_file}")
+    except Exception as e:
+        fail(f"初始化配置文件失败：{e}")
 
 def write_extra_compose(home_vol: str, mounts: list[str]) -> None:
     lines = ["services:", "  openclaw-gateway:", "    volumes:"]
@@ -245,10 +300,6 @@ compose_args: list[str] = []
 for cf in compose_files:
     compose_args.extend(["-f", str(cf)])
 
-# ──────────────────────────────────────────────────────────────
-# 更新 .env 文件
-# ──────────────────────────────────────────────────────────────
-
 MANAGED_KEYS = [
     "OPENCLAW_CONFIG_DIR",
     "OPENCLAW_WORKSPACE_DIR",
@@ -258,7 +309,6 @@ MANAGED_KEYS = [
     "DOCKER_GID",
     "OPENCLAW_INSTALL_DOCKER_CLI",
 ]
-
 
 def upsert_env(file_path: Path, keys: list[str]) -> None:
     existing_lines: list[str] = []
@@ -293,7 +343,7 @@ BUILD_ARGS = [
 ]
 
 if IMAGE_NAME:
-    info(f"构建 Docker 镜像：{IMAGE_NAME}")
+    print(f"构建 Docker 镜像：{IMAGE_NAME}")
     if is_truthy(os.environ.get("DOCKER_BUILDX_AMD64", "")):
         build_cmd = ["docker", "buildx", "build"]
         for arg in BUILD_ARGS:
@@ -317,7 +367,7 @@ if IMAGE_NAME:
 # 启动网关
 # ──────────────────────────────────────────────────────────────
 
-info("启动网关服务")
+print("启动网关服务")
 run_compose(compose_args, "up", "-d", "openclaw-gateway")
 
 # ──────────────────────────────────────────────────────────────
@@ -330,7 +380,7 @@ if OPENCLAW_BROWSER_IMAGE:
         ["docker", "build", "-f", "Dockerfile.sandbox-browser", "-t", OPENCLAW_BROWSER_IMAGE, "."],
         check=True,
     )
-    info("启动沙盒浏览器")
+    print("启动沙盒浏览器")
     # 注意：此处使用独立的 browser compose 文件，不重复追加 compose_args 以避免参数冲突
     browser_compose_args = compose_args + ["-f", "docker-compose-browser.yml"]
     run_compose(browser_compose_args, "up", "-d", "openclaw-browser")

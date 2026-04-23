@@ -12,24 +12,139 @@
   "agents": {
     "defaults": {
       "models": {
-        "shengsuanyun/anthropic/claude-sonnet-4.6": {},
+        "shengsuanyun/ali/qvq-72b": {},
+        "shengsuanyun/ali/qwen-plus-latest": {},
+        "shengsuanyun/ali/qwen-plus-latest:thinking": {},
+        "shengsuanyun/ali/qwen-turbo-latest": {},
+        "shengsuanyun/ali/qwen-turbo-latest:thinking": {},
+        "shengsuanyun/ali/qwen-vl-ocr": {},
+        "shengsuanyun/ali/qwen-vl-plus": {},
+        "shengsuanyun/ali/qwen3-235b-a22b": {},
+        "shengsuanyun/ali/qwen3-235b-a22b-instruct-2507": {},
+        "shengsuanyun/ali/qwen3-235b-a22b-thinking-2507": {},
+        "shengsuanyun/ali/qwen3-coder-480b-a35b-instruct": {},
+        "shengsuanyun/ali/qwen3-coder-plus": {},
+        "shengsuanyun/ali/qwen3-max": {},
+        "shengsuanyun/ali/qwen3-max-2026-01-23": {},
+        "shengsuanyun/ali/qwen3-max-preview": {},
+        "shengsuanyun/ali/qwen3-next-80b-a3b-Instruct": {},
+        "shengsuanyun/ali/qwen3-next-80b-a3b-thinking": {},
+        "shengsuanyun/ali/qwen3-omni-flash": {},
+        "shengsuanyun/ali/qwen3-vl-plus": {},
+        "shengsuanyun/ali/qwen3.5-397b-a17b": {},
+        "shengsuanyun/ali/qwen3.5-flash": {},
+        "shengsuanyun/ali/qwen3.5-plus": {},
+        "shengsuanyun/ali/qwen3.6-max-preview": {},
+        "shengsuanyun/ali/qwen3.6-plus": {},
+        "shengsuanyun/anthropic/claude-3.5-haiku": {},
+        "shengsuanyun/anthropic/claude-3.7-sonnet": {},
+        "shengsuanyun/anthropic/claude-3.7-sonnet:thinking": {},
         "shengsuanyun/anthropic/claude-haiku-4.5": {},
         "shengsuanyun/anthropic/claude-haiku-4.5:thinking": {},
+        "shengsuanyun/anthropic/claude-opus-4": {},
+        "shengsuanyun/anthropic/claude-opus-4.1": {},
+        "shengsuanyun/anthropic/claude-opus-4.5": {},
+        "shengsuanyun/anthropic/claude-opus-4.6": {},
+        "shengsuanyun/anthropic/claude-opus-4.7": {},
+        "shengsuanyun/anthropic/claude-sonnet-4": {},
         "shengsuanyun/anthropic/claude-sonnet-4.5": {},
         "shengsuanyun/anthropic/claude-sonnet-4.5:thinking": {},
+        "shengsuanyun/anthropic/claude-sonnet-4.6": {},
+        "shengsuanyun/anthropic/claude-sonnet-4:thinking": {},
+        "shengsuanyun/baidu/ernie-4.0-turbo-128k": {},
+        "shengsuanyun/baidu/ernie-4.5-turbo-128k": {},
+        "shengsuanyun/baidu/ernie-4.5-turbo-32k": {},
+        "shengsuanyun/baidu/ernie-4.5-turbo-preview": {},
+        "shengsuanyun/baidu/ernie-4.5-turbo-vl-preview": {},
+        "shengsuanyun/bigmodel/glm-4-plus": {},
+        "shengsuanyun/bigmodel/glm-4.5": {},
+        "shengsuanyun/bigmodel/glm-4.5-air": {},
+        "shengsuanyun/bigmodel/glm-4.5-air:thinking": {},
+        "shengsuanyun/bigmodel/glm-4.5-airx": {},
+        "shengsuanyun/bigmodel/glm-4.5-airx:thinking": {},
+        "shengsuanyun/bigmodel/glm-4.5-x": {},
+        "shengsuanyun/bigmodel/glm-4.5-x:thinking": {},
+        "shengsuanyun/bigmodel/glm-4.5:thinking": {},
+        "shengsuanyun/bigmodel/glm-4.6": {},
+        "shengsuanyun/bigmodel/glm-4.6:thinking": {},
+        "shengsuanyun/bigmodel/glm-4.7": {},
+        "shengsuanyun/bigmodel/glm-5": {},
+        "shengsuanyun/bigmodel/glm-5-turbo": {},
+        "shengsuanyun/bigmodel/glm-5.1": {},
+        "shengsuanyun/bigmodel/glm-5v-turbo": {},
+        "shengsuanyun/bigmodel/glm-z1-airx": {},
+        "shengsuanyun/bytedance/doubao-pro-256k": {},
+        "shengsuanyun/bytedance/doubao-seed-1.6": {},
+        "shengsuanyun/bytedance/doubao-seed-1.6-flash": {},
+        "shengsuanyun/bytedance/doubao-seed-1.6:thinking": {},
+        "shengsuanyun/bytedance/doubao-seed-1.8": {},
+        "shengsuanyun/bytedance/doubao-seed-2-0-code": {},
+        "shengsuanyun/bytedance/doubao-seed-2-0-lite": {},
+        "shengsuanyun/bytedance/doubao-seed-2-0-mini": {},
+        "shengsuanyun/bytedance/doubao-seed-2-0-pro": {},
+        "shengsuanyun/deepseek/deepseek-ocr": {},
+        "shengsuanyun/deepseek/deepseek-r1-0528": {},
+        "shengsuanyun/deepseek/deepseek-v3": {},
+        "shengsuanyun/deepseek/deepseek-v3.1": {},
+        "shengsuanyun/deepseek/deepseek-v3.2": {},
+        "shengsuanyun/deepseek/deepseek-v3.2-think": {},
         "shengsuanyun/google/gemini-2.5-flash": {},
+        "shengsuanyun/google/gemini-2.5-flash-lite": {},
         "shengsuanyun/google/gemini-2.5-pro": {},
         "shengsuanyun/google/gemini-3-flash": {},
         "shengsuanyun/google/gemini-3.1-flash-lite-preview": {},
         "shengsuanyun/google/gemini-3.1-pro-preview": {},
+        "shengsuanyun/meta/llama-3.3-70b-instruct": {},
+        "shengsuanyun/meta/llama-4-scout": {},
+        "shengsuanyun/minimax/minimax-m1": {},
+        "shengsuanyun/minimax/minimax-m2": {},
+        "shengsuanyun/minimax/minimax-m2.1": {},
+        "shengsuanyun/minimax/minimax-m2.1-lightning": {},
+        "shengsuanyun/minimax/minimax-m2.5": {},
+        "shengsuanyun/minimax/minimax-m2.7": {},
+        "shengsuanyun/minimax/minimax-m2.7-highspeed": {},
+        "shengsuanyun/moonshot/kimi-k2": {},
+        "shengsuanyun/moonshot/kimi-k2.5": {},
+        "shengsuanyun/moonshot/kimi-k2.6": {},
+        "shengsuanyun/moonshot/kimi-latest": {},
+        "shengsuanyun/moonshot/kimi-thinking-preview": {},
+        "shengsuanyun/openai/codex-mini-latest": {},
+        "shengsuanyun/openai/gpt-4.1": {},
+        "shengsuanyun/openai/gpt-4.1-mini": {},
+        "shengsuanyun/openai/gpt-4.1-nano": {},
+        "shengsuanyun/openai/gpt-4o-2024-11-20": {},
+        "shengsuanyun/openai/gpt-4o-mini": {},
+        "shengsuanyun/openai/gpt-5": {},
+        "shengsuanyun/openai/gpt-5-codex": {},
+        "shengsuanyun/openai/gpt-5-mini": {},
+        "shengsuanyun/openai/gpt-5-nano": {},
+        "shengsuanyun/openai/gpt-5.1": {},
         "shengsuanyun/openai/gpt-5.2": {},
-        "shengsuanyun/openai/gpt-5.4-mini": {},
         "shengsuanyun/openai/gpt-5.3-chat": {},
         "shengsuanyun/openai/gpt-5.4": {},
+        "shengsuanyun/openai/gpt-5.4-mini": {},
         "shengsuanyun/openai/gpt-5.4-nano": {},
-        "shengsuanyun/openai/gpt-5-codex": {},
-        "shengsuanyun/openai/gpt-5-nano": {},
-        "shengsuanyun/x-ai/grok-3": {}
+        "shengsuanyun/openai/gpt-oss-120b": {},
+        "shengsuanyun/openai/gpt-oss-20b": {},
+        "shengsuanyun/openai/o1": {},
+        "shengsuanyun/openai/o3": {},
+        "shengsuanyun/openai/o3-mini": {},
+        "shengsuanyun/openai/o3-mini-high": {},
+        "shengsuanyun/openai/o4-mini": {},
+        "shengsuanyun/openai/o4-mini-high": {},
+        "shengsuanyun/stepfun/step-3.5-flash": {},
+        "shengsuanyun/stepfun/step-3.5-flash-2603": {},
+        "shengsuanyun/streamlake/kat-coder-air-v1": {},
+        "shengsuanyun/streamlake/kat-coder-exp-72b-1010": {},
+        "shengsuanyun/streamlake/kat-coder-pro-v1": {},
+        "shengsuanyun/tencent/hunyuan-t1-vision": {},
+        "shengsuanyun/tencent/hunyuan-turbo-vision": {},
+        "shengsuanyun/tencent/hunyuan-turbos-vision": {},
+        "shengsuanyun/x-ai/grok-3": {},
+        "shengsuanyun/x-ai/grok-4": {},
+        "shengsuanyun/x-ai/grok-4-fast": {},
+        "shengsuanyun/x-ai/grok-4.1-fast": {},
+        "shengsuanyun/xai/grok-code-fast-1": {}
       },
       "workspace": "/home/node/.openclaw/workspace",
       "model": {
@@ -97,19 +212,37 @@
     "elevated": {
       "enabled": true,
       "allowFrom": {
-        "webchat": ["*"],
-        "direct": ["*"]
+        "webchat": [
+          "*"
+        ],
+        "direct": [
+          "*"
+        ]
       }
     },
-    "alsoAllow": ["wecom_mcp", "qqbot_channel_api", "qqbot_remind"]
+    "alsoAllow": [
+      "wecom_mcp",
+      "qqbot_channel_api",
+      "qqbot_remind"
+    ]
   },
   "plugins": {
     "entries": {
-      "shengsuanyun": { "enabled": true },
-      "browser": { "enabled": true },
-      "wecom-openclaw-plugin": { "enabled": true },
-      "openclaw-weixin": { "enabled": true },
-      "qqbot": { "enabled": true }
+      "shengsuanyun": {
+        "enabled": true
+      },
+      "browser": {
+        "enabled": true
+      },
+      "wecom-openclaw-plugin": {
+        "enabled": true
+      },
+      "openclaw-weixin": {
+        "enabled": true
+      },
+      "qqbot": {
+        "enabled": true
+      }
     },
     "allow": [
       "shengsuanyun",
@@ -135,14 +268,21 @@
   "browser": {
     "enabled": true,
     "evaluateEnabled": true,
-    "headless": true,
     "noSandbox": true,
-    "attachOnly": true
+    "attachOnly": false,
+    "ssrfPolicy": {
+      "dangerouslyAllowPrivateNetwork": true, 
+      "allowPrivateNetwork": true, 
+      "hostnameAllowlist": ["*.com","*.net","*.org","*.io","localhost"],
+      "allowedHostnames": ["*"]
+    }
   },
   "channels": {
     "qqbot": {
       "enabled": true,
-      "allowFrom": ["*"]
+      "allowFrom": [
+        "*"
+      ]
     }
   },
   "bindings": [

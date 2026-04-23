@@ -25,7 +25,6 @@ start_gateway() {
         fi
         sleep 1
     done
-
     echo "[ERROR] 网关未就绪"
     kill "${GATEWAY_PID}" 2>/dev/null || true
     exit 1
@@ -43,17 +42,7 @@ fi
 if [ ! -f "$INITIALIZED_FLAG" ]; then
     echo "[INFO] 首次启动，开始执行初始化配置..."
     mkdir -p "${CFG_DIR}/extensions"
-
-    TEMPLATE_FILE="/app/cfg.templates.json"
-    if [ -f "${TEMPLATE_FILE}" ]; then
-        if [ ! -f "${CFG_DIR}/openclaw.json" ]; then
-            envsubst < "${TEMPLATE_FILE}" > "${CFG_DIR}/openclaw.json"
-            echo "[INFO] 配置文件已初始化：${CFG_DIR}/openclaw.json"
-        else
-            echo "[INFO] 配置文件已存在，跳过生成步骤以防止覆盖运行中状态"
-        fi
-    fi
-
+    cp /app/openclaw.json "${CFG_DIR}/openclaw.json"
     if [ -d "/app/plugins" ]; then
         shopt -s nullglob
         tarballs=(/app/plugins/*.tar.gz)
@@ -78,6 +67,7 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     mkdir -p "${CFG_DIR}/identity"
     echo "[INFO] 修复文件权限..."
     # chown -R node:node "${OPENCLAW_HOME:-/home/node}"
+    chown -R root:root "${CFG_DIR}/extensions/"
     start_gateway
     echo "0" > "$INITIALIZED_FLAG"
     echo "[INFO] 初始化完成，已创建标记文件。"
@@ -89,6 +79,5 @@ else
     echo "[INFO] 检测到标记文件，跳过初始化。当前已重启次数: $NEW_COUNT"
     start_gateway
 fi
-
 echo "[INFO] 网关运行中，等待进程结束..."
 wait "${GATEWAY_PID}"

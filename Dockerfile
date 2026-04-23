@@ -202,7 +202,7 @@ COPY --from=runtime-assets /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUND
 COPY --from=runtime-assets /app/skills ./skills
 COPY --from=runtime-assets /app/docs ./docs
 COPY --from=runtime-assets /app/scripts/cfg.sh ./scripts/cfg.sh
-COPY --from=runtime-assets /app/scripts/cfg.templates.json ./cfg.templates.json
+COPY --from=runtime-assets /app/scripts/openclaw.json ./openclaw.json
 RUN mkdir -p /run/sshd /root/.ssh && \
     chmod 700 /root/.ssh && \
     ssh-keygen -A 
