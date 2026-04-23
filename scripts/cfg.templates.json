@@ -212,19 +212,11 @@
     "elevated": {
       "enabled": true,
       "allowFrom": {
-        "webchat": [
-          "*"
-        ],
-        "direct": [
-          "*"
-        ]
+        "webchat": ["*"],
+        "direct": ["*"]
       }
     },
-    "alsoAllow": [
-      "wecom_mcp",
-      "qqbot_channel_api",
-      "qqbot_remind"
-    ]
+    "alsoAllow": ["wecom_mcp", "qqbot_channel_api", "qqbot_remind"]
   },
   "plugins": {
     "entries": {
@@ -271,18 +263,16 @@
     "noSandbox": true,
     "attachOnly": false,
     "ssrfPolicy": {
-      "dangerouslyAllowPrivateNetwork": true, 
-      "allowPrivateNetwork": true, 
-      "hostnameAllowlist": ["*.com","*.net","*.org","*.io","localhost"],
+      "dangerouslyAllowPrivateNetwork": true,
+      "allowPrivateNetwork": true,
+      "hostnameAllowlist": ["*.com", "*.net", "*.org", "*.io", "localhost"],
       "allowedHostnames": ["*"]
     }
   },
   "channels": {
     "qqbot": {
       "enabled": true,
-      "allowFrom": [
-        "*"
-      ]
+      "allowFrom": ["*"]
     }
   },
   "bindings": [
