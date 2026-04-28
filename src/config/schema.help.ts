@@ -43,10 +43,10 @@ export const FIELD_HELP: Record<string, string> = {
   "logging.consoleStyle":
     '控制台输出格式风格："pretty"、"compact" 或 "json"，取决于操作员和摄入需求。为机器解析管道使用 json，为人为优先的终端工作流使用 pretty/compact。',
   "logging.redactSensitive":
-    '敏感删除模式："off" 禁用内置遮蔽，而 "tools" 删除敏感工具/配置有效载荷字段。在共享日志中保持 "tools"，除非您有隔离的安全日志接收器。',
+    'Sensitive log/transcript redaction mode: "off" disables general log and transcript masking, while "tools" redacts sensitive tool/config payload fields in those sinks. Safety-boundary UI, tool, and diagnostic payloads may still redact even when this is "off".',
   "logging.redactPatterns":
-    "在发出/存储之前应用于日志输出的其他自定义删除正则表达式模式。使用此项屏蔽组织特定的令牌和内置删除规则未涵盖的标识符。",
-  cli: "CLI 演示控制，用于本地命令输出行为，如横幅和标语风格。使用此部分保持启动输出与操作员偏好一致，而无需更改运行时行为。",
+    "Additional custom redact regex patterns applied to log output, persisted transcript text, and safety-boundary UI/tool/diagnostic payloads before emission. Use this to mask org-specific tokens and identifiers not covered by built-in redaction rules.",
+  cli: "CLI presentation controls for local command output behavior such as banner and tagline style. Use this section to keep startup output aligned with operator preference without changing runtime behavior.",
   "cli.banner":
     "CLI 启动横幅控制，包括标题/版本行和标语风格行为。保持横幅启用以进行快速版本/上下文检查，然后将标语模式调整到您的首选噪声级别。",
   "cli.banner.taglineMode":
@@ -96,7 +96,7 @@ export const FIELD_HELP: Record<string, string> = {
   "gateway.channelHealthCheckMinutes":
     "Interval in minutes for automatic channel health probing and status updates. Use lower intervals for faster detection, or higher intervals to reduce periodic probe noise.",
   "gateway.channelStaleEventThresholdMinutes":
-    "How many minutes a connected channel can go without receiving any event before the health monitor treats it as a stale socket and triggers a restart. Default: 30.",
+    "How many minutes a connected channel can go without provider-proven transport activity before the health monitor treats it as a stale socket and triggers a restart. Default: 30.",
   "gateway.channelMaxRestartsPerHour":
     "Maximum number of health-monitor-initiated channel restarts allowed within a rolling one-hour window. Once hit, further restarts are skipped until the window expires. Default: 10.",
   "gateway.tailscale":
@@ -145,6 +145,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Provider-specific Talk settings keyed by provider id. During migration, prefer this over legacy talk.* keys.",
   "talk.providers.*": "Provider-owned Talk config fields for the matching provider id.",
   "talk.providers.*.apiKey": "Provider API key for Talk mode.", // pragma: allowlist secret
+  "talk.speechLocale":
+    'BCP 47 locale id for Talk speech recognition on device nodes, for example "ru-RU". Leave unset to use each device default.',
   "talk.interruptOnSpeech":
     "如果为 true（默认），在 Talk 模式下用户开始说话时停止助手语音。保持启用以进行会话轮流。",
   "talk.silenceTimeoutMs": `用户沉默的毫秒数，然后 Talk 模式完成并发送当前转录。保持未设置以保持平台默认暂停窗口（${describeTalkSilenceTimeoutDefaults()}）。`,
@@ -244,11 +246,17 @@ export const FIELD_HELP: Record<string, string> = {
   "browser.enabled":
     "在网关中启用浏览器功能接线，以便浏览器工具和 CDP 驱动的工作流可以运行。禁用浏览器自动化不需要时禁用以减少表面积和启动工作。",
   "browser.cdpUrl":
-    "用于附加到外部管理的浏览器实例的远程 CDP websocket URL。为集中式浏览器主机使用此项，并保持 URL 访问限制在受信任的网络路径。",
+    "Remote CDP websocket URL used to attach to an externally managed browser instance. Use this for centralized browser hosts and keep URL access restricted to trusted network paths.",
+  "browser.actionTimeoutMs":
+    "Default timeout in milliseconds for browser act requests before the client gives up waiting. Raise this when healthy waits or UI interactions exceed the default request budget.",
+  "browser.localLaunchTimeoutMs":
+    "Timeout in milliseconds for locally launched managed Chrome to expose its CDP HTTP endpoint after process start. Raise this on slow single-board computers or older hosts.",
+  "browser.localCdpReadyTimeoutMs":
+    "Timeout in milliseconds for a locally launched managed browser to finish CDP websocket readiness after the process is discovered. Raise this when Chrome starts but browser start still reports CDP not reachable.",
   "browser.color":
     "用于浏览器配置文件/UI 提示的默认重音色，其中显示彩色身份提示。使用一致的颜色帮助操作员快速识别活跃的浏览器配置文件上下文。",
   "browser.executablePath":
-    "当自动发现对于您的主机环境不足够时的显式浏览器可执行路径。使用绝对稳定路径，以便启动行为跨重启保持确定性。",
+    "Explicit browser executable path when auto-discovery is insufficient for your host environment. Use an absolute stable path, or a path starting with ~ for your OS home directory, so launch behavior stays deterministic across restarts.",
   "browser.headless":
     "当本地启动器启动浏览器实例时强制浏览器以无头模式启动。保持服务器环境中的无头启用，并仅在需要可见 UI 调试时禁用。",
   "browser.noSandbox":
@@ -266,9 +274,17 @@ export const FIELD_HELP: Record<string, string> = {
   "browser.profiles.*.cdpUrl":
     "Per-profile CDP websocket URL used for explicit remote browser routing by profile name. Use this when profile connections terminate on remote hosts or tunnels.",
   "browser.profiles.*.userDataDir":
-    "Per-profile Chromium user data directory for existing-session attachment through Chrome DevTools MCP. Use this for host-local Brave, Edge, Chromium, or non-default Chrome profiles when the built-in auto-connect path would pick the wrong browser data directory.",
+    "Per-profile Chromium user data directory for existing-session attachment through Chrome DevTools MCP. Use this for Brave, Edge, Chromium, or non-default Chrome profiles when the built-in auto-connect path would pick the wrong browser data directory on the selected host or browser node. Paths starting with ~ expand to the OS home directory.",
+  "browser.profiles.*.mcpCommand":
+    "Per-profile Chrome DevTools MCP command for existing-session attachment. Defaults to npx.",
+  "browser.profiles.*.mcpArgs":
+    "Extra per-profile Chrome DevTools MCP arguments for existing-session attachment, such as --no-usage-statistics. Endpoint arguments here override the built-in auto-connect or browser URL selection.",
   "browser.profiles.*.driver":
-    'Per-profile browser driver mode. Use "openclaw" (or legacy "clawd") for CDP-based profiles, or use "existing-session" for host-local Chrome DevTools MCP attachment.',
+    'Per-profile browser driver mode. Use "openclaw" (or legacy "clawd") for CDP-based profiles, or use "existing-session" for Chrome DevTools MCP attachment on the selected host or browser node.',
+  "browser.profiles.*.executablePath":
+    "Per-profile browser executable path for locally launched managed browser profiles. Overrides browser.executablePath and accepts paths starting with ~ for the OS home directory.",
+  "browser.profiles.*.headless":
+    "Per-profile headless override for locally launched browser instances. Use this when one profile should stay headless without forcing browser.headless for every other profile.",
   "browser.profiles.*.attachOnly":
     "按配置文件仅附件覆盖，跳过本地浏览器启动并仅附加到现有 CDP 端点。当一个配置文件由外部管理但其他配置文件在本地启动时有用。",
   "browser.profiles.*.color":
@@ -278,7 +294,17 @@ export const FIELD_HELP: Record<string, string> = {
   "browser.snapshotDefaults":
     "调用者未提供显式快照选项时使用的默认快照捕获配置。为跨通道和自动化路径的一致捕获行为调整此项。",
   "browser.snapshotDefaults.mode":
-    "默认快照提取模式控制页面内容如何转换为代理消费。选择在可读性、保真度和令牌占用之间取得平衡的模式。",
+    "Default snapshot extraction mode controlling how page content is transformed for agent consumption. Choose the mode that balances readability, fidelity, and token footprint for your workflows.",
+  "browser.tabCleanup":
+    "Best-effort cleanup policy for browser tabs opened by primary-agent sessions. Keep enabled to avoid stale sandbox or managed-browser tabs accumulating across long-lived gateways.",
+  "browser.tabCleanup.enabled":
+    "Enables cleanup of idle tracked browser tabs for primary-agent sessions. Disable only when external tooling owns tab lifecycle completely.",
+  "browser.tabCleanup.idleMinutes":
+    "Minutes of inactivity before a tracked primary-agent browser tab is eligible for closure. Set 0 to disable idle-time cleanup while keeping the per-session tab cap.",
+  "browser.tabCleanup.maxTabsPerSession":
+    "Maximum tracked browser tabs kept per primary-agent session. Oldest inactive tabs are closed first. Set 0 to disable the cap.",
+  "browser.tabCleanup.sweepMinutes":
+    "Minutes between browser tab cleanup sweeps. Keep this modest so idle tabs are reclaimed without adding frequent background work.",
   "browser.ssrfPolicy":
     "Server-side request forgery guardrail settings for browser/network fetch paths that could reach internal hosts. Keep restrictive defaults in production and open only explicitly approved targets.",
   "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork":
@@ -438,10 +464,14 @@ export const FIELD_HELP: Record<string, string> = {
     'Controls how config edits are applied: "off" ignores live edits, "restart" always restarts, "hot" applies in-process, and "hybrid" tries hot then restarts if required. Keep "hybrid" for safest routine updates.',
   "gateway.reload.debounceMs": "Debounce window (ms) before applying config changes.",
   "gateway.reload.deferralTimeoutMs":
-    "Maximum time (ms) to wait for in-flight operations to complete before forcing a SIGUSR1 restart. Default: 300000 (5 minutes). Lower values risk aborting active subagent LLM calls.",
+    "Optional maximum time (ms) to wait for in-flight operations before forcing a restart. Omit or set 0 to wait indefinitely with periodic still-pending warnings. Lower positive values risk aborting active subagent LLM calls.",
   "gateway.nodes.browser.mode":
-    '节点浏览器路由（"auto" = 选择单个连接的浏览器节点、"manual" = 需要节点参数、"off" = 禁用）。',
-  "gateway.nodes.browser.node": "将浏览器路由固定到特定节点 id 或名称（可选）。",
+    'Node browser routing ("auto" = pick single connected browser node, "manual" = require node param, "off" = disable).',
+  "gateway.nodes.browser.node": "Pin browser routing to a specific node id or name (optional).",
+  "gateway.nodes.pairing":
+    "Node pairing policy settings. Defaults keep CIDR auto-approval disabled; enable only with explicit trusted CIDR/IP allowlists you control.",
+  "gateway.nodes.pairing.autoApproveCidrs":
+    "Opt-in CIDR/IP allowlist for auto-approving first-time node-role device pairing with no requested scopes. Disabled when unset. Operator, browser, Control UI, and any role, scope, metadata, or public-key upgrade pairing still require manual approval.",
   "gateway.nodes.allowCommands":
     "超出网关默认值的额外 node.invoke 命令允许（命令字符串数组）。在此启用危险命令是对安全敏感的覆盖，由 `openclaw security audit` 标记。",
   "gateway.nodes.denyCommands":
@@ -467,7 +497,7 @@ export const FIELD_HELP: Record<string, string> = {
   "audio.transcription":
     "用于在代理处理之前将音频文件转换为文本的基于命令的转录设置。请保持命令路径简单且确定性，以便于在日志中诊断故障。",
   "audio.transcription.command":
-    '用于转录音频的可执行文件 + 参数（第一个标记必须是安全的二进制文件/路径），例如 `["whisper-cli", "--model", "small", "{input}"]`。建议使用固定命令，以确保运行时环境行为一致。',
+    'Executable + args used to transcribe audio (first token must be a safe binary/path), for example `["whisper-cli", "--model", "small", "{{MediaPath}}"]`. Deprecated `{input}` placeholders are migrated to `{{MediaPath}}` by `openclaw doctor --fix`.',
   "audio.transcription.timeoutSeconds":
     "转录命令完成的最长时间限制。对于较长的录音，请增加此值；对于对延迟要求较高的部署环境，请保持此值较低。",
   bindings:
@@ -475,7 +505,11 @@ export const FIELD_HELP: Record<string, string> = {
   "bindings[].type":
     "绑定类型。对于普通路由，请使用“route”（或省略以用于旧版路由条目）；对于持久性 ACP 会话绑定，请使用“acp”。",
   "bindings[].agentId":
-    "当满足相应的绑定匹配规则时，目标代理 ID 将接收流量。仅使用已配置的有效代理 ID，以避免运行时路由失败。",
+    "Target agent ID that receives traffic when the corresponding binding match rule is satisfied. Use valid configured agent IDs only so routing does not fail at runtime.",
+  "bindings[].session":
+    "Optional route session overrides for conversations matched by this binding. Use this when a narrow route should keep the same agent but isolate session continuity differently.",
+  "bindings[].session.dmScope":
+    'Optional DM session scope override for this route binding. For example, keep global session.dmScope="main" while using "per-account-channel-peer" for selected direct peers.',
   "bindings[].match":
     "绑定规则对象，用于决定绑定何时生效，包括频道和可选的账户/对等方约束。保持规则范围狭窄以避免意外的跨上下文代理接管。",
   "bindings[].match.channel":
@@ -510,13 +544,19 @@ export const FIELD_HELP: Record<string, string> = {
   "diagnostics.flags":
     '按标志启用有针对性的诊断日志（例如 ["telegram.http"]）。支持通配符如 "telegram.*" 或 "*"。',
   "diagnostics.enabled":
-    "诊断仪表输出的主切换，用于日志和遥测布线路径。为了正常的可观察性保持启用，仅在非常受限的环境中禁用。",
+    "Master toggle for diagnostics instrumentation output in logs and telemetry wiring paths. Defaults to enabled; set false only in tightly constrained environments.",
   "diagnostics.stuckSessionWarnMs":
     "毫秒级年龄阈值，用于在会话保持处理状态时发出卡住会话警告。对于长多工具轮次增加此值以减少误报；减少此值以获得更快的挂起检测。",
   "diagnostics.otel.enabled":
     "启用 OpenTelemetry 导出管道，用于基于配置的端点/协议设置的迹线、指标和日志。除非您的收集器端点和身份验证已完全配置，否则保持禁用。",
   "diagnostics.otel.endpoint":
-    "OpenTelemetry 导出传输使用的收集器端点 URL，包括方案和端口。使用可达且受信任的收集器端点，并在推出后监控摄取错误。",
+    "Collector endpoint URL used for OpenTelemetry export transport, including scheme and port. Use a reachable, trusted collector endpoint and monitor ingestion errors after rollout.",
+  "diagnostics.otel.tracesEndpoint":
+    "Signal-specific OTLP/HTTP trace endpoint. When set, this overrides diagnostics.otel.endpoint and OTEL_EXPORTER_OTLP_ENDPOINT for trace export only.",
+  "diagnostics.otel.metricsEndpoint":
+    "Signal-specific OTLP/HTTP metrics endpoint. When set, this overrides diagnostics.otel.endpoint and OTEL_EXPORTER_OTLP_ENDPOINT for metrics export only.",
+  "diagnostics.otel.logsEndpoint":
+    "Signal-specific OTLP/HTTP logs endpoint. When set, this overrides diagnostics.otel.endpoint and OTEL_EXPORTER_OTLP_ENDPOINT for log export only.",
   "diagnostics.otel.protocol":
     '用于遥测导出的 OTel 传输协议："http/protobuf" 或 "grpc"，取决于收集器支持。使用您的可观察性后端期望的协议以避免遥测负载丢失。',
   "diagnostics.otel.headers":
@@ -532,8 +572,23 @@ export const FIELD_HELP: Record<string, string> = {
   "diagnostics.otel.sampleRate":
     "迹线采样率（0-1），控制多少迹线流量被导出到可观察性后端。较低的速率降低开销/成本，较高的速率提高调试保真度。",
   "diagnostics.otel.flushIntervalMs":
-    "以毫秒为单位的间隔，用于从缓冲区定期刷新遥测到收集器。增加以减少导出聊天，或降低以在活跃事件响应期间获得更快的可见性。",
-  "diagnostics.cacheTrace.enabled": "记录嵌入式代理运行的缓存迹线快照（默认值：false）。",
+    "Interval in milliseconds for periodic telemetry flush from buffers to the collector. Increase to reduce export chatter, or lower for faster visibility during active incident response.",
+  "diagnostics.otel.captureContent":
+    "Opt-in OTEL span content capture. Defaults to off; boolean true captures non-system message/tool content, while the object form lets you enable specific content classes.",
+  "diagnostics.otel.captureContent.enabled":
+    "Master switch for granular OTEL content capture fields. Keep disabled unless your collector is approved for raw prompt, response, or tool content.",
+  "diagnostics.otel.captureContent.inputMessages":
+    "Capture model input message text on OTEL spans when content capture is enabled.",
+  "diagnostics.otel.captureContent.outputMessages":
+    "Capture model output message text on OTEL spans when content capture is enabled.",
+  "diagnostics.otel.captureContent.toolInputs":
+    "Capture tool input text on OTEL spans when content capture is enabled.",
+  "diagnostics.otel.captureContent.toolOutputs":
+    "Capture tool output text on OTEL spans when content capture is enabled.",
+  "diagnostics.otel.captureContent.systemPrompt":
+    "Capture system prompt text on OTEL spans when content capture is enabled. This remains off unless explicitly enabled.",
+  "diagnostics.cacheTrace.enabled":
+    "Log cache trace snapshots for embedded agent runs (default: false).",
   "diagnostics.cacheTrace.filePath":
     "JSONL output path for cache trace logs (default: $OPENCLAW_STATE_DIR/logs/cache-trace.jsonl).",
   "diagnostics.cacheTrace.includeMessages":
@@ -754,7 +809,15 @@ export const FIELD_HELP: Record<string, string> = {
   "models.providers.*.auth":
     '选择提供商身份验证风格："api-key"（API 密钥）用于 API 密钥身份验证，"token"（令牌）用于持有者令牌身份验证，"oauth"（OAuth）用于 OAuth 凭证，"aws-sdk"（AWS SDK）用于 AWS 凭证解析。将其与您的提供商要求匹配。',
   "models.providers.*.api":
-    "提供商 API 适配器选择，控制模型调用的请求/响应兼容性处理。使用与您的上游提供商协议匹配的适配器以避免功能不匹配。",
+    "Provider API adapter selection controlling request/response compatibility handling for model calls. Use the adapter that matches your upstream provider protocol to avoid feature mismatch.",
+  "models.providers.*.contextWindow":
+    "Default native context window applied to models under this provider when a model entry does not set contextWindow. Use model-level contextWindow for per-model overrides.",
+  "models.providers.*.contextTokens":
+    "Default effective runtime context cap applied to models under this provider when a model entry does not set contextTokens. Use this when runtime should budget below the native contextWindow.",
+  "models.providers.*.maxTokens":
+    "Default maximum output token budget applied to models under this provider when a model entry does not set maxTokens.",
+  "models.providers.*.timeoutSeconds":
+    "Optional per-provider model request timeout in seconds. Applies to provider HTTP fetches, including connect, headers, body, and total request abort handling. Use this for slow local or self-hosted model servers instead of changing global agent timeouts.",
   "models.providers.*.injectNumCtxForOpenAICompat":
     "控制 OpenClaw 是否为配置了 OpenAI 兼容适配器（`openai-completions`）的 Ollama 提供商注入 `options.num_ctx`。默认为 true。仅当您的代理/上游拒绝未知的 `options` 负载字段时设置为 false。",
   "models.providers.*.headers":
@@ -814,7 +877,7 @@ export const FIELD_HELP: Record<string, string> = {
   "models.providers.*.request.allowPrivateNetwork":
     "When true, allow HTTPS to the model base URL when DNS resolves to private, CGNAT, or similar ranges, via the provider HTTP fetch guard (fetchWithSsrFGuard). OpenAI Responses WebSocket reuses request for headers/TLS but does not use that fetch SSRF path. Use only for operator-controlled self-hosted OpenAI-compatible endpoints (LAN, overlay, split DNS). Default is false.",
   "models.providers.*.models":
-    "Declared model list for a provider including identifiers, metadata, and optional compatibility/cost hints. Keep IDs exact to provider catalog values so selection and fallback resolve correctly.",
+    "Declared model list for a provider including identifiers, metadata, provider-specific params, and optional compatibility/cost hints. Keep IDs exact to provider catalog values so selection and fallback resolve correctly.",
   auth: "Authentication profile root used for multi-profile provider credentials and cooldown-based failover ordering. Keep profiles minimal and explicit so automatic failover behavior stays auditable.",
   "channels.matrix.allowBots":
     'Allow messages from other configured Matrix bot accounts to trigger replies (default: false). Set "mentions" to only accept bot messages that visibly mention this bot.',
@@ -851,9 +914,9 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.contextInjection":
     'Controls when workspace bootstrap files are injected into the system prompt: "always" (default) or "continuation-skip" for safe continuation turns after a completed assistant response.',
   "agents.defaults.bootstrapMaxChars":
-    "在截断前注入系统提示的每个工作区引导文件的最大字符数（默认：20000）。",
+    "Max characters of each workspace bootstrap file injected into the system prompt before truncation (default: 12000).",
   "agents.defaults.bootstrapTotalMaxChars":
-    "Max total characters across all injected workspace bootstrap files (default: 150000).",
+    "Max total characters across all injected workspace bootstrap files (default: 60000).",
   "agents.defaults.experimental":
     "Experimental agent-default flags. Keep these off unless you are intentionally testing a preview surface.",
   "agents.defaults.experimental.localModelLean":
@@ -876,6 +939,12 @@ export const FIELD_HELP: Record<string, string> = {
     "Maximum total characters retained across all loaded daily memory files in the startup prelude (default: 2800). Additional files are truncated from the prelude once this cap is reached.",
   "agents.defaults.repoRoot":
     "Optional repository root shown in the system prompt runtime line (overrides auto-detect).",
+  "agents.defaults.promptOverlays":
+    "Provider-independent prompt overlays applied by model family before provider-specific prompt hooks.",
+  "agents.defaults.promptOverlays.gpt5":
+    "Shared GPT-5-family prompt overlay applied to matching model ids across providers such as OpenAI, OpenRouter, OpenCode, Codex, and compatible gateways.",
+  "agents.defaults.promptOverlays.gpt5.personality":
+    'Friendly interaction-style layer for GPT-5-family models ("friendly" or "on" enables it; "off" disables only that layer). The tagged behavior contract remains enabled for matching GPT-5 models.',
   "agents.defaults.envelopeTimezone":
     '消息信封的时区（"utc"、"local"、"user" 或 IANA 时区字符串）。',
   "agents.defaults.envelopeTimestamp": '在消息信封中包括绝对时间戳（"on" 或 "off"）。',
@@ -912,6 +981,12 @@ export const FIELD_HELP: Record<string, string> = {
     'Selects the embedding backend used to build/query memory vectors: "openai", "gemini", "voyage", "mistral", "bedrock", "lmstudio", "ollama", or "local". Keep your most reliable provider here and configure fallback for resilience.',
   "agents.defaults.memorySearch.model":
     "Embedding model override used by the selected memory provider when a non-default model is required. Set this only when you need explicit recall quality/cost tuning beyond provider defaults.",
+  "agents.defaults.memorySearch.inputType":
+    "Use this optional provider-specific `input_type` value only when the same label should apply to both query and document embedding requests. For asymmetric providers, prefer queryInputType and documentInputType.",
+  "agents.defaults.memorySearch.queryInputType":
+    "Optional provider-specific `input_type` value for query-time memory embeddings. Use this with OpenAI-compatible asymmetric embedding endpoints that require a query label.",
+  "agents.defaults.memorySearch.documentInputType":
+    "Optional provider-specific `input_type` value for document and indexing memory embeddings. Use this with OpenAI-compatible asymmetric embedding endpoints that require a passage or document label.",
   "agents.defaults.memorySearch.outputDimensionality":
     "Provider-specific output vector size override for memory embeddings. Gemini embedding-2 supports 768, 1536, or 3072; Bedrock families such as Titan V2, Cohere V4, and Nova expose their own allowed sizes. Expect a full reindex when you change it because stored vector dimensions must stay consistent.",
   "agents.defaults.memorySearch.remote.baseUrl":
@@ -919,7 +994,9 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.remote.apiKey":
     "为内存索引和查询时嵌入使用的远程嵌入调用提供专用 API 密钥。当内存嵌入应使用不同于全局默认值或环境变量的凭证时使用此项。",
   "agents.defaults.memorySearch.remote.headers":
-    "添加到远程嵌入请求的自定义 HTTP 标头，与提供商默认值合并。对代理认证和租户路由标头使用此项，并保持值最少以避免泄露敏感元数据。",
+    "Adds custom HTTP headers to remote embedding requests, merged with provider defaults. Use this for proxy auth and tenant routing headers, and keep values minimal to avoid leaking sensitive metadata.",
+  "agents.defaults.memorySearch.remote.nonBatchConcurrency":
+    "Controls concurrent inline embedding requests during non-batch memory indexing. Use a low value for local or small self-hosted providers such as Ollama; batch embedding concurrency is configured separately under remote.batch.",
   "agents.defaults.memorySearch.remote.batch.enabled":
     "支持时启用提供商批处理 API 以进行嵌入作业（OpenAI/Gemini），改进较大索引运行的吞吐量。除非调试提供商批处理故障或运行非常小的工作负载，否则保持此启用。",
   "agents.defaults.memorySearch.remote.batch.wait":
@@ -931,7 +1008,9 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.remote.batch.timeoutMinutes":
     "设置完整嵌入批处理操作的最大等待时间（分钟）（默认：60）。为非常大的语料库或较慢的提供商增加，并在自动化繁重的流程中快速故障时降低。",
   "agents.defaults.memorySearch.local.modelPath":
-    "为本地内存搜索指定本地嵌入模型源，如 GGUF 文件路径或 `hf:` URI。仅在提供商为 `local` 时使用此项，并在大型索引重建前验证模型兼容性。",
+    "Specifies the local embedding model source for local memory search, such as a GGUF file path or `hf:` URI. Use this only when provider is `local`, and verify model compatibility before large index rebuilds.",
+  "agents.defaults.memorySearch.local.contextSize":
+    'Context window size passed to node-llama-cpp when creating the embedding context (default: 4096). 4096 safely covers typical memory-search chunks (128\u2013512 tokens) while keeping non-weight VRAM bounded. Lower to 1024\u20132048 on resource-constrained hosts. Set to "auto" to let node-llama-cpp use the model\'s trained maximum \u2014 not recommended for large models (e.g. Qwen3-Embedding-8B trained on 40\u202f960 tokens can push VRAM from ~8.8\u202fGB to ~32\u202fGB).',
   "agents.defaults.memorySearch.fallback":
     'Backup provider used when primary embeddings fail: "openai", "gemini", "voyage", "mistral", "bedrock", "lmstudio", "ollama", "local", or "none". Set a real fallback for production reliability; use "none" only if you prefer explicit failures.',
   "agents.defaults.memorySearch.store.path":
@@ -1036,7 +1115,9 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.memorySearch.sync.watch":
     "监视内存文件并根据文件更改事件（chokidar）安排索引更新。启用此功能可获得近乎实时的更新；如果监视操作过于频繁，则在非常大的工作区中禁用此功能。",
   "agents.defaults.memorySearch.sync.watchDebounceMs":
-    "用于在重新索引运行前合并快速文件监视事件的防抖窗口（以毫秒为单位）。增加此值可减少频繁写入文件的频繁更改，降低此值可加快文件更新速度。",
+    "Debounce window in milliseconds for coalescing rapid file-watch events before reindex runs. Increase to reduce churn on frequently-written files, or lower for faster freshness.",
+  "agents.defaults.memorySearch.sync.embeddingBatchTimeoutSeconds":
+    "Overrides the timeout for inline embedding batches during memory indexing. Leave unset to use provider defaults: 600 seconds for local/self-hosted providers such as local, Ollama, and LM Studio, and 120 seconds for hosted providers.",
   "agents.defaults.memorySearch.sync.sessions.deltaBytes":
     "会话记录更改触发重新索引之前，至少需要添加这么多新字节（默认值：100000）。增加此值可减少频繁的小幅重新索引，降低此值可加快记录更新速度。",
   "agents.defaults.memorySearch.sync.sessions.deltaMessages":
@@ -1077,6 +1158,8 @@ export const FIELD_HELP: Record<string, string> = {
     "针对核心强制执行的安全门，可对每个插件进行类型化的钩子策略控制。使用此功能可在不禁用整个插件的情况下，限制高影响的钩子类别。",
   "plugins.entries.*.hooks.allowPromptInjection":
     "Controls whether this plugin may mutate prompts through typed hooks. Set false to block `before_prompt_build` and ignore prompt-mutating fields from legacy `before_agent_start`, while preserving legacy `modelOverride` and `providerOverride` behavior.",
+  "plugins.entries.*.hooks.allowConversationAccess":
+    "Controls whether this plugin may read raw conversation content from typed hooks such as `llm_input`, `llm_output`, `before_agent_finalize`, and `agent_end`. Non-bundled plugins must opt in explicitly.",
   "plugins.entries.*.subagent":
     "Per-plugin subagent runtime controls for model override trust and allowlists. Keep this unset unless a plugin must explicitly steer subagent model selection.",
   "plugins.entries.*.subagent.allowModelOverride":
@@ -1089,48 +1172,32 @@ export const FIELD_HELP: Record<string, string> = {
     "每个插件的环境变量映射仅注入到该插件的运行时上下文中。使用此功能可以将提供程序凭据限定于单个插件，而不是共享全局进程环境。",
   "plugins.entries.*.config":
     "Plugin-defined configuration payload interpreted by that plugin's own schema and validation rules. Use only documented fields from the plugin to prevent ignored or invalid settings.",
-  "plugins.installs":
-    "CLI-managed install metadata (used by `openclaw plugins update` to locate install sources).",
-  "plugins.installs.*.source": 'Install source ("npm", "archive", or "path").',
-  "plugins.installs.*.spec": "Original npm spec used for install (if source is npm).",
-  "plugins.installs.*.sourcePath": "Original archive/path used for install (if any).",
-  "plugins.installs.*.installPath": "Resolved install directory for the installed plugin bundle.",
-  "plugins.installs.*.version": "Version recorded at install time (if available).",
-  "plugins.installs.*.resolvedName": "Resolved npm package name from the fetched artifact.",
-  "plugins.installs.*.resolvedVersion":
-    "Resolved npm package version from the fetched artifact (useful for non-pinned specs).",
-  "plugins.installs.*.resolvedSpec":
-    "Resolved exact npm spec (<name>@<version>) from the fetched artifact.",
-  "plugins.installs.*.integrity":
-    "Resolved npm dist integrity hash for the fetched artifact (if reported by npm).",
-  "plugins.installs.*.shasum":
-    "Resolved npm dist shasum for the fetched artifact (if reported by npm).",
-  "plugins.installs.*.resolvedAt":
-    "ISO timestamp when npm package metadata was last resolved for this install record.",
-  "plugins.installs.*.installedAt": "ISO timestamp of last install/update.",
-  "plugins.installs.*.marketplaceName":
-    "Marketplace display name recorded for marketplace-backed plugin installs (if available).",
-  "plugins.installs.*.marketplaceSource":
-    "Original marketplace source used to resolve the install (for example a repo path or Git URL).",
-  "plugins.installs.*.marketplacePlugin":
-    "Plugin entry name inside the source marketplace, used for later updates.",
   "agents.list.*.identity.avatar":
     "Agent avatar (workspace-relative path, http(s) URL, or data URI).",
   "agents.defaults.model.primary": "Primary model (provider/model).",
   "agents.defaults.model.fallbacks":
     "Ordered fallback models (provider/model). Used when the primary model fails.",
+  "agents.defaults.agentRuntime":
+    "Default agent runtime policy. Omitted id uses built-in OpenClaw Pi. Use id=auto for plugin harness selection, a registered harness id such as codex, or a supported CLI backend alias such as claude-cli.",
+  "agents.defaults.agentRuntime.id":
+    "Agent runtime id: pi, auto, a registered plugin harness id such as codex, or a supported CLI backend alias such as claude-cli. Omitted id uses built-in OpenClaw Pi.",
+  "agents.defaults.agentRuntime.fallback":
+    "Agent runtime fallback when no plugin harness matches. Auto mode defaults to pi; explicit plugin runtimes default to none and do not inherit broader fallback settings. Selected plugin harness failures surface directly.",
   "agents.defaults.embeddedHarness":
-    "Default embedded agent harness policy. Use runtime=auto for plugin harness selection, runtime=pi for built-in PI, or a registered harness id such as codex.",
-  "agents.defaults.embeddedHarness.runtime":
-    "Embedded harness runtime: auto, pi, or a registered plugin harness id such as codex.",
+    "Legacy input for agents.defaults.agentRuntime. Run openclaw doctor --fix to rewrite it to agentRuntime.",
+  "agents.defaults.embeddedHarness.runtime": "Legacy input for agents.defaults.agentRuntime.id.",
   "agents.defaults.embeddedHarness.fallback":
-    "Embedded harness fallback when no plugin harness matches or an auto-selected plugin harness fails before side effects. Set none to disable automatic PI fallback.",
+    "Legacy input for agents.defaults.agentRuntime.fallback.",
+  "agents.list.*.agentRuntime":
+    "Per-agent agent runtime policy override. Use id=codex to force Codex for one agent while defaults stay in auto mode.",
+  "agents.list.*.agentRuntime.id":
+    "Per-agent agent runtime id: pi, auto, a registered plugin harness id such as codex, or a supported CLI backend alias such as claude-cli. Omitted id inherits the default OpenClaw Pi behavior.",
+  "agents.list.*.agentRuntime.fallback":
+    "Per-agent agent runtime fallback. Auto mode defaults to pi; explicit plugin runtimes default to none and do not inherit broader fallback settings.",
   "agents.list.*.embeddedHarness":
-    "Per-agent embedded harness policy override. Use fallback=none to make this agent fail instead of falling back to PI.",
-  "agents.list.*.embeddedHarness.runtime":
-    "Per-agent embedded harness runtime: auto, pi, or a registered plugin harness id such as codex.",
-  "agents.list.*.embeddedHarness.fallback":
-    "Per-agent embedded harness fallback. Set none to disable automatic PI fallback for this agent.",
+    "Legacy input for agents.list.*.agentRuntime. Run openclaw doctor --fix to rewrite it to agentRuntime.",
+  "agents.list.*.embeddedHarness.runtime": "Legacy input for agents.list.*.agentRuntime.id.",
+  "agents.list.*.embeddedHarness.fallback": "Legacy input for agents.list.*.agentRuntime.fallback.",
   "agents.defaults.imageModel.primary":
     "Optional image model (provider/model) used when the primary model lacks image input.",
   "agents.defaults.imageModel.fallbacks": "Ordered fallback image models (provider/model).",
@@ -1138,6 +1205,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Optional image-generation model (provider/model) used by the shared image generation capability.",
   "agents.defaults.imageGenerationModel.fallbacks":
     "Ordered fallback image-generation models (provider/model).",
+  "agents.defaults.imageGenerationModel.timeoutMs":
+    "Default provider request timeout in milliseconds for image_generate calls. Per-call timeoutMs overrides this.",
   "agents.defaults.videoGenerationModel.primary":
     "Optional video-generation model (provider/model) used by the shared video generation capability.",
   "agents.defaults.videoGenerationModel.fallbacks":
@@ -1177,9 +1246,9 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.compaction.recentTurnsPreserve":
     "在安全摘要之外，保留最近用户/助手对话的完整轮次数量（默认值：3）。提高此值可保留最近的完整对话上下文，降低此值可最大限度地节省压缩空间。",
   "agents.defaults.compaction.qualityGuard":
-    "可选的质量审核重试设置，用于生成安全压缩摘要。除非您明确希望在检查失败时进行摘要审核和一次性重新生成，否则请保持禁用状态。",
+    "Quality-audit retry settings for safeguard compaction summaries. Safeguard mode enables this by default; set enabled: false to skip summary audits and regeneration.",
   "agents.defaults.compaction.qualityGuard.enabled":
-    "启用摘要质量审核和再生重试以进行保护压缩。默认值：false，因此仅保护模式不会触发重试行为。",
+    "Enables summary quality audits and regeneration retries for safeguard compaction. Default: true in safeguard mode.",
   "agents.defaults.compaction.qualityGuard.maxRetries":
     "Maximum number of regeneration retries after a failed safeguard summary quality audit. Use small values to bound extra latency and token cost.",
   "agents.defaults.compaction.postIndexSync":
@@ -1191,9 +1260,11 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.compaction.model":
     "Optional provider/model override used only for compaction summarization. Set this when you want compaction to run on a different model than the session default, and leave it unset to keep using the primary agent model.",
   "agents.defaults.compaction.truncateAfterCompaction":
-    "When enabled, rewrites the session JSONL file after compaction to remove entries that were summarized. Prevents unbounded file growth in long-running sessions with many compaction cycles. Default: false.",
+    "When enabled, rotates the active session JSONL file after compaction so future turns load only the summary and unsummarized tail while the previous full transcript remains archived. Prevents unbounded active transcript growth in long-running sessions. Default: false.",
+  "agents.defaults.compaction.maxActiveTranscriptBytes":
+    'Triggers normal local compaction when the active session transcript reaches this size (bytes or strings like "20mb"). Requires truncateAfterCompaction so successful compaction can rotate to a smaller successor transcript; set to 0 or leave unset to disable. This never splits raw transcript bytes.',
   "agents.defaults.compaction.notifyUser":
-    "When enabled, sends a brief compaction notice to the user (e.g. '🧹 Compacting context...') when compaction starts. Disabled by default to keep compaction silent and non-intrusive.",
+    "When enabled, sends brief compaction notices to the user when compaction starts and when it completes (for example, '🧹 Compacting context...' and '🧹 Compaction complete'). Disabled by default to keep compaction silent and non-intrusive.",
   "agents.defaults.compaction.memoryFlush":
     "预压缩内存刷新设置会在进行大量内存压缩之前执行一次主动内存写入操作。长时间会话期间请保持启用状态，以便在进行大幅度内存修剪之前保留关键上下文信息。",
   "agents.defaults.compaction.memoryFlush.enabled":
@@ -1250,6 +1321,8 @@ export const FIELD_HELP: Record<string, string> = {
   mcp: "Global MCP server definitions managed by OpenClaw. Embedded Pi and other runtime adapters can consume these servers without storing them inside Pi-owned project settings.",
   "mcp.servers":
     "Named MCP server definitions. OpenClaw stores them in its own config and runtime adapters decide which transports are supported at execution time.",
+  "mcp.sessionIdleTtlMs":
+    "Idle TTL in milliseconds for session-scoped bundled MCP runtimes. Defaults to 10 minutes; set 0 to disable idle eviction.",
   session:
     "全局会话路由、重置、传递策略和维护控制，用于对话历史行为。除非您需要更严格的隔离、保留或传递约束，否则请保留默认设置。",
   "session.scope":
@@ -1346,7 +1419,7 @@ export const FIELD_HELP: Record<string, string> = {
   "cron.store":
     "cron 作业存储文件的路径，用于跨重启持久化计划作业。仅在需要自定义存储布局、备份或挂载卷时设置显式路径。",
   "cron.maxConcurrentRuns":
-    "限制多个计划同时激活时可以同时执行的 cron 作业数。使用较低的值来保护重负载下的 CPU/内存，或谨慎提高以获得更高的吞吐量。",
+    "Limits how many cron jobs can execute at the same time when multiple schedules fire together, including isolated agent-turn LLM execution on the dedicated cron-nested lane. Use lower values to protect CPU/memory under heavy automation load, or raise carefully for higher throughput.",
   "cron.retry":
     "覆盖单次作业在发生临时错误(速率限制、过载、网络、server_error)时的默认重试策略。省略以使用默认值：maxAttempts 3、backoffMs [30000, 60000, 300000]、重试所有临时类型。",
   "cron.retry.maxAttempts": "单次作业在临时错误时的最大重试次数，达到后永久禁用(默认值：3)。",
@@ -1520,6 +1593,16 @@ export const FIELD_HELP: Record<string, string> = {
     "在启用时在最终回复传递后移除确认反应。在频道中保持启用状态，其中持久 ack 反应创建混乱以获得更清洁的 UX。",
   "messages.tts":
     "Text-to-speech policy for reading agent replies aloud on supported voice or audio surfaces. Keep disabled unless voice playback is part of your operator/user workflow.",
+  "messages.tts.persona":
+    "Default TTS persona id. Local TTS persona preferences can override this per host.",
+  "messages.tts.personas":
+    "Named TTS personas that define stable spoken identity plus provider-specific speech bindings.",
+  "messages.tts.personas.*":
+    "One TTS persona. Use provider-specific bindings for exact voices/models and prompt templates.",
+  "messages.tts.personas.*.prompt":
+    "Provider-neutral persona prompt intent. Providers decide whether and how to map this into request instructions.",
+  "messages.tts.personas.*.providers":
+    "Provider-specific TTS persona bindings keyed by speech provider id. These merge over messages.tts.providers for the active persona.",
   "messages.tts.providers":
     "Provider-specific TTS settings keyed by speech provider id. Use this instead of bundled provider-specific top-level keys so speech plugins stay decoupled from core config schema.",
   "messages.tts.providers.*":

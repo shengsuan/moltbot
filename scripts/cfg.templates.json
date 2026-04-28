@@ -148,7 +148,12 @@
         "shengsuanyun/x-ai/grok-4": {},
         "shengsuanyun/x-ai/grok-4-fast": {},
         "shengsuanyun/x-ai/grok-4.1-fast": {},
-        "shengsuanyun/xai/grok-code-fast-1": {}
+        "shengsuanyun/xai/grok-code-fast-1": {},
+        "shengsuanyun/xiaomi/mimo-v2-flash": {},
+        "shengsuanyun/xiaomi/mimo-v2-omni": {},
+        "shengsuanyun/xiaomi/mimo-v2-pro": {},
+        "shengsuanyun/xiaomi/mimo-v2.5": {},
+        "shengsuanyun/xiaomi/mimo-v2.5-pro": {}
       },
       "workspace": "/home/node/.openclaw/workspace",
       "model": {
@@ -216,11 +221,19 @@
     "elevated": {
       "enabled": true,
       "allowFrom": {
-        "webchat": ["*"],
-        "direct": ["*"]
+        "webchat": [
+          "*"
+        ],
+        "direct": [
+          "*"
+        ]
       }
     },
-    "alsoAllow": ["wecom_mcp", "qqbot_channel_api", "qqbot_remind"]
+    "alsoAllow": [
+      "wecom_mcp",
+      "qqbot_channel_api",
+      "qqbot_remind"
+    ]
   },
   "plugins": {
     "entries": {
@@ -246,8 +259,7 @@
       "openclaw-weixin",
       "qqbot",
       "browser",
-      "memory-core",
-      "restart"
+      "memory-core"
     ],
     "installs": {
       "wecom-openclaw-plugin": {
@@ -270,14 +282,24 @@
     "ssrfPolicy": {
       "dangerouslyAllowPrivateNetwork": true,
       "allowPrivateNetwork": true,
-      "hostnameAllowlist": ["*.com", "*.net", "*.org", "*.io", "localhost"],
-      "allowedHostnames": ["*"]
+      "hostnameAllowlist": [
+        "*.com",
+        "*.net",
+        "*.org",
+        "*.io",
+        "localhost"
+      ],
+      "allowedHostnames": [
+        "*"
+      ]
     }
   },
   "channels": {
     "qqbot": {
       "enabled": true,
-      "allowFrom": ["*"]
+      "allowFrom": [
+        "*"
+      ]
     }
   },
   "bindings": [

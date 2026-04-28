@@ -18,7 +18,7 @@ start_gateway() {
     GATEWAY_PID=$!
 
     echo "[INFO] 等待网关健康检查..."
-    for i in {1..60}; do
+    for i in {1..300}; do
         if curl -sf http://127.0.0.1:18789/healthz >/dev/null 2>&1; then
             echo "[INFO] 网关已就绪（${i}s)"
             return 0
@@ -69,16 +69,14 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     echo "[INFO] 修复文件权限..."
     # chown -R node:node "${OPENCLAW_HOME:-/home/node}"
     chown -R root:root "${CFG_DIR}/extensions/"
-    start_gateway
     echo "0" > "$INITIALIZED_FLAG"
     echo "[INFO] 初始化完成，已创建标记文件。"
-
-else
-    RESTART_COUNT=$(cat "$INITIALIZED_FLAG")
-    NEW_COUNT=$((RESTART_COUNT + 1))
-    echo "$NEW_COUNT" > "$INITIALIZED_FLAG"
-    echo "[INFO] 检测到标记文件，跳过初始化。当前已重启次数: $NEW_COUNT"
-    start_gateway
 fi
+
+RESTART_COUNT=$(cat "$INITIALIZED_FLAG" 2>/dev/null || echo "0")
+NEW_COUNT=$((RESTART_COUNT + 1))
+echo "$NEW_COUNT" > "$INITIALIZED_FLAG"
+echo "[INFO] 启动网关（重启次数: $NEW_COUNT）"
+start_gateway
 echo "[INFO] 网关运行中，等待进程结束..."
 wait "${GATEWAY_PID}"

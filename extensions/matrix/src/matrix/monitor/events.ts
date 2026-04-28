@@ -1,4 +1,4 @@
-import { normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
+import { normalizeOptionalString } from "openclaw/plugin-sdk/string-coerce-runtime";
 import type { PluginRuntime, RuntimeLogger } from "../../runtime-api.js";
 import type { CoreConfig } from "../../types.js";
 import type { MatrixAuth } from "../client.js";
@@ -256,6 +256,18 @@ export function registerMatrixMonitorEvents(params: {
     const eventId = event?.event_id ?? "unknown";
     const eventType = event?.type ?? "unknown";
     logVerboseMessage(`matrix: decrypted event room=${roomId} type=${eventType} id=${eventId}`);
+    if (routeVerificationEvent(roomId, event)) {
+      return;
+    }
+    if (eventType !== EventType.RoomMessage) {
+      return;
+    }
+    void runMonitorTask(
+      `decrypted room message handler room=${roomId} id=${event.event_id ?? "unknown"}`,
+      async () => {
+        await onRoomMessage(roomId, event);
+      },
+    );
   });
 
   client.on(

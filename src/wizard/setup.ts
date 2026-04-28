@@ -1,4 +1,6 @@
+import { normalizeProviderId } from "../agents/provider-id.js";
 import { formatCliCommand } from "../cli/command-format.js";
+import { commitConfigWriteWithPendingPluginInstalls } from "../cli/plugins-install-record-commit.js";
 import type {
   AuthChoice,
   GatewayAuthChoice,
@@ -6,20 +8,69 @@ import type {
   OnboardOptions,
   ResetScope,
 } from "../commands/onboard-types.js";
-import { readConfigFileSnapshot, resolveGatewayPort, writeConfigFile } from "../config/config.js";
+import { createConfigIO, replaceConfigFile, resolveGatewayPort } from "../config/config.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { normalizeSecretInputString } from "../config/types.secrets.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import {
-  buildPluginCompatibilityNotices,
+  buildPluginCompatibilitySnapshotNotices,
   formatPluginCompatibilityNotice,
 } from "../plugins/status.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import { resolveUserPath } from "../utils.js";
 import { WizardCancelledError, type WizardPrompter } from "./prompts.js";
+import { detectSetupMigrationSources, runSetupMigrationImport } from "./setup.migration-import.js";
 import { resolveSetupSecretInputString } from "./setup.secret-input.js";
+import {
+  SECURITY_CONFIRM_MESSAGE,
+  SECURITY_NOTE_MESSAGE,
+  SECURITY_NOTE_TITLE,
+} from "./setup.security-note.js";
 import type { QuickstartGatewayDefaults, WizardFlow } from "./setup.types.js";
+
+type SetupFlowChoice = WizardFlow | "import";
+
+type AuthChoiceModule = typeof import("../commands/auth-choice.js");
+type ConfigLoggingModule = typeof import("../config/logging.js");
+type ModelPickerModule = typeof import("../commands/model-picker.js");
+
+let authChoiceModulePromise: Promise<AuthChoiceModule> | undefined;
+let configLoggingModulePromise: Promise<ConfigLoggingModule> | undefined;
+let modelPickerModulePromise: Promise<ModelPickerModule> | undefined;
+
+function loadAuthChoiceModule(): Promise<AuthChoiceModule> {
+  authChoiceModulePromise ??= import("../commands/auth-choice.js");
+  return authChoiceModulePromise;
+}
+
+function loadConfigLoggingModule(): Promise<ConfigLoggingModule> {
+  configLoggingModulePromise ??= import("../config/logging.js");
+  return configLoggingModulePromise;
+}
+
+function loadModelPickerModule(): Promise<ModelPickerModule> {
+  modelPickerModulePromise ??= import("../commands/model-picker.js");
+  return modelPickerModulePromise;
+}
+
+async function writeWizardConfigFile(config: OpenClawConfig): Promise<OpenClawConfig> {
+  const committed = await commitConfigWriteWithPendingPluginInstalls({
+    nextConfig: config,
+    commit: async (nextConfig, writeOptions) => {
+      await replaceConfigFile({
+        nextConfig,
+        ...(writeOptions ? { writeOptions } : {}),
+        afterWrite: { mode: "auto" },
+      });
+    },
+  });
+  return committed.config;
+}
+
+async function readSetupConfigFileSnapshot() {
+  return await createConfigIO({ pluginValidation: "skip" }).readConfigFileSnapshot();
+}
 
 async function resolveAuthChoiceModelSelectionPolicy(params: {
   authChoice: string;
@@ -43,6 +94,35 @@ async function resolveAuthChoiceModelSelectionPolicy(params: {
     workspaceDir: params.workspaceDir,
     env: params.env,
   });
+
+  const [{ resolveManifestProviderAuthChoice }, { resolvePluginSetupProvider }] = await Promise.all(
+    [import("../plugins/provider-auth-choices.js"), import("../plugins/setup-registry.js")],
+  );
+  const manifestChoice = resolveManifestProviderAuthChoice(params.authChoice, {
+    config: params.config,
+    workspaceDir: params.workspaceDir,
+    env: params.env,
+    includeUntrustedWorkspacePlugins: false,
+  });
+  if (manifestChoice) {
+    const setupProvider = resolvePluginSetupProvider({
+      provider: manifestChoice.providerId,
+      config: params.config,
+      workspaceDir: params.workspaceDir,
+      env: params.env,
+      pluginIds: [manifestChoice.pluginId],
+    });
+    const setupMethod = setupProvider?.auth.find(
+      (method) => normalizeProviderId(method.id) === normalizeProviderId(manifestChoice.methodId),
+    );
+    const setupPolicy =
+      setupMethod?.wizard?.modelSelection ?? setupProvider?.wizard?.setup?.modelSelection;
+    return {
+      preferredProvider,
+      promptWhenAuthChoiceProvided: setupPolicy?.promptWhenAuthChoiceProvided === true,
+      allowKeepCurrent: setupPolicy?.allowKeepCurrent ?? true,
+    };
+  }
 
   const { resolvePluginProviders, resolveProviderPluginChoice } =
     await import("../plugins/provider-auth-choice.runtime.js");
@@ -85,40 +165,10 @@ async function requireRiskAcknowledgement(params: {
     return;
   }
 
-  await params.prompter.note(
-    [
-      "安全警告 — 请仔细阅读。",
-      "",
-      "OpenClaw 是一个业余项目，仍处于测试阶段。可能会有问题。",
-      "默认情况下，OpenClaw 是个人代理：一个可信操作者边界。",
-      "如果启用工具，此机器人可以读取文件并运行操作。",
-      "一个糟糕的提示可能会欺骗它做不安全的事情。",
-      "",
-      "默认情况下，OpenClaw 不是一个敌对的多租户边界。",
-      "如果多个用户可以向一个启用工具的代理发送消息，他们将共享该委托工具权限。",
-      "",
-      "如果您不熟悉安全加固和访问控制，请不要运行 OpenClaw。",
-      "在启用工具或将其暴露到互联网之前，请有经验的人帮助。",
-      "",
-      "推荐基准:",
-      "- 配对/允许列表 + 提及门控。",
-      "- 多用户/共享收件箱：分离信任边界（独立的网关/凭据，理想情况下独立的操作系统用户/主机）。",
-      "- 沙箱 + 最小特权工具。",
-      "- 共享收件箱：隔离 DM 会话（`session.dmScope: per-channel-peer`）并保持最小的工具访问权限。",
-      "- 将机密保存在代理可访问的文件系统之外。",
-      "- 对于任何带有工具或不受信任收件箱的机器人，使用最强大的可用模型。",
-      "",
-      "定期运行:",
-      "openclaw security audit --deep",
-      "openclaw security audit --fix",
-      "",
-      "必读: https://docs.openclaw.ai/gateway/security",
-    ].join("\n"),
-    "安全",
-  );
+  await params.prompter.note(SECURITY_NOTE_MESSAGE, SECURITY_NOTE_TITLE);
 
   const ok = await params.prompter.confirm({
-    message: "我理解这默认是个人使用的，共享/多用户使用需要加强安全限制。继续？",
+    message: SECURITY_CONFIRM_MESSAGE,
     initialValue: false,
   });
   if (!ok) {
@@ -136,7 +186,7 @@ export async function runSetupWizard(
   await prompter.intro("OpenClaw 安装");
   await requireRiskAcknowledgement({ opts, prompter });
 
-  const snapshot = await readConfigFileSnapshot();
+  const snapshot = await readSetupConfigFileSnapshot();
   let baseConfig: OpenClawConfig = snapshot.valid
     ? snapshot.exists
       ? (snapshot.sourceConfig ?? snapshot.config)
@@ -163,7 +213,7 @@ export async function runSetupWizard(
   }
 
   const compatibilityNotices = snapshot.valid
-    ? buildPluginCompatibilityNotices({ config: baseConfig })
+    ? buildPluginCompatibilitySnapshotNotices({ config: baseConfig })
     : [];
   if (compatibilityNotices.length > 0) {
     await prompter.note(
@@ -184,29 +234,42 @@ export async function runSetupWizard(
   }
 
   const quickstartHint = `Configure details later via ${formatCliCommand("openclaw configure")}.`;
-  const manualHint = "Configure port, network, Tailscale, and auth options.";
+  const manualHint = "配置端口，网络，认证.";
+  const migrationDetections = await detectSetupMigrationSources({ config: baseConfig, runtime });
+  const firstMigrationDetection = migrationDetections[0];
+  const importOption = firstMigrationDetection
+    ? {
+        value: "import" as const,
+        label: `从 ${firstMigrationDetection.label} 导入`,
+        ...(firstMigrationDetection.source ? { hint: firstMigrationDetection.source } : {}),
+      }
+    : undefined;
   const explicitFlowRaw = opts.flow?.trim();
   const normalizedExplicitFlow = explicitFlowRaw === "manual" ? "advanced" : explicitFlowRaw;
   if (
     normalizedExplicitFlow &&
     normalizedExplicitFlow !== "quickstart" &&
-    normalizedExplicitFlow !== "advanced"
+    normalizedExplicitFlow !== "advanced" &&
+    normalizedExplicitFlow !== "import"
   ) {
-    runtime.error("--flow 参数无效（请使用 quickstart、manual 或 advanced）。");
+    runtime.error("Invalid --flow (use quickstart, manual, advanced, or import).");
     runtime.exit(1);
     return;
   }
-  const explicitFlow: WizardFlow | undefined =
-    normalizedExplicitFlow === "quickstart" || normalizedExplicitFlow === "advanced"
+  const explicitFlow: SetupFlowChoice | undefined =
+    normalizedExplicitFlow === "quickstart" ||
+    normalizedExplicitFlow === "advanced" ||
+    normalizedExplicitFlow === "import"
       ? normalizedExplicitFlow
       : undefined;
-  let flow: WizardFlow =
+  let flow: SetupFlowChoice =
     explicitFlow ??
     (await prompter.select({
       message: "安装模式",
       options: [
         { value: "quickstart", label: "快速开始", hint: quickstartHint },
-        { value: "advanced", label: "手动配置", hint: manualHint },
+        { value: "advanced", label: "手动", hint: manualHint },
+        ...(importOption ? [importOption] : []),
       ],
       initialValue: "quickstart",
     }));
@@ -249,6 +312,19 @@ export async function runSetupWizard(
       baseConfig = {};
     }
   }
+
+  if (opts.importFrom || flow === "import") {
+    await runSetupMigrationImport({
+      opts,
+      baseConfig,
+      detections: migrationDetections,
+      prompter,
+      runtime,
+      commitConfigFile: writeWizardConfigFile,
+    });
+    return;
+  }
+  const wizardFlow: WizardFlow = flow;
 
   const quickstartGateway: QuickstartGatewayDefaults = (() => {
     const hasExisting =
@@ -452,12 +528,16 @@ export async function runSetupWizard(
 
   if (mode === "remote") {
     const { promptRemoteGatewayConfig } = await import("../commands/onboard-remote.js");
-    const { logConfigUpdated } = await import("../config/logging.js");
+    const { applySkipBootstrapConfig } = await import("../commands/onboard-config.js");
+    const { logConfigUpdated } = await loadConfigLoggingModule();
     let nextConfig = await promptRemoteGatewayConfig(baseConfig, prompter, {
       secretInputMode: opts.secretInputMode,
     });
+    if (opts.skipBootstrap) {
+      nextConfig = applySkipBootstrapConfig(nextConfig);
+    }
     nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, { command: "onboard", mode });
-    await writeConfigFile(nextConfig);
+    nextConfig = await writeWizardConfigFile(nextConfig);
     logConfigUpdated(runtime);
     await prompter.outro("远程网关已配置。");
     return;
@@ -474,66 +554,85 @@ export async function runSetupWizard(
 
   const workspaceDir = resolveUserPath(workspaceInput.trim() || onboardHelpers.DEFAULT_WORKSPACE);
 
-  const { applyLocalSetupWorkspaceConfig } = await import("../commands/onboard-config.js");
+  const { applyLocalSetupWorkspaceConfig, applySkipBootstrapConfig } =
+    await import("../commands/onboard-config.js");
   let nextConfig: OpenClawConfig = applyLocalSetupWorkspaceConfig(baseConfig, workspaceDir);
+  if (opts.skipBootstrap) {
+    nextConfig = applySkipBootstrapConfig(nextConfig);
+  }
 
   const authChoiceFromPrompt = opts.authChoice === undefined;
   let authChoice: AuthChoice | undefined = opts.authChoice;
+  let authStore:
+    | ReturnType<(typeof import("../agents/auth-profiles.runtime.js"))["ensureAuthProfileStore"]>
+    | undefined;
+  let promptAuthChoiceGrouped:
+    | (typeof import("../commands/auth-choice-prompt.js"))["promptAuthChoiceGrouped"]
+    | undefined;
   if (authChoiceFromPrompt) {
     const { ensureAuthProfileStore } = await import("../agents/auth-profiles.runtime.js");
-    const { promptAuthChoiceGrouped } = await import("../commands/auth-choice-prompt.js");
-    const authStore = ensureAuthProfileStore(undefined, {
+    ({ promptAuthChoiceGrouped } = await import("../commands/auth-choice-prompt.js"));
+    authStore = ensureAuthProfileStore(undefined, {
       allowKeychainPrompt: false,
     });
-    authChoice = await promptAuthChoiceGrouped({
-      prompter,
-      store: authStore,
-      includeSkip: true,
-      config: nextConfig,
-      workspaceDir,
-    });
   }
-  if (authChoice === undefined) {
-    throw new WizardCancelledError("auth choice is required");
-  }
-
-  if (authChoice === "custom-api-key") {
-    const { promptCustomApiConfig } = await import("../commands/onboard-custom.js");
-    const customResult = await promptCustomApiConfig({
-      prompter,
-      runtime,
-      config: nextConfig,
-      secretInputMode: opts.secretInputMode,
-    });
-    nextConfig = customResult.config;
-  } else if (authChoice === "skip") {
-    // Explicit skip should stay cold: do not bootstrap auth/profile machinery
-    // or run model/auth checks when the caller already chose to skip setup.
+  while (true) {
     if (authChoiceFromPrompt) {
-      const { applyPrimaryModel, promptDefaultModel } = await import("../commands/model-picker.js");
-      const modelSelection = await promptDefaultModel({
-        config: nextConfig,
+      authChoice = await promptAuthChoiceGrouped!({
         prompter,
-        allowKeep: true,
-        ignoreAllowlist: true,
-        includeProviderPluginSetups: true,
+        store: authStore!,
+        includeSkip: true,
+        config: nextConfig,
         workspaceDir,
-        runtime,
       });
-      if (modelSelection.config) {
-        nextConfig = modelSelection.config;
-      }
-      if (modelSelection.model) {
-        nextConfig = applyPrimaryModel(nextConfig, modelSelection.model);
-      }
-
-      const { warnIfModelConfigLooksOff } = await import("../commands/auth-choice.js");
-      await warnIfModelConfigLooksOff(nextConfig, prompter);
     }
-  } else {
-    const { applyAuthChoice, resolvePreferredProviderForAuthChoice, warnIfModelConfigLooksOff } =
-      await import("../commands/auth-choice.js");
-    const { applyPrimaryModel, promptDefaultModel } = await import("../commands/model-picker.js");
+    if (authChoice === undefined) {
+      throw new WizardCancelledError("auth choice is required");
+    }
+
+    if (authChoice === "custom-api-key") {
+      const { promptCustomApiConfig } = await import("../commands/onboard-custom.js");
+      const customResult = await promptCustomApiConfig({
+        prompter,
+        runtime,
+        config: nextConfig,
+        secretInputMode: opts.secretInputMode,
+      });
+      nextConfig = customResult.config;
+      break;
+    }
+    if (authChoice === "skip") {
+      // Explicit skip should stay cold: do not bootstrap auth/profile machinery
+      // or run model/auth checks when the caller already chose to skip setup.
+      if (authChoiceFromPrompt) {
+        const { applyPrimaryModel, promptDefaultModel } = await loadModelPickerModule();
+        const modelSelection = await promptDefaultModel({
+          config: nextConfig,
+          prompter,
+          allowKeep: true,
+          ignoreAllowlist: true,
+          includeProviderPluginSetups: false,
+          loadCatalog: false,
+          workspaceDir,
+          runtime,
+        });
+        if (modelSelection.config) {
+          nextConfig = modelSelection.config;
+        }
+        if (modelSelection.model) {
+          nextConfig = applyPrimaryModel(nextConfig, modelSelection.model);
+        }
+
+        const { warnIfModelConfigLooksOff } = await loadAuthChoiceModule();
+        await warnIfModelConfigLooksOff(nextConfig, prompter, { validateCatalog: false });
+      }
+      break;
+    }
+
+    const [
+      { applyAuthChoice, resolvePreferredProviderForAuthChoice, warnIfModelConfigLooksOff },
+      { applyPrimaryModel, promptDefaultModel },
+    ] = await Promise.all([loadAuthChoiceModule(), loadModelPickerModule()]);
     const authResult = await applyAuthChoice({
       authChoice,
       config: nextConfig,
@@ -546,6 +645,12 @@ export async function runSetupWizard(
       },
     });
     nextConfig = authResult.config;
+    if (authResult.retrySelection) {
+      if (authChoiceFromPrompt) {
+        continue;
+      }
+      break;
+    }
     if (authResult.agentModelOverride) {
       nextConfig = applyPrimaryModel(nextConfig, authResult.agentModelOverride);
     }
@@ -566,6 +671,7 @@ export async function runSetupWizard(
         ignoreAllowlist: true,
         includeProviderPluginSetups: true,
         preferredProvider: authChoiceModelSelectionPolicy?.preferredProvider,
+        browseCatalogOnDemand: true,
         workspaceDir,
         runtime,
       });
@@ -577,12 +683,13 @@ export async function runSetupWizard(
       }
     }
 
-    await warnIfModelConfigLooksOff(nextConfig, prompter);
+    await warnIfModelConfigLooksOff(nextConfig, prompter, { validateCatalog: false });
+    break;
   }
 
   const { configureGatewayForSetup } = await import("./setup.gateway-config.js");
   const gateway = await configureGatewayForSetup({
-    flow,
+    flow: wizardFlow,
     baseConfig,
     nextConfig,
     localPort,
@@ -607,6 +714,7 @@ export async function runSetupWizard(
         : [];
     nextConfig = await setupChannels(nextConfig, runtime, prompter, {
       allowSignalInstall: true,
+      deferStatusUntilSelection: flow === "quickstart",
       forceAllowFromChannels: quickstartAllowFromChannels,
       skipDmPolicyPrompt: flow === "quickstart",
       skipConfirm: flow === "quickstart",
@@ -615,8 +723,8 @@ export async function runSetupWizard(
     });
   }
 
-  await writeConfigFile(nextConfig);
-  const { logConfigUpdated } = await import("../config/logging.js");
+  nextConfig = await writeWizardConfigFile(nextConfig);
+  const { logConfigUpdated } = await loadConfigLoggingModule();
   logConfigUpdated(runtime);
   await onboardHelpers.ensureWorkspaceAndSessions(workspaceDir, runtime, {
     skipBootstrap: Boolean(nextConfig.agents?.defaults?.skipBootstrap),
@@ -654,11 +762,11 @@ export async function runSetupWizard(
   nextConfig = await setupInternalHooks(nextConfig, runtime, prompter);
 
   nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, { command: "onboard", mode });
-  await writeConfigFile(nextConfig);
+  nextConfig = await writeWizardConfigFile(nextConfig);
 
   const { finalizeSetupWizard } = await import("./setup.finalize.js");
   const { launchedTui } = await finalizeSetupWizard({
-    flow,
+    flow: wizardFlow,
     opts,
     baseConfig,
     nextConfig,

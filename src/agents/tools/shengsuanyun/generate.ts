@@ -4,7 +4,7 @@ import {
   SHENGSUANYUN_BASE_URL,
   TaskRes,
 } from "@openclaw/shengsuanyun/provider-catalog.ts";
-import { Type, type TSchema } from "@sinclair/typebox";
+import { Type, type TSchema } from "typebox";
 import type { OpenClawConfig } from "../../../config/config.ts";
 import { loadConfig } from "../../../config/config.ts";
 import { resolveApiKeyForProvider } from "../../model-auth.ts";
