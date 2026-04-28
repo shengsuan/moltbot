@@ -270,7 +270,7 @@ export async function discoverShengSuanYunModels(): Promise<ModelDefinitionConfi
       if (!Array.isArray(supportApis)) {
         continue;
       }
-      if (!supportApis.includes("/v1/chat/completions")) {
+      if (!supportApis.includes("/v1/messages")) {
         continue;
       }
       const hasVision = supportsVision(apiModel);
@@ -424,7 +424,7 @@ export async function buildShengSuanYunProvider(): Promise<ModelProviderConfig> 
   const models = await discoverShengSuanYunModels();
   return {
     baseUrl: SHENGSUANYUN_BASE_URL,
-    api: "openai-completions",
+    api: "anthropic-messages",
     models: models,
     headers: {
       "HTTP-Referer": "https://openclaw.ai",

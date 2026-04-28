@@ -42,7 +42,8 @@ fi
 if [ ! -f "$INITIALIZED_FLAG" ]; then
     echo "[INFO] 首次启动，开始执行初始化配置..."
     mkdir -p "${CFG_DIR}/extensions"
-    cp /app/openclaw.json "${CFG_DIR}/openclaw.json"
+    # cp /app/openclaw.json "${CFG_DIR}/openclaw.json"
+    envsubst < "/app/cfg.templates.json" > "${CFG_DIR}/openclaw.json"
     if [ -d "/app/plugins" ]; then
         shopt -s nullglob
         tarballs=(/app/plugins/*.tar.gz)

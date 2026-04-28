@@ -33,7 +33,7 @@ def fetch_and_update_models() -> None:
                 for model in models_data["data"] 
                 if "id" in model 
                 and model.get("support_apis") 
-                and "/v1/chat/completions" in model.get("support_apis")
+                and "/v1/messages" in model.get("support_apis")
             ]
         else:
             print(f"API 返回数据格式不正确: {models_data}")
@@ -241,19 +241,19 @@ if not OPENCLAW_GATEWAY_TOKEN:
 
 os.environ["OPENCLAW_GATEWAY_TOKEN"] = OPENCLAW_GATEWAY_TOKEN
 
-cfg_template_file = ROOT_DIR / "scripts" / "cfg.templates.json"
-cfg_target_file = ROOT_DIR / "scripts" / "openclaw.json"
-if cfg_template_file.is_file():
-    try:
-        with open(cfg_template_file, "r", encoding="utf-8") as f:
-            content = f.read()
-        content = re.sub(r'\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}', lambda m: os.environ.get(m.group(1), ""), content)
-        content = re.sub(r'\$([a-zA-Z_][a-zA-Z0-9_]+)', lambda m: os.environ.get(m.group(1), ""), content)
-        with open(cfg_target_file, "w", encoding="utf-8") as f:
-            f.write(content)
-        print(f"配置文件已初始化：{cfg_template_file}")
-    except Exception as e:
-        fail(f"初始化配置文件失败：{e}")
+# cfg_template_file = ROOT_DIR / "scripts" / "cfg.templates.json"
+# cfg_target_file = ROOT_DIR / "scripts" / "openclaw.json"
+# if cfg_template_file.is_file():
+#     try:
+#         with open(cfg_template_file, "r", encoding="utf-8") as f:
+#             content = f.read()
+#         content = re.sub(r'\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}', lambda m: os.environ.get(m.group(1), ""), content)
+#         content = re.sub(r'\$([a-zA-Z_][a-zA-Z0-9_]+)', lambda m: os.environ.get(m.group(1), ""), content)
+#         with open(cfg_target_file, "w", encoding="utf-8") as f:
+#             f.write(content)
+#         print(f"配置文件已初始化：{cfg_template_file}")
+#     except Exception as e:
+#         fail(f"初始化配置文件失败：{e}")
 
 def write_extra_compose(home_vol: str, mounts: list[str]) -> None:
     lines = ["services:", "  openclaw-gateway:", "    volumes:"]
