@@ -3181,6 +3181,21 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
             description:
               "Provider map keyed by provider ID containing connection/auth settings and concrete model definitions. Use stable provider keys so references from agents and tooling remain portable across environments.",
           },
+          pricing: {
+            type: "object",
+            properties: {
+              enabled: {
+                type: "boolean",
+                title: "Model Pricing Enabled",
+                description:
+                  "Enable the background model-pricing bootstrap. Set to false to skip OpenRouter and LiteLLM catalog fetches during Gateway startup; changing this value requires a Gateway restart.",
+              },
+            },
+            additionalProperties: false,
+            title: "Model Pricing",
+            description:
+              "Controls the optional background model-pricing bootstrap that fetches remote per-token cost catalogs.",
+          },
         },
         additionalProperties: false,
         title: "Models",
@@ -5011,6 +5026,12 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                         title: "Compaction Memory Flush Enabled",
                         description:
                           "Enables pre-compaction memory flush before the runtime performs stronger history reduction near token limits. Keep enabled unless you intentionally disable memory side effects in constrained environments.",
+                      },
+                      model: {
+                        type: "string",
+                        title: "Compaction Memory Flush Model Override",
+                        description:
+                          "Optional provider/model override used only for pre-compaction memory flush turns. Set this to a local model such as ollama/qwen3:8b when durable memory extraction should avoid the active session's paid model. The override is exact and does not inherit the active model fallback chain.",
                       },
                       softThresholdTokens: {
                         type: "integer",
@@ -7209,6 +7230,10 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                       type: "integer",
                       exclusiveMinimum: 0,
                       maximum: 9007199254740991,
+                    },
+                    visibleReplies: {
+                      type: "string",
+                      enum: ["automatic", "message_tool"],
                     },
                   },
                   additionalProperties: false,
@@ -18850,6 +18875,13 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                 description:
                   "Maximum number of prior group messages loaded as context per turn for group sessions. Use higher values for richer continuity, or lower values for faster and cheaper responses.",
               },
+              visibleReplies: {
+                type: "string",
+                enum: ["automatic", "message_tool"],
+                title: "Group Visible Replies",
+                description:
+                  'Controls visible group/channel replies. "message_tool" keeps normal final replies private and requires message(action=send) for room output; "automatic" posts normal replies as before.',
+              },
             },
             additionalProperties: false,
             title: "Group Chat Rules",
@@ -20684,9 +20716,9 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                     type: "number",
                   },
                 ],
-                title: "Session Rotate Size",
+                title: "Deprecated Session Rotate Size",
                 description:
-                  "Rotates the session store when file size exceeds a threshold such as `10mb` or `1gb`. Use this to bound single-file growth and keep backup/restore operations manageable.",
+                  'Deprecated and ignored. Do not use for `sessions.json` growth control; OpenClaw no longer creates automatic rotation backups, and "openclaw doctor --fix" removes this key.',
               },
               resetArchiveRetention: {
                 anyOf: [
@@ -20735,7 +20767,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
             additionalProperties: false,
             title: "Session Maintenance",
             description:
-              "Automatic session-store maintenance controls for pruning age, entry caps, and file rotation behavior. Start in warn mode to observe impact, then enforce once thresholds are tuned.",
+              "Automatic session-store maintenance controls for pruning age, entry caps, reset archive retention, and disk budget cleanup. Start in warn mode to observe impact, then enforce once thresholds are tuned.",
           },
         },
         additionalProperties: false,
@@ -22193,6 +22225,9 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
                     items: {
                       type: "string",
                     },
+                  },
+                  allowLoopback: {
+                    type: "boolean",
                   },
                 },
                 required: ["userHeader"],
@@ -23811,6 +23846,19 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
           },
           additionalProperties: false,
         },
+      },
+      proxy: {
+        type: "object",
+        properties: {
+          enabled: {
+            type: "boolean",
+          },
+          proxyUrl: {
+            type: "string",
+            format: "uri",
+          },
+        },
+        additionalProperties: false,
       },
     },
     required: ["commands"],
@@ -26561,6 +26609,16 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
       help: '控制提供商目录行为："merge"（合并）保留内置提供商并覆盖您的自定义提供商，"replace"（替换）仅使用您配置的提供商。在 "merge" 中，匹配的提供商 ID 保留非空的 agent models.json baseUrl 值，而 apiKey 值仅在当前 config/auth-profile 上下文中提供商未被 SecretRef 管理时保留；SecretRef 管理的提供商从当前源标记刷新 apiKey，匹配的模型 contextWindow/maxTokens 使用明确和隐含条目之间的较高值。',
       tags: ["models"],
     },
+    "models.pricing": {
+      label: "Model Pricing",
+      help: "Controls the optional background model-pricing bootstrap that fetches remote per-token cost catalogs.",
+      tags: ["models"],
+    },
+    "models.pricing.enabled": {
+      label: "Model Pricing Enabled",
+      help: "Enable the background model-pricing bootstrap. Set to false to skip OpenRouter and LiteLLM catalog fetches during Gateway startup; changing this value requires a Gateway restart.",
+      tags: ["models"],
+    },
     "models.providers": {
       label: "Model Providers",
       help: "由提供商 ID 键控的提供商映射，包含连接/身份验证设置和具体模型定义。使用稳定的提供商密钥以便来自代理和工具的引用在环境间保持可移植。",
@@ -27032,6 +27090,11 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
       help: "启用此功能后，运行时会在接近令牌限制时执行更严格的历史记录缩减，此时会进行预压缩内存刷新。除非您在资源受限的环境中有意禁用内存副作用，否则请保持启用状态。",
       tags: ["advanced"],
     },
+    "agents.defaults.compaction.memoryFlush.model": {
+      label: "Compaction Memory Flush Model Override",
+      help: "Optional provider/model override used only for pre-compaction memory flush turns. Set this to a local model such as ollama/qwen3:8b when durable memory extraction should avoid the active session's paid model. The override is exact and does not inherit the active model fallback chain.",
+      tags: ["models"],
+    },
     "agents.defaults.compaction.memoryFlush.softThresholdTokens": {
       label: "Compaction Memory Flush Soft Threshold",
       help: "距离压缩阈值（以令牌为单位）的距离，超过该阈值将触发压缩前的内存刷新操作。使用较早的阈值可以提高持久化安全性，而使用较晚的阈值则可以降低刷新频率。",
@@ -27488,7 +27551,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
     },
     "session.maintenance": {
       label: "Session Maintenance",
-      help: "自动会话存储维护控制，用于清除年龄、条目上限和文件轮换行为。在警告模式下启动以观察影响，然后在阈值调整后强制执行。",
+      help: "Automatic session-store maintenance controls for pruning age, entry caps, reset archive retention, and disk budget cleanup. Start in warn mode to observe impact, then enforce once thresholds are tuned.",
       tags: ["storage"],
     },
     "session.maintenance.mode": {
@@ -27512,8 +27575,8 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
       tags: ["performance", "storage"],
     },
     "session.maintenance.rotateBytes": {
-      label: "Session Rotate Size",
-      help: "当文件大小超过阈值(如 `10mb` 或 `1gb`)时轮换会话存储。用于限制单个文件增长并使备份/恢复操作保持可管理。",
+      label: "Deprecated Session Rotate Size",
+      help: 'Deprecated and ignored. Do not use for `sessions.json` growth control; OpenClaw no longer creates automatic rotation backups, and "openclaw doctor --fix" removes this key.',
       tags: ["storage"],
     },
     "session.maintenance.resetArchiveRetention": {
@@ -28024,6 +28087,11 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
       label: "群组历史限制",
       help: "每转加载为群组会话上下文的最大先前群组消息数。使用较高的值来获得更丰富的连续性，或使用较低的值来加快和获得更便宜的响应。",
       tags: ["performance"],
+    },
+    "messages.groupChat.visibleReplies": {
+      label: "Group Visible Replies",
+      help: 'Controls visible group/channel replies. "message_tool" keeps normal final replies private and requires message(action=send) for room output; "automatic" posts normal replies as before.',
+      tags: ["advanced"],
     },
     "messages.queue": {
       label: "入站队列",
@@ -28722,6 +28790,10 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
       sensitive: true,
       tags: ["security", "auth"],
     },
+    "proxy.proxyUrl": {
+      sensitive: true,
+      tags: ["security"],
+    },
     "models.providers.*.models[].baseUrl": {
       tags: ["models", "url-secret"],
     },
@@ -28774,6 +28846,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA: BaseConfigSchemaResponse = {
       tags: ["advanced", "url-secret"],
     },
   },
-  version: "2026.4.26",
+  version: "2026.4.27",
   generatedAt: "2026-03-22T21:17:33.302Z",
 };

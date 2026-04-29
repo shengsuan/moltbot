@@ -2356,7 +2356,8 @@ export function renderApp(state: AppViewState) {
               onDismissSideResult: () => {
                 state.chatSideResult = null;
               },
-              onNewSession: () => state.handleSendChat("/new", { restoreDraft: true }),
+              onNewSession: () =>
+                state.handleSendChat("/new", { confirmReset: true, restoreDraft: true }),
               onClearHistory: async () => {
                 if (!state.client || !state.connected) {
                   return;

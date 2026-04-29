@@ -801,7 +801,11 @@ export const FIELD_HELP: Record<string, string> = {
   "models.mode":
     '控制提供商目录行为："merge"（合并）保留内置提供商并覆盖您的自定义提供商，"replace"（替换）仅使用您配置的提供商。在 "merge" 中，匹配的提供商 ID 保留非空的 agent models.json baseUrl 值，而 apiKey 值仅在当前 config/auth-profile 上下文中提供商未被 SecretRef 管理时保留；SecretRef 管理的提供商从当前源标记刷新 apiKey，匹配的模型 contextWindow/maxTokens 使用明确和隐含条目之间的较高值。',
   "models.providers":
-    "由提供商 ID 键控的提供商映射，包含连接/身份验证设置和具体模型定义。使用稳定的提供商密钥以便来自代理和工具的引用在环境间保持可移植。",
+    "Provider map keyed by provider ID containing connection/auth settings and concrete model definitions. Use stable provider keys so references from agents and tooling remain portable across environments.",
+  "models.pricing":
+    "Controls the optional background model-pricing bootstrap that fetches remote per-token cost catalogs.",
+  "models.pricing.enabled":
+    "Enable the background model-pricing bootstrap. Set to false to skip OpenRouter and LiteLLM catalog fetches during Gateway startup; changing this value requires a Gateway restart.",
   "models.providers.*.baseUrl":
     "提供商端点的基本 URL，用于为该提供商条目提供模型请求。使用 HTTPS 端点并在需要时通过配置模板保持 URL 特定于环境。",
   "models.providers.*.apiKey":
@@ -1268,7 +1272,9 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.compaction.memoryFlush":
     "预压缩内存刷新设置会在进行大量内存压缩之前执行一次主动内存写入操作。长时间会话期间请保持启用状态，以便在进行大幅度内存修剪之前保留关键上下文信息。",
   "agents.defaults.compaction.memoryFlush.enabled":
-    "启用此功能后，运行时会在接近令牌限制时执行更严格的历史记录缩减，此时会进行预压缩内存刷新。除非您在资源受限的环境中有意禁用内存副作用，否则请保持启用状态。",
+    "Enables pre-compaction memory flush before the runtime performs stronger history reduction near token limits. Keep enabled unless you intentionally disable memory side effects in constrained environments.",
+  "agents.defaults.compaction.memoryFlush.model":
+    "Optional provider/model override used only for pre-compaction memory flush turns. Set this to a local model such as ollama/qwen3:8b when durable memory extraction should avoid the active session's paid model. The override is exact and does not inherit the active model fallback chain.",
   "agents.defaults.compaction.memoryFlush.softThresholdTokens":
     "距离压缩阈值（以令牌为单位）的距离，超过该阈值将触发压缩前的内存刷新操作。使用较早的阈值可以提高持久化安全性，而使用较晚的阈值则可以降低刷新频率。",
   "agents.defaults.compaction.memoryFlush.forceFlushTranscriptBytes":
@@ -1396,7 +1402,7 @@ export const FIELD_HELP: Record<string, string> = {
   "session.threadBindings.maxAgeHours":
     "跨提供商/频道的线程绑定会话可选硬最大年龄，以小时计(0 禁用硬上限)。默认值：0。",
   "session.maintenance":
-    "自动会话存储维护控制，用于清除年龄、条目上限和文件轮换行为。在警告模式下启动以观察影响，然后在阈值调整后强制执行。",
+    "Automatic session-store maintenance controls for pruning age, entry caps, reset archive retention, and disk budget cleanup. Start in warn mode to observe impact, then enforce once thresholds are tuned.",
   "session.maintenance.mode":
     '确定维护策略是仅报告("warn"(警告))还是主动应用("enforce"(强制))。在推出期间保持"warn"，验证安全阈值后切换到"enforce"。',
   "session.maintenance.pruneAfter":
@@ -1406,7 +1412,7 @@ export const FIELD_HELP: Record<string, string> = {
   "session.maintenance.maxEntries":
     "限制会话存储中保留的总会话条目数以防止随时间无限增长。对受限制的环境使用较低限制，或在需要更长历史记录时使用较高限制。",
   "session.maintenance.rotateBytes":
-    "当文件大小超过阈值(如 `10mb` 或 `1gb`)时轮换会话存储。用于限制单个文件增长并使备份/恢复操作保持可管理。",
+    'Deprecated and ignored. Do not use for `sessions.json` growth control; OpenClaw no longer creates automatic rotation backups, and "openclaw doctor --fix" removes this key.',
   "session.maintenance.resetArchiveRetention":
     "重置记录档案(`*.reset.<timestamp>`)的保留期。接受持续时间(例如 `30d`)或 `false` 以禁用清除。默认为 pruneAfter 以防重置工件无限增长。",
   "session.maintenance.maxDiskBytes":
@@ -1570,7 +1576,9 @@ export const FIELD_HELP: Record<string, string> = {
   "messages.groupChat.mentionPatterns":
     "Safe case-insensitive regex patterns used to detect explicit mentions/trigger phrases in group chats. Use precise patterns to reduce false positives in high-volume channels; invalid or unsafe nested-repetition patterns are ignored.",
   "messages.groupChat.historyLimit":
-    "每转加载为群组会话上下文的最大先前群组消息数。使用较高的值来获得更丰富的连续性，或使用较低的值来加快和获得更便宜的响应。",
+    "Maximum number of prior group messages loaded as context per turn for group sessions. Use higher values for richer continuity, or lower values for faster and cheaper responses.",
+  "messages.groupChat.visibleReplies":
+    'Controls visible group/channel replies. "message_tool" keeps normal final replies private and requires message(action=send) for room output; "automatic" posts normal replies as before.',
   "messages.queue":
     "入站消息队列策略，用于在处理轮次之前缓冲突发。为繁忙频道调整此选项，其中顺序处理或批处理行为很重要。",
   "messages.queue.mode":

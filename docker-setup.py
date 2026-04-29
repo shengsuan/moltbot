@@ -34,6 +34,7 @@ def fetch_and_update_models() -> None:
                 if "id" in model 
                 and model.get("support_apis") 
                 and "/v1/messages" in model.get("support_apis")
+                and "grok" not in model.get("api_name")
             ]
         else:
             print(f"API 返回数据格式不正确: {models_data}")

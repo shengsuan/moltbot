@@ -144,11 +144,6 @@
         "shengsuanyun/tencent/hunyuan-turbo-vision": {},
         "shengsuanyun/tencent/hunyuan-turbos-vision": {},
         "shengsuanyun/tencent/hy3-preview": {},
-        "shengsuanyun/x-ai/grok-3": {},
-        "shengsuanyun/x-ai/grok-4": {},
-        "shengsuanyun/x-ai/grok-4-fast": {},
-        "shengsuanyun/x-ai/grok-4.1-fast": {},
-        "shengsuanyun/xai/grok-code-fast-1": {},
         "shengsuanyun/xiaomi/mimo-v2-flash": {},
         "shengsuanyun/xiaomi/mimo-v2-omni": {},
         "shengsuanyun/xiaomi/mimo-v2-pro": {},
@@ -170,7 +165,7 @@
       }
     },
     "cooldowns": {
-      "failureWindowHours": 0.5
+      "failureWindowHours": 0.1
     }
   },
   "gateway": {
@@ -242,37 +237,13 @@
       },
       "browser": {
         "enabled": true
-      },
-      "wecom-openclaw-plugin": {
-        "enabled": true
-      },
-      "openclaw-weixin": {
-        "enabled": true
-      },
-      "qqbot": {
-        "enabled": true
       }
     },
     "allow": [
       "shengsuanyun",
-      "wecom-openclaw-plugin",
-      "openclaw-weixin",
-      "qqbot",
       "browser",
       "memory-core"
-    ],
-    "installs": {
-      "wecom-openclaw-plugin": {
-        "source": "npm",
-        "spec": "@wecom/wecom-openclaw-plugin@latest",
-        "installPath": "/home/node/.openclaw/extensions/wecom-openclaw-plugin"
-      },
-      "openclaw-weixin": {
-        "source": "npm",
-        "installPath": "/home/node/.openclaw/extensions/openclaw-weixin",
-        "resolvedSpec": "@tencent-weixin/openclaw-weixin@2.1.7"
-      }
-    }
+    ]
   },
   "browser": {
     "enabled": true,
@@ -293,22 +264,5 @@
         "*"
       ]
     }
-  },
-  "channels": {
-    "qqbot": {
-      "enabled": true,
-      "allowFrom": [
-        "*"
-      ]
-    }
-  },
-  "bindings": [
-    {
-      "agentId": "main",
-      "match": {
-        "channel": "wecom",
-        "accountId": "default"
-      }
-    }
-  ]
+  }
 }
