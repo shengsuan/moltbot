@@ -1,19 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
+import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
+import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
 import { type ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
 import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-shared";
-import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
-import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
-const log = createSubsystemLogger("models");
+
 export const SHENGSUANYUN_BASE_URL = "https://router.shengsuanyun.com/api/v1";
 export const SHENGSUANYUN_MODALITIES_BASE_URL = "https://api.shengsuanyun.com/modelrouter";
-export const SHENGSUANYUN_DEFAULT_COST = {
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-};
-const CACHE_TTL_MS = 5 * 24 * 60 * 60 * 1000;
+
+const log = createSubsystemLogger("models");
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function getCachePath(name: string) {
   const stateDir = resolveStateDir();
@@ -55,6 +51,11 @@ export interface ShengSuanYunModel {
   context_window: number;
   architecture: { input: string };
   support_apis: string[];
+  pricing: {
+    prompt: number;
+    completion: number;
+    cache: number;
+  }
 }
 
 interface ShengSuanYunModelsResponse {
@@ -81,7 +82,12 @@ function mapModels(list: ShengSuanYunModel[]): ModelDefinitionConfig[] {
       reasoning: isReasoningModel(m),
       api: "openai-completions",
       input: supportsVision(m) ? ["text", "image"] : ["text"],
-      cost: SHENGSUANYUN_DEFAULT_COST,
+      cost: {
+        input: m.pricing.prompt,
+        output: m.pricing.completion,
+        cacheRead: m.pricing.cache,
+        cacheWrite: m.pricing.cache
+      },
       contextWindow: m.context_window || 128000,
       maxTokens: m.max_tokens || 8192,
     }));
