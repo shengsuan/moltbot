@@ -91,6 +91,8 @@ export function createOpenClawTools(
     allowMediaInvokeCommands?: boolean;
     /** Explicit agent ID override for cron/hook sessions. */
     requesterAgentIdOverride?: string;
+    /** Restrict the cron tool to self-removing this active cron job. */
+    cronSelfRemoveOnlyJobId?: string;
     /** Require explicit message targets (no implicit last-route sends). */
     requireExplicitMessageTarget?: boolean;
     /** If true, omit the message tool from the tool list. */
@@ -154,7 +156,7 @@ export function createOpenClawTools(
       })
     : null;
   const ShengSuanYunTools = createGenerateTools({ config: options?.config, workspaceDir });
-  log.debug(`ShengSuanYunTools ：-----------`, ShengSuanYunTools);
+  log.debug(`ShengSuanYunTools ：-----------`, {"tool":ShengSuanYunTools.map(it=> it.label)});
   const imageGenerateTool = createImageGenerateTool({
     config: options?.config,
     agentDir: options?.agentDir,
@@ -251,6 +253,9 @@ export function createOpenClawTools(
               accountId: options?.agentAccountId,
               threadId: options?.currentThreadTs ?? options?.agentThreadId,
             },
+            ...(options?.cronSelfRemoveOnlyJobId
+              ? { selfRemoveOnlyJobId: options.cronSelfRemoveOnlyJobId }
+              : {}),
           }),
         ]),
     ...(!embedded && messageTool ? [messageTool] : []),

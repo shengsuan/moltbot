@@ -57,7 +57,7 @@ export interface ShengSuanYunModel {
   support_apis: string[];
 }
 
-interface ShengSuanYunModelsResponse {
+export interface ShengSuanYunModelsResponse {
   data: ShengSuanYunModel[];
   success: boolean;
 }
