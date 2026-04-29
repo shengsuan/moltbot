@@ -1,13 +1,13 @@
 import { existsSync } from "node:fs";
 import { writeFile, mkdir } from "node:fs/promises";
 import { join, extname } from "node:path";
-import { ImageContent, TextContent } from "@mariozechner/pi-ai";
+import type { TextContent, ImageContent } from "@mariozechner/pi-ai";
 
 export async function saveMediaToWorkspace(
   url: string,
   workspaceDir: string,
   prefix: string = "media",
-): Promise<TextContent | ImageContent> {
+): Promise<{ content: TextContent | ImageContent; filepath: string }> {
   const mediaDir = join(workspaceDir, "media_save");
 
   if (!existsSync(mediaDir)) {
@@ -27,15 +27,22 @@ export async function saveMediaToWorkspace(
   const filename = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}${ext}`;
   const filepath = join(mediaDir, filename);
   await writeFile(filepath, nodeBuffer);
+
   if (mimeType.startsWith("image/")) {
     const base64String = nodeBuffer.toString("base64");
     return {
-      type: "image",
-      data: base64String,
-      mimeType: mimeType,
+      content: {
+        type: "image",
+        data: base64String,
+        mimeType,
+      },
+      filepath,
     };
   }
-  return { type: "text", text: filepath };
+  return {
+    content: { type: "text", text: filepath },
+    filepath,
+  };
 }
 
 function getExtensionFromContentType(contentType: string): string {

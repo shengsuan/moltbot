@@ -1,20 +1,19 @@
-import { ImageContent, TextContent } from "@mariozechner/pi-ai";
+import type { TextContent, ImageContent } from "@mariozechner/pi-ai";
 import {
   getShengSuanYunModalityModels,
   SHENGSUANYUN_BASE_URL,
   TaskRes,
 } from "@openclaw/shengsuanyun/provider-catalog.ts";
+import { createSubsystemLogger } from "openclaw/plugin-sdk/logging-core";
 import { Type, type TSchema } from "typebox";
 import type { OpenClawConfig } from "../../../config/config.ts";
 import { loadConfig } from "../../../config/config.ts";
 import { resolveApiKeyForProvider } from "../../model-auth.ts";
-import { sanitizeToolResultImages } from "../../tool-images.ts";
 import type { AnyAgentTool } from "../common.ts";
 import { readStringParam, readStringArrayParam, readNumberParam } from "../common.ts";
 import { toolDescriptionMap } from "./meta.ts";
 import { saveMediaToWorkspace } from "./save-media.ts";
-import { createSubsystemLogger } from "openclaw/plugin-sdk/logging-core";
-const log = createSubsystemLogger("shengsuanyun-gennerate-tools");
+const log = createSubsystemLogger("shengsuanyun-generate-tools");
 export const APP_HEADERS: Record<string, string> = {
   "HTTP-Referer": "https://openclaw.ai",
   "X-Title": "OpenClaw",
@@ -126,14 +125,14 @@ async function loadShengSuanYunTools(opts?: {
     try {
       inputSchema = JSON.parse(model.input_schema) as JsonSchema;
     } catch (e) {
-      log.warn(String(e)+`\t\t${model.api_name}`);
+      log.warn(`Failed to parse input schema for ${model.api_name}: ${e}`);
       continue;
     }
     let parameters: TSchema;
     try {
       parameters = generateTypebox(inputSchema);
     } catch (e) {
-      log.warn(String(e)+`\t\t${model.api_name}`);
+      log.warn(`Failed to generate typebox for ${model.api_name}: ${e}`);
       continue;
     }
     tools.push({
@@ -142,7 +141,7 @@ async function loadShengSuanYunTools(opts?: {
       description,
       parameters: parameters,
       execute: async (_toolCallId, args) => {
-        console.log(`[shengsuanyun-generate] Executing tool ${name} with args:`, args);
+        log.debug(`Executing ${name}`, { args });
         const cfg = opts?.config ?? loadConfig();
 
         const providers = [
@@ -204,36 +203,74 @@ async function loadShengSuanYunTools(opts?: {
         }
 
         const result = await generate({ ...apiParams, apiKey: resolved.apiKey });
-        if (result.success && result.Urls) {
-          let content: (TextContent | ImageContent)[] = [];
+        if (result.success && result.Urls && result.Urls.length > 0) {
+          const content: (TextContent | ImageContent)[] = [];
+          const mediaType = result.type?.replace("_urls", "") ?? "media";
+
           if (opts?.workspaceDir) {
+            const savedPaths: string[] = [];
             for (const url of result.Urls) {
               try {
-                const ctt = await saveMediaToWorkspace(
+                const { content: savedContent, filepath } = await saveMediaToWorkspace(
                   url,
                   opts.workspaceDir,
                   sanitizeToolName(model.api_name),
                 );
-                content.push(ctt);
+                content.push(savedContent);
+                savedPaths.push(filepath);
               } catch (err) {
-                content.push({ type: "text", text: url });
-                log.warn(String(err)+`\t\t saveMediaToWorkspace()`);
+                log.warn(`Failed to save media: ${err}`);
+                content.push({ type: "text", text: `URL: ${url}` });
               }
             }
-          } else {
-            content = result.Urls.map((it) => ({ type: "text", text: it }));
+
+            const summary =
+              savedPaths.length > 0
+                ? `Generated ${savedPaths.length} ${mediaType}(s) and saved to workspace`
+                : `Generated ${result.Urls.length} ${mediaType}(s)`;
+
+            content.unshift({ type: "text", text: summary });
+
+            return {
+              content,
+              details: {
+                provider: "shengsuanyun",
+                model: model.api_name,
+                urls: result.Urls,
+                mediaType,
+                savedPaths: savedPaths.length > 0 ? savedPaths : undefined,
+              },
+            };
           }
-          const details = { Url: result.Urls.join(","), provider: "shengsuanyun" };
-          return sanitizeToolResultImages({ details, content }, "胜算云多媒体生成工具查询成功！");
+
+          content.push({
+            type: "text",
+            text: `Generated ${result.Urls.length} ${mediaType}(s):\n${result.Urls.map((url, i) => `${i + 1}. ${url}`).join("\n")}`,
+          });
+
+          return {
+            content,
+            details: {
+              provider: "shengsuanyun",
+              model: model.api_name,
+              urls: result.Urls,
+              mediaType,
+            },
+          };
         }
+
         return {
           content: [
             {
               type: "text",
-              text: result.error ?? "Content generation failed",
+              text: result.error ?? "Media generation failed",
             },
           ],
-          details: { error: result.error },
+          details: {
+            error: result.error,
+            provider: "shengsuanyun",
+            model: model.api_name,
+          },
         };
       },
     });

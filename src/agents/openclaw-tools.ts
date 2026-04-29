@@ -39,7 +39,8 @@ import { createUpdatePlanTool } from "./tools/update-plan-tool.js";
 import { createVideoGenerateTool } from "./tools/video-generate-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
 import { resolveWorkspaceRoot } from "./workspace-dir.js";
-
+import { createSubsystemLogger } from "openclaw/plugin-sdk/logging-core";
+const log = createSubsystemLogger("shengsuanyun-generate-tools");
 type OpenClawToolsDeps = {
   callGateway: typeof callGateway;
   config?: OpenClawConfig;
@@ -153,6 +154,7 @@ export function createOpenClawTools(
       })
     : null;
   const ShengSuanYunTools = createGenerateTools({ config: options?.config, workspaceDir });
+  log.debug(`ShengSuanYunTools ：-----------`, ShengSuanYunTools);
   const imageGenerateTool = createImageGenerateTool({
     config: options?.config,
     agentDir: options?.agentDir,

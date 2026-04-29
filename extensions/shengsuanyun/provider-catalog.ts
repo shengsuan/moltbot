@@ -5,52 +5,115 @@ import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-s
 import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
 import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
 const log = createSubsystemLogger("models");
-
 export const SHENGSUANYUN_BASE_URL = "https://router.shengsuanyun.com/api/v1";
 export const SHENGSUANYUN_MODALITIES_BASE_URL = "https://api.shengsuanyun.com/modelrouter";
-
 export const SHENGSUANYUN_DEFAULT_COST = {
   input: 0,
   output: 0,
   cacheRead: 0,
   cacheWrite: 0,
 };
+const CACHE_TTL_MS = 5 * 24 * 60 * 60 * 1000;
+
+function getCachePath(name: string) {
+  const stateDir = resolveStateDir();
+  return path.join(stateDir, "agents", `${name}.json`);
+}
+
+type CacheWrap<T> = { timestamp: number; data: T };
+
+function loadCache<T>(name: string): T | null {
+  try {
+    const p = getCachePath(name);
+    if (!fs.existsSync(p)){ return null;}
+    const raw = fs.readFileSync(p, "utf-8");
+    const parsed = JSON.parse(raw) as CacheWrap<T>;
+    if (Date.now() - parsed.timestamp > CACHE_TTL_MS){ return null;}
+    return parsed.data;
+  } catch (e) {
+    log.warn(`load cache ${name} failed: ${String(e)}`);
+    return null;
+  }
+}
+
+function saveCache<T>(name: string, data: T) {
+  try {
+    const p = getCachePath(name);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    const payload: CacheWrap<T> = { timestamp: Date.now(), data };
+    fs.writeFileSync(p, JSON.stringify(payload), "utf-8");
+  } catch (e) {
+    log.warn(`save cache ${name} failed: ${String(e)}`);
+  }
+}
 
 export interface ShengSuanYunModel {
   id: string;
-  company: string;
   name: string;
-  api_name: string;
   description: string;
   max_tokens: number;
   context_window: number;
-  supports_prompt_cache: boolean;
-  architecture: {
-    input: string;
-    output: string;
-    tokenizer: string;
-  };
-  pricing: {
-    prompt: number;
-    completion: number;
-    cache: number;
-    image: number;
-    request: number;
-  };
+  architecture: { input: string };
   support_apis: string[];
 }
 
 interface ShengSuanYunModelsResponse {
   data: ShengSuanYunModel[];
-  object: string;
   success: boolean;
 }
 
-interface ShengSuanYunModalitiesResponse {
-  code: number;
-  data: {
-    infos: { id: number }[];
-  };
+function isReasoningModel(m: ShengSuanYunModel) {
+  const s = `${m.id} ${m.name} ${m.description}`.toLowerCase();
+  return /thinking|reason|r1/.test(s);
+}
+
+function supportsVision(m: ShengSuanYunModel) {
+  const i = (m.architecture?.input ?? "").toLowerCase();
+  return i.includes("image") || i.includes("vision") || i === "text+image->text";
+}
+
+function mapModels(list: ShengSuanYunModel[]): ModelDefinitionConfig[] {
+  return list
+    .filter((m) => Array.isArray(m.support_apis) && m.support_apis.includes("/v1/messages"))
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      reasoning: isReasoningModel(m),
+      api: "openai-completions",
+      input: supportsVision(m) ? ["text", "image"] : ["text"],
+      cost: SHENGSUANYUN_DEFAULT_COST,
+      contextWindow: m.context_window || 128000,
+      maxTokens: m.max_tokens || 8192,
+    }));
+}
+
+export async function discoverShengSuanYunModels(): Promise<ModelDefinitionConfig[]> {
+  const cacheKey = "ssy_models";
+
+  if (process.env.NODE_ENV === "test" || process.env.VITEST) {
+    return loadCache<ModelDefinitionConfig[]>(cacheKey) ?? [];
+  }
+
+  try {
+    const res = await fetch(`${SHENGSUANYUN_BASE_URL}/models`, {
+      signal: AbortSignal.timeout(50000),
+    });
+
+    if (!res.ok){ throw new Error(`http ${res.status}`);}
+
+    const json = (await res.json()) as ShengSuanYunModelsResponse;
+    if (!json.success || !Array.isArray(json.data)){ throw new Error("invalid response");}
+
+    const mapped = mapModels(json.data);
+    if (mapped.length > 0) {
+      saveCache(cacheKey, mapped);
+      return mapped;
+    }
+    return loadCache<ModelDefinitionConfig[]>(cacheKey) ?? [];
+  } catch (e) {
+    log.warn(`discover models failed: ${String(e)}`);
+    return loadCache<ModelDefinitionConfig[]>(cacheKey) ?? [];
+  }
 }
 
 export type MModel = {
@@ -58,365 +121,68 @@ export type MModel = {
   company_name: string;
   model_name: string;
   api_name: string;
-  class_names: Array<string>;
+  class_names: string[];
   desc: string;
   input_schema: string;
   output_schema: string;
-  example: {
-    input: string;
-    output: string;
-    logs: string;
-    predict_time: number;
-  };
-  pricing: {
-    price: number;
-    input_price: number;
-    output_price: number;
-    other_price: string;
-    currency: string;
-    price_schema: string;
-  };
+  example: unknown;
+  pricing: unknown;
 };
-export type MMRes = {
+
+interface ShengSuanYunModalitiesResponse {
   code: number;
-  data?: MModel;
-  msg: string;
-};
-
-export interface TaskRes {
-  code?: string;
-  message?: string;
-  data?: {
-    progress?: string;
-    request_id?: string;
-    status?: string;
-    fail_reason?: string;
-    data?: {
-      image_urls?: string[];
-      video_urls?: string[];
-      audio_urls?: string[];
-      progress?: number;
-      error?: string;
-    };
-  };
-}
-/**
- * Determine if a model supports reasoning based on its name and description.
- */
-function isReasoningModel(model: ShengSuanYunModel): boolean {
-  const lowerName = (model.name ?? "").toLowerCase();
-  const lowerId = (model.id ?? "").toLowerCase();
-  const lowerDesc = (model.description ?? "").toLowerCase();
-
-  return (
-    lowerName.includes("thinking") ||
-    lowerName.includes("reasoning") ||
-    lowerName.includes("reason") ||
-    lowerName.includes("r1") ||
-    lowerId.includes("thinking") ||
-    lowerId.includes("reasoning") ||
-    lowerId.includes("r1") ||
-    lowerDesc.includes("reasoning") ||
-    lowerDesc.includes("thinking")
-  );
-}
-
-/**
- * Determine if a model supports vision/image inputs.
- */
-function supportsVision(model: ShengSuanYunModel): boolean {
-  const modality = (model.architecture?.input ?? "").toLowerCase();
-  return (
-    modality.includes("image") || modality.includes("vision") || modality === "text+image->text"
-  );
-}
-
-// Default models shown before API discovery (e.g., during onboarding)
-export const DEFAULT_SHENGSUANYUN_MODELS: ModelDefinitionConfig[] = [
-  {
-    id: "openai/gpt-5-nano",
-    name: "GPT-5 Nano",
-    reasoning: false,
-    api: "openai-completions",
-    input: ["text"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 128000,
-    maxTokens: 16384,
-  },
-  {
-    id: "google/gemini-3-flash",
-    name: "Gemini 3 Flash Preview",
-    reasoning: false,
-    api: "openai-completions",
-    input: ["text", "image"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 1048576,
-    maxTokens: 65535,
-  },
-  {
-    id: "anthropic/claude-opus-4.5",
-    name: "Claude Opus 4.5",
-    reasoning: false,
-    api: "openai-completions",
-    input: ["text", "image"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 200000,
-    maxTokens: 64000,
-  },
-  {
-    id: "anthropic/claude-sonnet-4.5:thinking",
-    name: "Claude Sonnet 4.5 Thinking",
-    reasoning: true,
-    api: "openai-completions",
-    input: ["text", "image"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 200000,
-    maxTokens: 64000,
-  },
-  {
-    id: "anthropic/claude-haiku-4.5",
-    name: "Claude Haiku 4.5",
-    reasoning: false,
-    api: "openai-completions",
-    input: ["text", "image"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 200000,
-    maxTokens: 64000,
-  },
-  {
-    id: "anthropic/claude-sonnet-4.5",
-    name: "Claude Sonnet 4.5",
-    reasoning: false,
-    api: "openai-completions",
-    input: ["text", "image"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 200000,
-    maxTokens: 64000,
-  },
-  {
-    id: "anthropic/claude-haiku-4.5:thinking",
-    name: "Claude Haiku 4.5 Thinking",
-    reasoning: true,
-    api: "openai-completions",
-    input: ["text", "image"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 200000,
-    maxTokens: 64000,
-  },
-  {
-    id: "anthropic/claude-opus-4.6",
-    name: "Claude Opus 4.6",
-    reasoning: false,
-    api: "openai-completions",
-    input: ["text"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 1000000,
-    maxTokens: 128000,
-  },
-  {
-    id: "anthropic/claude-sonnet-4.6",
-    name: "Claude Sonnet 4.6",
-    reasoning: false,
-    api: "openai-completions",
-    input: ["text"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 200000,
-    maxTokens: 64000,
-  },
-  {
-    id: "anthropic/claude-opus-4",
-    name: "Claude Opus 4",
-    reasoning: false,
-    api: "openai-completions",
-    input: ["text", "image"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 200000,
-    maxTokens: 32000,
-  },
-  {
-    id: "anthropic/claude-opus-4.1",
-    name: "Claude Opus 4.1",
-    reasoning: false,
-    api: "openai-completions",
-    input: ["text", "image"],
-    cost: SHENGSUANYUN_DEFAULT_COST,
-    contextWindow: 200000,
-    maxTokens: 32000,
-  },
-];
-
-export async function discoverShengSuanYunModels(): Promise<ModelDefinitionConfig[]> {
-  // Skip API network discovery in test environment
-  if (process.env.NODE_ENV === "test" || process.env.VITEST) {
-    return DEFAULT_SHENGSUANYUN_MODELS;
-  }
-  try {
-    const res = await fetch(`${SHENGSUANYUN_BASE_URL}/models`, {
-      signal: AbortSignal.timeout(50000),
-    });
-    if (!res.ok) {
-      // Return default models if API call fails
-      return DEFAULT_SHENGSUANYUN_MODELS;
-    }
-    const data = (await res.json()) as ShengSuanYunModelsResponse;
-    if (!data.success || !Array.isArray(data.data) || data.data.length === 0) {
-      // Return default models if response is invalid
-      return DEFAULT_SHENGSUANYUN_MODELS;
-    }
-
-    const models: ModelDefinitionConfig[] = [];
-    for (const apiModel of data.data) {
-      const supportApis = apiModel.support_apis;
-      if (!Array.isArray(supportApis)) {
-        continue;
-      }
-      if (!supportApis.includes("/v1/messages")) {
-        continue;
-      }
-      const hasVision = supportsVision(apiModel);
-      const reasoning = isReasoningModel(apiModel);
-      models.push({
-        id: apiModel.id,
-        name: apiModel.name,
-        reasoning,
-        api: "openai-completions",
-        input: hasVision ? ["text", "image"] : ["text"],
-        cost: SHENGSUANYUN_DEFAULT_COST,
-        contextWindow: apiModel.context_window || 128000,
-        maxTokens: apiModel.max_tokens || 8192,
-      });
-    }
-    // If API returned models, use them; otherwise fallback to defaults
-    return models.length > 0 ? models : DEFAULT_SHENGSUANYUN_MODELS;
-  } catch (error) {
-    log.warn(`Failed to discover ShengSuanYun models: ${String(error)}`);
-    // Return default models if fetch throws
-    return DEFAULT_SHENGSUANYUN_MODELS;
-  }
-}
-
-function getModalitiesCachePath(): string {
-  const stateDir = resolveStateDir();
-  const agentDir = path.join(stateDir, "agents");
-  return path.join(agentDir, "modalities.json");
-}
-interface ModalitiesCache {
-  timestamp: number;
-  models: MModel[];
-}
-
-// Cache TTL: 5 days
-const CACHE_TTL_MS = 5 * 24 * 60 * 60 * 1000;
-async function loadCachedModalities(): Promise<MModel[] | null> {
-  try {
-    const cachePath = getModalitiesCachePath();
-    if (!fs.existsSync(cachePath)) {
-      return null;
-    }
-    const cacheData = fs.readFileSync(cachePath, "utf-8");
-    const cache = JSON.parse(cacheData) as ModalitiesCache;
-    if (Date.now() - cache.timestamp < CACHE_TTL_MS) {
-      // console.log(`[models] Loaded ${cache.models.length} modality models from cache`);
-      return cache.models;
-    }
-    // console.log(`[models] Cache expired, will fetch fresh data`);
-    return null;
-  } catch (err) {
-    log.warn(`Failed to load modalities cache: ${String(err)}`);
-    return null;
-  }
-}
-
-async function saveCachedModalities(models: MModel[]): Promise<void> {
-  try {
-    const cachePath = getModalitiesCachePath();
-    const cacheDir = path.dirname(cachePath);
-    // Ensure directory exists
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir, { recursive: true });
-    }
-    const cache: ModalitiesCache = {
-      timestamp: Date.now(),
-      models,
-    };
-    fs.writeFileSync(cachePath, JSON.stringify(cache, null, 2), "utf-8");
-    log.debug(`cached ${models.length} modality models to ${cachePath}`);
-  } catch (err) {
-    log.error(`failed to save modalities cache: ${String(err)}`);
-  }
+  data: { infos: { id: number }[] };
 }
 
 export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
+  const cacheKey = "ssy_modalities";
   if (process.env.NODE_ENV === "test" || process.env.VITEST) {
-    return [];
+    return loadCache<MModel[]>(cacheKey) ?? [];
   }
-  const cached = await loadCachedModalities();
-  if (cached !== null) {
-    return cached;
-  }
+  const cached = loadCache<MModel[]>(cacheKey);
+  if (cached){ return cached; }
+
   try {
     const res = await fetch(
       `${SHENGSUANYUN_MODALITIES_BASE_URL}/modalities/list?page=1&page_size=200`,
-      {
-        signal: AbortSignal.timeout(30000),
-      },
+      { signal: AbortSignal.timeout(30000) },
     );
-    if (!res.ok) {
-      // console.log(
-      //   `[models] Modalities list fetch failed: ${res.status} ${res.statusText}`,
-      // );
-      return [];
-    }
-    const data = (await res.json()) as ShengSuanYunModalitiesResponse;
-    if (data.code !== 0 || !Array.isArray(data.data.infos) || data.data.infos.length === 0) {
-      // console.log(
-      //   `[models] Invalid response: code=${data.code}, infos=${data.data?.infos?.length ?? 0}`,
-      // );
-      return [];
-    }
-    const batchSize = 10;
+
+    if (!res.ok){ throw new Error(`http ${res.status}`);}
+
+    const json = (await res.json()) as ShengSuanYunModalitiesResponse;
+    if (json.code !== 0 || !Array.isArray(json.data?.infos)){ throw new Error("invalid");}
+
+    const ids = json.data.infos.map((i) => i.id);
     const results: MModel[] = [];
 
-    for (let i = 0; i < data.data.infos.length; i += batchSize) {
-      const batch = data.data.infos.slice(i, i + batchSize);
-      const batchPromises = batch.map(async (model: { id: number }): Promise<MModel | null> => {
-        try {
-          const res = await fetch(
-            `${SHENGSUANYUN_MODALITIES_BASE_URL}/modalities/info?model_id=${model.id}`,
-            {
-              signal: AbortSignal.timeout(60000),
-            },
-          );
-          if (!res.ok) {
+    for (let i = 0; i < ids.length; i += 10) {
+      const batch = ids.slice(i, i + 10);
+      const items = await Promise.all(
+        batch.map(async (id) => {
+          try {
+            const r = await fetch(
+              `${SHENGSUANYUN_MODALITIES_BASE_URL}/modalities/info?model_id=${id}`,
+              { signal: AbortSignal.timeout(60000) },
+            );
+            if (!r.ok){ return null;}
+            const j = await r.json();
+            return j.code === 0 && j.data ? j.data : null;
+          } catch {
             return null;
           }
-          const data = await res.json();
-          if (data.code !== 0 || !data.data) {
-            return null;
-          }
-          return { ...data.data, api: "modality" } as MModel;
-        } catch (err) {
-          log.warn(`failed to fetch modality model ${model.id}: ${String(err)}`);
-          return null;
-        }
-      });
+        }),
+      );
 
-      const batchResults = await Promise.all(batchPromises);
-      const filtered = batchResults.filter((m): m is MModel => m !== null);
-      results.push(...filtered);
-      if (i + batchSize < data.data.infos.length) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-      }
+      results.push(...items.filter(Boolean) as MModel[]);
+      if (i + 10 < ids.length){ await new Promise((r) => setTimeout(r, 500));}
     }
 
-    // console.log(`[models] Loaded ${results.length} modality models total`);
-    if (results.length > 0) {
-      await saveCachedModalities(results);
-    }
-    return results;
-  } catch (err) {
-    log.error(`failed to fetch modality models: ${String(err)}`);
-    return [];
+    if (results.length){ saveCache(cacheKey, results);}
+    return results.length ? results : cached ?? [];
+  } catch (e) {
+    log.warn(`modalities fetch failed: ${String(e)}`);
+    return cached ?? [];
   }
 }
 
@@ -425,7 +191,7 @@ export async function buildShengSuanYunProvider(): Promise<ModelProviderConfig> 
   return {
     baseUrl: SHENGSUANYUN_BASE_URL,
     api: "anthropic-messages",
-    models: models,
+    models,
     headers: {
       "HTTP-Referer": "https://openclaw.ai",
       "X-Title": "OpenClaw",
