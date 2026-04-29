@@ -92,7 +92,9 @@ export const FIELD_HELP: Record<string, string> = {
   "gateway.tools.allow":
     "当您想在运行时提供一小部分工具时的显式网关级别工具允许列表。在锁定环境中使用此项，其中工具范围必须严格控制。",
   "gateway.tools.deny":
-    "显式网关级别工具拒绝列表，即使下层政策允许也会阻止风险工具。使用拒绝规则进行紧急响应和纵深防卫加固。",
+    "Explicit gateway-level tool denylist to block risky tools even if lower-level policies allow them. Use deny rules for emergency response and defense-in-depth hardening.",
+  "gateway.handshakeTimeoutMs":
+    "Pre-auth Gateway WebSocket handshake timeout in milliseconds. Use higher values on loaded or low-powered hosts where local clients can connect during startup warmup. OPENCLAW_HANDSHAKE_TIMEOUT_MS still takes precedence.",
   "gateway.channelHealthCheckMinutes":
     "Interval in minutes for automatic channel health probing and status updates. Use lower intervals for faster detection, or higher intervals to reduce periodic probe noise.",
   "gateway.channelStaleEventThresholdMinutes":
@@ -241,6 +243,10 @@ export const FIELD_HELP: Record<string, string> = {
     "Maximum time in seconds allowed for a heartbeat agent turn before it is aborted. Leave unset to use agents.defaults.timeoutSeconds.",
   "agents.list[].heartbeat.timeoutSeconds":
     "Per-agent maximum time in seconds allowed for a heartbeat agent turn before it is aborted. Leave unset to inherit the merged heartbeat/default agent timeout.",
+  "agents.defaults.heartbeat.skipWhenBusy":
+    "When true, defer heartbeat turns on extra busy lanes: subagent or nested command work. Cron lanes always defer heartbeat turns.",
+  "agents.list[].heartbeat.skipWhenBusy":
+    "Per-agent override that defers heartbeat turns on extra busy lanes: subagent or nested command work. Cron lanes always defer heartbeat turns.",
   browser:
     "浏览器运行时控制，用于本地或远程 CDP 附件、配置文件路由和屏幕截图/快照行为。保持默认值，除非您的自动化工作流需要自定义浏览器传输设置。",
   "browser.enabled":
@@ -387,7 +393,15 @@ export const FIELD_HELP: Record<string, string> = {
   "web.reconnect.jitter":
     "应用于重新连接延迟的随机化因子（0-1），以在中断事件后反同步客户端。在多客户端部署中保持非零抖动以减少同步峰值。",
   "web.reconnect.maxAttempts":
-    "在放弃当前故障序列之前的最大重新连接尝试次数（0 表示无重试）。为自动化敏感环境中的受控故障处理使用有限的上限。",
+    "Maximum reconnect attempts before giving up for the current failure sequence (0 means no retries). Use finite caps for controlled failure handling in automation-sensitive environments.",
+  "web.whatsapp":
+    "WhatsApp Web socket timing controls passed directly to Baileys. Tune these when network edges, proxies, or NATs are closing otherwise healthy WhatsApp Web sessions.",
+  "web.whatsapp.keepAliveIntervalMs":
+    "Baileys WhatsApp Web application ping interval in milliseconds. Lower values detect and refresh idle links sooner; keep this comfortably below your network's idle-flow timeout.",
+  "web.whatsapp.connectTimeoutMs":
+    "Maximum time in milliseconds Baileys waits for the WhatsApp WebSocket opening handshake. Use a higher value on slow or lossy networks that report opening handshake 408 timeouts.",
+  "web.whatsapp.defaultQueryTimeoutMs":
+    "Default Baileys query timeout in milliseconds for WhatsApp Web requests. Keep aligned with upstream unless a network-specific investigation shows queries need longer.",
   canvasHost:
     "Canvas 主机设置，用于提供 canvas 资产和 canvas 启用工作流使用的本地实时重新加载行为。除非 canvas 托管资产被主动使用，否则保持禁用。",
   "canvasHost.enabled":
@@ -407,7 +421,11 @@ export const FIELD_HELP: Record<string, string> = {
   "agents.defaults.sandbox.docker.dangerouslyAllowContainerNamespaceJoin":
     "危险的破玻法覆盖，允许沙箱 Docker 网络模式容器:<id>。这加入另一个容器命名空间并削弱沙箱隔离。",
   "agents.list[].sandbox.docker.dangerouslyAllowContainerNamespaceJoin":
-    "沙箱 Docker 网络模式中的容器命名空间联接的各代理危险覆盖。",
+    "Per-agent DANGEROUS override for container namespace joins in sandbox Docker network mode.",
+  "agents.defaults.sandbox.docker.gpus":
+    'Optional Docker GPU passthrough value passed to --gpus, for example "all" or "device=GPU-uuid". Requires a compatible host runtime such as NVIDIA Container Toolkit.',
+  "agents.list[].sandbox.docker.gpus":
+    "Per-agent Docker GPU passthrough override for sandbox containers.",
   "agents.defaults.sandbox.browser.cdpSourceRange":
     "Optional CIDR allowlist for container-edge CDP ingress (for example 172.21.0.1/32).",
   "agents.list[].sandbox.browser.cdpSourceRange":
@@ -464,7 +482,7 @@ export const FIELD_HELP: Record<string, string> = {
     'Controls how config edits are applied: "off" ignores live edits, "restart" always restarts, "hot" applies in-process, and "hybrid" tries hot then restarts if required. Keep "hybrid" for safest routine updates.',
   "gateway.reload.debounceMs": "Debounce window (ms) before applying config changes.",
   "gateway.reload.deferralTimeoutMs":
-    "Optional maximum time (ms) to wait for in-flight operations before forcing a restart. Omit or set 0 to wait indefinitely with periodic still-pending warnings. Lower positive values risk aborting active subagent LLM calls.",
+    "Optional maximum time (ms) to wait for in-flight operations before forcing a restart. Omit to use the default bounded wait; set 0 to wait indefinitely with periodic still-pending warnings. Lower positive values risk aborting active subagent LLM calls.",
   "gateway.nodes.browser.mode":
     'Node browser routing ("auto" = pick single connected browser node, "manual" = require node param, "off" = disable).',
   "gateway.nodes.browser.node": "Pin browser routing to a specific node id or name (optional).",
@@ -1089,9 +1107,13 @@ export const FIELD_HELP: Record<string, string> = {
   "memory.qmd.update.debounceMs":
     "在重新索引运行前连续 QMD 刷新尝试之间的最小延迟（毫秒）（默认：15000）。如果频繁文件更改导致更新鞭打或不必要的后台负载，增加此项。",
   "memory.qmd.update.onBoot":
-    "在网关启动期间一次运行初始 QMD 更新（默认：true）。保持启用以便召回从新鲜基线开始；仅在启动速度比立即新鲜更重要时禁用。",
+    "Runs an initial QMD update when the long-lived QMD manager opens (default: true). Set false to disable manager-start updates and legacy/opt-in startup refreshes.",
+  "memory.qmd.update.startup":
+    "Controls whether Gateway startup schedules a QMD refresh before memory is first used (`off`, `idle`, or `immediate`; default: off). Keep off for fastest startup and lazy memory initialization.",
+  "memory.qmd.update.startupDelayMs":
+    'Sets the idle delay before an opt-in `memory.qmd.update.startup: "idle"` refresh runs (default: 120000). Increase to keep cold-start CPU available for channels and providers.',
   "memory.qmd.update.waitForBootSync":
-    "阻止启动完成，直到初始启动时 QMD 同步完成（默认：false）。当您需要在提供流量前完全最新的召回时启用，启用时对更快启动保持关闭。",
+    "Blocks QMD manager opening until its initial manager-start update finishes (default: false). Startup refreshes remain opt-in through `memory.qmd.update.startup`.",
   "memory.qmd.update.embedInterval":
     "设置 QMD 重新计算嵌入的频率（持续时间字符串，默认：60m；设置 0 以禁用定期嵌入）。较低的间隔改进新鲜度，但增加嵌入工作负载和成本。",
   "memory.qmd.update.commandTimeoutMs":
@@ -1643,6 +1665,8 @@ export const FIELD_HELP: Record<string, string> = {
     '控制心跳传递是否可能针对直接/DM 聊天："allow"(允许)(默认)允许 DM 传递，"block"(阻止)禁止直接目标发送。',
   "agents.list.*.heartbeat.directPolicy":
     'Per-agent override for heartbeat direct/DM delivery policy; use "block" for agents that should only send heartbeat alerts to non-DM destinations.',
+  "agents.list.*.heartbeat.skipWhenBusy":
+    "Per-agent override that defers heartbeat turns on extra busy lanes: subagent or nested command work. Cron lanes always defer heartbeat turns.",
   "channels.mattermost.configWrites":
     "Allow Mattermost to write config in response to channel events/commands (default: true).",
   "channels.modelByChannel":

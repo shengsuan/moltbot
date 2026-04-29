@@ -58,7 +58,7 @@ export interface ShengSuanYunModel {
   }
 }
 
-interface ShengSuanYunModelsResponse {
+export interface ShengSuanYunModelsResponse {
   data: ShengSuanYunModel[];
   success: boolean;
 }
