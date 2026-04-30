@@ -116,7 +116,7 @@ async function generate(
         await new Promise((resolve) => setTimeout(resolve, waitTime));
         errorCount = 0;
       } catch (e) {
-        if (errorCount > 3) {
+        if (errorCount > 5) {
           console.log("polling error:", e);
           throw e;
         }
@@ -297,27 +297,6 @@ async function loadShengSuanYunTools(opts?: {
       },
     });
   }
-  // console.log(`[shengsuanyun-generate] Loaded ${tools.length} dynamic tools`);
-
-  // Save api_name -> tool name mapping to workspace dir for external reference
-  // if (opts?.workspaceDir) {
-  //   const a2n: Record<string, string> = {};
-  //   for (const model of models) {
-  //     a2n[model.api_name] = sanitizeToolName(model.api_name);
-  //   }
-  //   try {
-  //     const { writeFile, mkdir } = await import("node:fs/promises");
-  //     await mkdir(opts.workspaceDir, { recursive: true });
-  //     await writeFile(
-  //       `${opts.workspaceDir}/a2n.json`,
-  //       JSON.stringify(a2n, null, 2),
-  //       "utf-8",
-  //     );
-  //   } catch (err) {
-  //     console.error("[shengsuanyun-generate] Failed to write a2n.json:", err);
-  //   }
-  // }
-
   return tools;
 }
 
@@ -354,9 +333,6 @@ export function generateTypebox(schema: JsonSchema): TSchema {
 
   const parse = (node: JsonSchema): TSchema => {
     const options = getOptions(node);
-
-    // Handle anyOf: merge all properties from all schemas (workaround for Union restriction)
-    // This makes all fields optional and available
     if (node.anyOf && Array.isArray(node.anyOf)) {
       const allProps: Record<string, TSchema> = {};
       const allRequired = new Set<string>();
@@ -364,11 +340,9 @@ export function generateTypebox(schema: JsonSchema): TSchema {
       for (const subSchema of node.anyOf) {
         if (subSchema.properties) {
           for (const [key, value] of Object.entries(subSchema.properties)) {
-            // If we haven't seen this property yet, or if it's required in any schema
             if (!allProps[key]) {
               allProps[key] = parse(value);
             }
-            // Track if this property is required in any of the anyOf schemas
             if (
               subSchema.required &&
               Array.isArray(subSchema.required) &&
@@ -387,7 +361,6 @@ export function generateTypebox(schema: JsonSchema): TSchema {
       return Type.Object(props, Object.keys(options).length > 0 ? options : undefined);
     }
 
-    // Handle enum using Type.Unsafe to create a valid string enum (as per tool schema guardrails)
     if (node.enum && Array.isArray(node.enum)) {
       // Use Type.Unsafe to create a proper enum schema that validators accept
       const enumValues = node.enum;
@@ -398,7 +371,6 @@ export function generateTypebox(schema: JsonSchema): TSchema {
       });
     }
 
-    // Handle object type
     if (node.type === "object" || node.properties) {
       if (!node.properties) {
         return Type.Object({}, Object.keys(options).length > 0 ? options : undefined);
@@ -415,13 +387,11 @@ export function generateTypebox(schema: JsonSchema): TSchema {
       return Type.Object(props, Object.keys(options).length > 0 ? options : undefined);
     }
 
-    // Handle array type
     if (node.type === "array") {
       const itemsSchema = node.items ? parse(node.items) : Type.Any();
       return Type.Array(itemsSchema, Object.keys(options).length > 0 ? options : undefined);
     }
 
-    // Handle primitive types
     if (node.type === "string" || (!node.type && !node.anyOf && !node.enum)) {
       return Type.String(Object.keys(options).length > 0 ? options : undefined);
     }
@@ -444,9 +414,9 @@ export async function preloadShengSuanYunTools(opts?: {
   config?: OpenClawConfig;
   workspaceDir?: string;
 }): Promise<void> {
-  // console.log(
-  //   `[shengsuanyun-generate] preloadShengSuanYunTools() called, cachedTools: ${cachedTools ? `${cachedTools.length} tools` : "null"}`,
-  // );
+  log.info(
+    `[shengsuanyun-generate] preloadShengSuanYunTools() called, cachedTools: ${cachedTools ? `${cachedTools.length} tools` : "null"}`,
+  );
   if (cachedTools !== null) {
     return;
   }
@@ -461,7 +431,7 @@ export async function preloadShengSuanYunTools(opts?: {
       return tools;
     })
     .catch((err) => {
-      console.error("[shengsuanyun-generate] Failed to load tools, using fallback only:", err);
+      log.error("[shengsuanyun-generate] Failed to load tools, using fallback only:", err);
       return [];
     })
     .finally(() => {
@@ -474,16 +444,16 @@ export function createGenerateTools(opts?: {
   config?: OpenClawConfig;
   workspaceDir?: string;
 }): AnyAgentTool[] {
-  // console.log(
-  //   `[shengsuanyun-generate] createGenerateTools() called, cachedTools: ${cachedTools ? `${cachedTools.length} tools` : "null"}`,
-  // );
+  log.info(
+    `[shengsuanyun-generate] createGenerateTools() called, cachedTools: ${cachedTools ? `${cachedTools.length} tools` : "null"}`,
+  );
   if (cachedTools !== null) {
-    // console.log(`[shengsuanyun-generate] Returning ${cachedTools.length} cached tools`);
+    log.info(`[shengsuanyun-generate] Returning ${cachedTools.length} cached tools`);
     return cachedTools;
   }
-  // console.log(
-  //   "[shengsuanyun-generate] cachedTools is null, starting background preload and returning fallback tools",
-  // );
+  log.info(
+    "[shengsuanyun-generate] cachedTools is null, starting background preload and returning fallback tools",
+  );
   preloadShengSuanYunTools(opts).catch((err) => {
     console.error("[shengsuanyun-generate] Background preload failed:", err);
   });
