@@ -177,6 +177,12 @@ export const FIELD_HELP: Record<string, string> = {
   "acp.runtime.ttlMinutes": "ACP 会话工作者的空闲运行时 TTL（分钟），在合格清理前。",
   "acp.runtime.installCommand":
     "Optional operator install/setup command shown by `/acp install` and `/acp doctor` when ACP backend wiring is missing.",
+  commitments:
+    "Inferred follow-up commitment controls for automatically detecting check-ins from conversation turns and delivering them through heartbeat runs.",
+  "commitments.enabled":
+    "Enable hidden LLM extraction, storage, and heartbeat delivery for inferred follow-up commitments. Default: false.",
+  "commitments.maxPerDay":
+    "Maximum inferred follow-up commitments delivered per agent session in a rolling day. Default: 3.",
   "agents.list.*.skills":
     "Optional allowlist of skills for this agent. If omitted, the agent inherits agents.defaults.skills when set; otherwise skills stay unrestricted. Set [] for no skills. An explicit list fully replaces inherited defaults instead of merging with them.",
   "agents.list[].skills":
@@ -814,6 +820,8 @@ export const FIELD_HELP: Record<string, string> = {
     "Scoped SSRF policy overrides for web_fetch. Keep this narrow and opt in only for known local-network proxy environments.",
   "tools.web.fetch.ssrfPolicy.allowRfc2544BenchmarkRange":
     "Allow RFC 2544 benchmark-range IPs (198.18.0.0/15) for fake-IP proxy compatibility such as Clash or Surge.",
+  "tools.web.fetch.ssrfPolicy.allowIpv6UniqueLocalRange":
+    "Allow IPv6 Unique Local Addresses (fc00::/7) for trusted fake-IP proxy compatibility such as sing-box, Clash, or Surge.",
   models:
     "模型目录根用于提供商定义、合并/替换行为和可选的 Bedrock 发现集成。在依赖生产故障转移路径之前保持提供商定义明确和经过验证。",
   "models.mode":
@@ -1590,7 +1598,9 @@ export const FIELD_HELP: Record<string, string> = {
   messages:
     "消息格式化、确认、队列、去抖和状态反应行为，用于入站/出站聊天流。当频道响应性或消息 UX 需要调整时使用此部分。",
   "messages.messagePrefix":
-    "在入站用户消息传递给代理运行时之前前置的前缀文本。谨慎使用此功能来获取频道上下文标记，并保持其在会话中的稳定性。",
+    "Prefix text prepended to inbound user messages before they are handed to the agent runtime. Use this sparingly for channel context markers and keep it stable across sessions.",
+  "messages.visibleReplies":
+    'Controls visible source replies across direct, group, and channel conversations. "message_tool" keeps normal final replies private and requires message(action=send) for visible output; "automatic" posts normal replies as before.',
   "messages.responsePrefix":
     "在发送到频道之前前置到出站助手回复的前缀文本。用于轻量级品牌/上下文标记并避免减少内容密度的长前缀。",
   "messages.groupChat":
@@ -1600,21 +1610,21 @@ export const FIELD_HELP: Record<string, string> = {
   "messages.groupChat.historyLimit":
     "Maximum number of prior group messages loaded as context per turn for group sessions. Use higher values for richer continuity, or lower values for faster and cheaper responses.",
   "messages.groupChat.visibleReplies":
-    'Controls visible group/channel replies. "message_tool" keeps normal final replies private and requires message(action=send) for room output; "automatic" posts normal replies as before.',
+    'Overrides visible source replies for group/channel conversations. "message_tool" keeps normal final replies private and requires message(action=send) for room output; "automatic" posts normal replies as before.',
   "messages.queue":
-    "入站消息队列策略，用于在处理轮次之前缓冲突发。为繁忙频道调整此选项，其中顺序处理或批处理行为很重要。",
+    "Inbound message queue strategy for messages that arrive while a session run is active. Default mode is steer, with followup fallback when steering is unavailable.",
   "messages.queue.mode":
-    '队列行为模式："steer"(转向)、"followup"(跟进)、"collect"(收集)、"steer-backlog"(转向积压)、"steer+backlog"(转向+积压)、"queue"(队列)或"interrupt"(中断)。保持保守模式除非打算需要主动中断/积压语义。',
+    'Queue behavior mode. Use "steer" to inject all queued steering messages at the next model boundary; "queue" is legacy one-at-a-time steering; "followup" runs later; "collect" batches later; "steer-backlog" (alias "steer+backlog") does both; "interrupt" aborts the active run.',
   "messages.queue.byChannel":
     "Per-channel queue mode overrides keyed by provider id (for example telegram, discord, slack). Use this when one channel’s traffic pattern needs different queue behavior than global defaults.",
   "messages.queue.debounceMs":
-    "全局队列去抖动窗口(毫秒)，然后再处理缓冲的入站消息。使用较高的值来合并快速突发，或使用较低的值来减少响应延迟。",
+    "Global followup queue debounce window in milliseconds before draining buffered inbound messages. Default is 500ms; higher values coalesce bursts, lower values reduce latency.",
   "messages.queue.debounceMsByChannel":
     "按提供商 id 关键的队列行为的每频道去抖动覆盖。使用此为不同的聊天表面使用不同的步调独立调整突发处理。",
   "messages.queue.cap":
-    "在应用删除策略之前保留的最大排队入站项目数。在嘈杂频道中保持上限范围内，以便内存使用保持可预测。",
+    "Maximum number of queued inbound items retained before drop policy applies. Default is 20; keep caps bounded in noisy channels so memory usage remains predictable.",
   "messages.queue.drop":
-    '超过队列上限时的删除策略："old"(旧的)、"new"(新的)或"summarize"(总结)。保留意图时使用总结，或当首选确定性删除时使用旧的/新的。',
+    'Drop strategy when queue cap is exceeded. "summarize" drops oldest entries but preserves compact summaries; "old" drops oldest without summaries; "new" rejects the newest item. Use "summarize" for long-running chats where context matters.',
   "messages.inbound":
     "直接入站去抖动设置，在队列/轮次处理开始之前使用。为来自同一发件人的提供商特定快速消息突发配置此选项。",
   "messages.inbound.byChannel":

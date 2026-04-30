@@ -57,7 +57,12 @@ async function generate(
     });
 
     if (!res.ok) {
-      return { success: false, error: `API Error: ${res.statusText}` };
+      try {
+        const errorData = await res.json();
+        return { success: false, error: errorData.message || `Error ${res.status}` };
+      } catch {
+        return { success: false, error: `API Error: ${res.status} ${res.statusText}` };
+      }
     }
     const data = (await res.json()) as TaskRes;
     if (data.code != "success" || !data.data?.request_id) {
