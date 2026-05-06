@@ -216,34 +216,25 @@
     "elevated": {
       "enabled": true,
       "allowFrom": {
-        "webchat": [
-          "*"
-        ],
-        "direct": [
-          "*"
-        ]
+        "webchat": ["*"],
+        "direct": ["*"]
       }
     },
-    "alsoAllow": [
-      "wecom_mcp",
-      "qqbot_channel_api",
-      "qqbot_remind"
-    ]
+    "alsoAllow": []
   },
   "plugins": {
     "entries": {
       "shengsuanyun": {
         "enabled": true
       },
+      "openclaw-weixin": {
+        "enabled": true
+      },
       "browser": {
         "enabled": true
       }
     },
-    "allow": [
-      "shengsuanyun",
-      "browser",
-      "memory-core"
-    ]
+    "allow": ["shengsuanyun", "browser", "memory-core", "openclaw-weixin"]
   },
   "browser": {
     "enabled": true,
@@ -252,16 +243,8 @@
     "attachOnly": false,
     "ssrfPolicy": {
       "dangerouslyAllowPrivateNetwork": true,
-      "hostnameAllowlist": [
-        "*.com",
-        "*.net",
-        "*.org",
-        "*.io",
-        "localhost"
-      ],
-      "allowedHostnames": [
-        "*"
-      ]
+      "hostnameAllowlist": ["*.com", "*.net", "*.org", "*.io", "localhost"],
+      "allowedHostnames": ["*"]
     }
   },
   "skills": {
