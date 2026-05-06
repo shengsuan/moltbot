@@ -10,6 +10,9 @@ minimumReleaseAgeExclude:
   - "acpx"
   - "tokenjuice"
   - "@agentclientprotocol/sdk"
+  - "@anthropic-ai/sdk"
+  - "@aws-sdk/*"
+  - "@copilotkit/*"
   - "axios"
   - "basic-ftp"
   - "follow-redirects"
@@ -17,8 +20,10 @@ minimumReleaseAgeExclude:
   - "openclaw"
   - "protobufjs"
   - "vite"
+  - "zod"
   - "@cloudflare/workers-types"
   - "@hono/node-server"
+  - "@homebridge/ciao"
   - "@mariozechner/*"
   - "@openai/codex"
   - "@openai/codex-*"
@@ -34,11 +39,15 @@ minimumReleaseAgeExclude:
   - "sqlite-vec-*"
 
 onlyBuiltDependencies:
+  - "@openclaw/fs-safe"
+  - "@discordjs/opus"
+  - "@google/genai"
   - "@lydell/node-pty"
   - "@matrix-org/matrix-sdk-crypto-nodejs"
   - "@napi-rs/canvas"
   - "@tloncorp/api"
   - "@whiskeysockets/baileys"
+  - "@whiskeysockets/libsignal-node"
   - authenticate-pam
   - esbuild
   - node-llama-cpp
@@ -47,3 +56,4 @@ onlyBuiltDependencies:
 
 ignoredBuiltDependencies:
   - koffi
+  - tree-sitter-bash
