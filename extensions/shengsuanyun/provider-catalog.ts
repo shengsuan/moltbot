@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
-import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
 import { type ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
 import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-shared";
+import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
+import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
 
-export const SHENGSUANYUN_BASE_URL = "https://router.shengsuanyun.com/api/v1";
+export const SHENGSUANYUN_BASE_URL = "https://test-router.claw.shengsuanyun.com/api/v1";
 export const SHENGSUANYUN_MODALITIES_BASE_URL = "https://api.shengsuanyun.com/modelrouter";
 
 const log = createSubsystemLogger("models");
@@ -21,10 +21,14 @@ type CacheWrap<T> = { timestamp: number; data: T };
 function loadCache<T>(name: string): T | null {
   try {
     const p = getCachePath(name);
-    if (!fs.existsSync(p)){ return null;}
+    if (!fs.existsSync(p)) {
+      return null;
+    }
     const raw = fs.readFileSync(p, "utf-8");
     const parsed = JSON.parse(raw) as CacheWrap<T>;
-    if (Date.now() - parsed.timestamp > CACHE_TTL_MS){ return null;}
+    if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
+      return null;
+    }
     return parsed.data;
   } catch (e) {
     log.warn(`load cache ${name} failed: ${String(e)}`);
@@ -55,7 +59,7 @@ export interface ShengSuanYunModel {
     prompt: number;
     completion: number;
     cache: number;
-  }
+  };
 }
 
 export interface ShengSuanYunModelsResponse {
@@ -86,7 +90,7 @@ function mapModels(list: ShengSuanYunModel[]): ModelDefinitionConfig[] {
         input: m.pricing.prompt,
         output: m.pricing.completion,
         cacheRead: m.pricing.cache,
-        cacheWrite: m.pricing.cache
+        cacheWrite: m.pricing.cache,
       },
       contextWindow: m.context_window || 128000,
       maxTokens: m.max_tokens || 8192,
@@ -104,11 +108,12 @@ export async function discoverShengSuanYunModels(): Promise<ModelDefinitionConfi
     const res = await fetch(`${SHENGSUANYUN_BASE_URL}/models`, {
       signal: AbortSignal.timeout(50000),
     });
-
-    if (!res.ok){ throw new Error(`http ${res.status}`);}
+    await tryRes(res);
 
     const json = (await res.json()) as ShengSuanYunModelsResponse;
-    if (!json.success || !Array.isArray(json.data)){ throw new Error("invalid response");}
+    if (!json.success || !Array.isArray(json.data)) {
+      throw new Error("invalid response");
+    }
 
     const mapped = mapModels(json.data);
     if (mapped.length > 0) {
@@ -146,18 +151,20 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
     return loadCache<MModel[]>(cacheKey) ?? [];
   }
   const cached = loadCache<MModel[]>(cacheKey);
-  if (cached){ return cached; }
+  if (cached) {
+    return cached;
+  }
 
   try {
     const res = await fetch(
       `${SHENGSUANYUN_MODALITIES_BASE_URL}/modalities/list?page=1&page_size=200`,
       { signal: AbortSignal.timeout(30000) },
     );
-
-    if (!res.ok){ throw new Error(`http ${res.status}`);}
-
+    await tryRes(res);
     const json = (await res.json()) as ShengSuanYunModalitiesResponse;
-    if (json.code !== 0 || !Array.isArray(json.data?.infos)){ throw new Error("invalid");}
+    if (json.code !== 0 || !Array.isArray(json.data?.infos)) {
+      throw new Error("invalid");
+    }
 
     const ids = json.data.infos.map((i) => i.id);
     const results: MModel[] = [];
@@ -171,7 +178,9 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
               `${SHENGSUANYUN_MODALITIES_BASE_URL}/modalities/info?model_id=${id}`,
               { signal: AbortSignal.timeout(60000) },
             );
-            if (!r.ok){ return null;}
+            if (!r.ok) {
+              return null;
+            }
             const j = await r.json();
             return j.code === 0 && j.data ? j.data : null;
           } catch {
@@ -180,12 +189,16 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
         }),
       );
 
-      results.push(...items.filter(Boolean) as MModel[]);
-      if (i + 10 < ids.length){ await new Promise((r) => setTimeout(r, 500));}
+      results.push(...(items.filter(Boolean) as MModel[]));
+      if (i + 10 < ids.length) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
     }
 
-    if (results.length){ saveCache(cacheKey, results);}
-    return results.length ? results : cached ?? [];
+    if (results.length) {
+      saveCache(cacheKey, results);
+    }
+    return results.length ? results : (cached ?? []);
   } catch (e) {
     log.warn(`modalities fetch failed: ${String(e)}`);
     return cached ?? [];
@@ -203,4 +216,22 @@ export async function buildShengSuanYunProvider(): Promise<ModelProviderConfig> 
       "X-Title": "OpenClaw",
     },
   };
+}
+
+async function tryRes(res: Response) {
+  if (res.ok) {
+    return;
+  }
+  let errorDetail = "";
+  try {
+    const errorData = await res.json();
+    errorDetail = errorData?.message || errorData?.error || JSON.stringify(errorData);
+  } catch {
+    errorDetail = await res.text();
+  }
+
+  const errorMessage = errorDetail
+    ? `API Error (${res.status}): ${errorDetail}`
+    : `HTTP Error: ${res.status} ${res.statusText}`;
+  throw new Error(errorMessage);
 }
