@@ -207,7 +207,7 @@ RUN mkdir -p /run/sshd /root/.ssh && \
     chmod 700 /root/.ssh && \
     ssh-keygen -A 
     
-COPY ./plugins /app/plugins/
+# COPY ./plugins /app/plugins/
     
 # In npm-installed Docker images, prefer the copied source extension tree for
 # bundled discovery so package metadata that points at source entries stays valid.
