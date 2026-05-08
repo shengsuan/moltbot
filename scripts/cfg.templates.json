@@ -152,7 +152,7 @@
       },
       "workspace": "${OPENCLAW_HOME}/.openclaw/workspace",
       "model": {
-        "primary": "shengsuanyun/anthropic/claude-haiku-4-5"
+        "primary": "shengsuanyun/anthropic/claude-haiku-4.5"
       },
       "userTimezone": "${OPENCLAW_TIMEZONE}"
     }
