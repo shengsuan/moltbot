@@ -5,6 +5,7 @@ import { ensureApiKeyFromEnvOrPrompt } from "../plugins/provider-auth-input.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { fetchWithTimeout } from "../utils/fetch-timeout.js";
 import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
+import { t } from "../wizard/i18n/index.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import {
   applyCustomApiConfig,
@@ -45,23 +46,23 @@ type CustomApiCompatibilityChoice = CustomApiCompatibility | "unknown";
 
 const COMPATIBILITY_OPTIONS: Array<{
   value: CustomApiCompatibilityChoice;
-  label: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
 }> = [
   {
     value: "openai",
-    label: "OpenAI 兼容",
-    hint: "使用 /chat/completions",
+    labelKey: "wizard.customProvider.compatibilityOpenAi",
+    hintKey: "wizard.customProvider.compatibilityOpenAiHint",
   },
   {
     value: "anthropic",
-    label: "Anthropic 兼容",
-    hint: "使用 /messages",
+    labelKey: "wizard.customProvider.compatibilityAnthropic",
+    hintKey: "wizard.customProvider.compatibilityAnthropicHint",
   },
   {
     value: "unknown",
-    label: "未知（自动检测）",
-    hint: "先探测 OpenAI 然后 Anthropic 端点",
+    labelKey: "wizard.customProvider.compatibilityUnknown",
+    hintKey: "wizard.customProvider.compatibilityUnknownHint",
   },
 ];
 
@@ -135,11 +136,11 @@ async function promptBaseUrlAndKey(params: {
   initialBaseUrl?: string;
 }): Promise<{ baseUrl: string; apiKey?: SecretInput; resolvedApiKey: string }> {
   const baseUrlInput = await params.prompter.text({
-    message: "API Base URL",
+    message: t("wizard.customProvider.apiBaseUrl"),
     initialValue: params.initialBaseUrl,
     placeholder: "https://api.example.com/v1",
     validate: (val) => {
-      return URL.canParse(val) ? undefined : "Please enter a valid URL (e.g. http://...)";
+      return URL.canParse(val) ? undefined : t("wizard.customProvider.validUrl");
     },
   });
   const baseUrl = baseUrlInput.trim();
@@ -149,7 +150,7 @@ async function promptBaseUrlAndKey(params: {
     config: params.config,
     provider: providerHint,
     envLabel: "CUSTOM_API_KEY",
-    promptMessage: "API 密钥（如不需要请留空）",
+    promptMessage: t("wizard.customProvider.apiKeyPrompt"),
     normalize: normalizeSecretInput,
     validate: () => undefined,
     prompter: params.prompter,
@@ -169,11 +170,11 @@ type CustomApiRetryChoice = "baseUrl" | "model" | "both";
 
 async function promptCustomApiRetryChoice(prompter: WizardPrompter): Promise<CustomApiRetryChoice> {
   return await prompter.select({
-    message: "您想更改什么？",
+    message: t("wizard.customProvider.retryChoice"),
     options: [
-      { value: "baseUrl", label: "更改基础 URL" },
-      { value: "model", label: "更改模型" },
-      { value: "both", label: "更改基础 URL 和模型" },
+      { value: "baseUrl", label: t("wizard.customProvider.changeBaseUrl") },
+      { value: "model", label: t("wizard.customProvider.changeModel") },
+      { value: "both", label: t("wizard.customProvider.changeBaseUrlAndModel") },
     ],
   });
 }
@@ -181,9 +182,9 @@ async function promptCustomApiRetryChoice(prompter: WizardPrompter): Promise<Cus
 async function promptCustomApiModelId(prompter: WizardPrompter): Promise<string> {
   return (
     await prompter.text({
-      message: "模型 ID",
-      placeholder: "例如 llama3、claude-3-7-sonnet",
-      validate: (val) => (val.trim() ? undefined : "模型 ID 是必填项"),
+      message: t("wizard.customProvider.modelId"),
+      placeholder: t("wizard.customProvider.modelIdPlaceholder"),
+      validate: (val) => (val.trim() ? undefined : t("wizard.customProvider.modelIdRequired")),
     })
   ).trim();
 }
@@ -231,11 +232,11 @@ export async function promptCustomApiConfig(params: {
   let resolvedApiKey = baseInput.resolvedApiKey;
 
   const compatibilityChoice = await prompter.select({
-    message: "端点兼容性",
+    message: t("wizard.customProvider.compatibility"),
     options: COMPATIBILITY_OPTIONS.map((option) => ({
       value: option.value,
-      label: option.label,
-      hint: option.hint,
+      label: t(option.labelKey),
+      hint: t(option.hintKey),
     })),
   });
 
@@ -247,14 +248,14 @@ export async function promptCustomApiConfig(params: {
   while (true) {
     let verifiedFromProbe = false;
     if (!compatibility) {
-      const probeSpinner = prompter.progress("正在检测端点类型…");
+      const probeSpinner = prompter.progress(t("wizard.customProvider.detectionProgress"));
       const openaiProbe = await requestOpenAiVerification({
         baseUrl,
         apiKey: resolvedApiKey,
         modelId,
       });
       if (openaiProbe.ok) {
-        probeSpinner.stop("检测到 OpenAI 兼容端点。");
+        probeSpinner.stop(t("wizard.customProvider.detectedOpenAi"));
         compatibility = "openai";
         verifiedFromProbe = true;
       } else {
@@ -264,12 +265,15 @@ export async function promptCustomApiConfig(params: {
           modelId,
         });
         if (anthropicProbe.ok) {
-          probeSpinner.stop("检测到 Anthropic 兼容端点。");
+          probeSpinner.stop(t("wizard.customProvider.detectedAnthropic"));
           compatibility = "anthropic";
           verifiedFromProbe = true;
         } else {
-          probeSpinner.stop("无法检测端点类型。");
-          await prompter.note("此端点未响应 OpenAI 或 Anthropic 样式的请求。", "端点检测");
+          probeSpinner.stop(t("wizard.customProvider.detectionFailed"));
+          await prompter.note(
+            t("wizard.customProvider.detectionFailedNote"),
+            t("wizard.customProvider.detectionNoteTitle"),
+          );
           const retryChoice = await promptCustomApiRetryChoice(prompter);
           ({ baseUrl, apiKey, resolvedApiKey, modelId } = await applyCustomApiRetryChoice({
             prompter,
@@ -287,19 +291,25 @@ export async function promptCustomApiConfig(params: {
       break;
     }
 
-    const verifySpinner = prompter.progress("正在验证…");
+    const verifySpinner = prompter.progress(t("wizard.customProvider.verifying"));
     const result =
       compatibility === "anthropic"
         ? await requestAnthropicVerification({ baseUrl, apiKey: resolvedApiKey, modelId })
         : await requestOpenAiVerification({ baseUrl, apiKey: resolvedApiKey, modelId });
     if (result.ok) {
-      verifySpinner.stop("验证成功。");
+      verifySpinner.stop(t("wizard.customProvider.verificationSuccessful"));
       break;
     }
     if (result.status !== undefined) {
-      verifySpinner.stop(`验证失败：状态 ${result.status}`);
+      verifySpinner.stop(
+        t("wizard.customProvider.verificationFailedStatus", { status: result.status }),
+      );
     } else {
-      verifySpinner.stop(`验证失败：${formatVerificationError(result.error)}`);
+      verifySpinner.stop(
+        t("wizard.customProvider.verificationFailedError", {
+          error: formatVerificationError(result.error),
+        }),
+      );
     }
     const retryChoice = await promptCustomApiRetryChoice(prompter);
     ({ baseUrl, apiKey, resolvedApiKey, modelId } = await applyCustomApiRetryChoice({
@@ -316,20 +326,20 @@ export async function promptCustomApiConfig(params: {
 
   const suggestedId = buildEndpointIdFromUrl(baseUrl);
   const providerIdInput = await prompter.text({
-    message: "端点 ID",
+    message: t("wizard.customProvider.endpointId"),
     initialValue: suggestedId,
     placeholder: "custom",
     validate: (value) => {
       const normalized = normalizeEndpointId(value);
       if (!normalized) {
-        return "端点 ID 是必填项。";
+        return t("wizard.customProvider.endpointIdRequired");
       }
       return undefined;
     },
   });
   const aliasInput = await prompter.text({
-    message: "模型别名（可选）",
-    placeholder: "例如 local、ollama",
+    message: t("wizard.customProvider.modelAlias"),
+    placeholder: t("wizard.customProvider.modelAliasPlaceholder"),
     initialValue: "",
     validate: (value) => {
       const resolvedProvider = resolveCustomProviderId({
@@ -346,7 +356,7 @@ export async function promptCustomApiConfig(params: {
     imageInputInference.confidence === "known"
       ? imageInputInference.supportsImageInput
       : await prompter.confirm({
-          message: "Does this model support image input?",
+          message: t("wizard.customProvider.imageInput"),
           initialValue: imageInputInference.supportsImageInput,
         });
   const resolvedCompatibility = compatibility ?? "openai";
@@ -363,11 +373,14 @@ export async function promptCustomApiConfig(params: {
 
   if (result.providerIdRenamedFrom && result.providerId) {
     await prompter.note(
-      `端点 ID "${result.providerIdRenamedFrom}" 已用于不同的基础 URL。使用 "${result.providerId}"。`,
-      "端点 ID",
+      t("wizard.customProvider.endpointIdRenamed", {
+        from: result.providerIdRenamedFrom,
+        to: result.providerId,
+      }),
+      t("wizard.customProvider.endpointIdTitle"),
     );
   }
 
-  runtime.log(`已配置自定义提供商：${result.providerId}/${result.modelId}`);
+  runtime.log(`Configured custom provider: ${result.providerId}/${result.modelId}`);
   return result;
 }

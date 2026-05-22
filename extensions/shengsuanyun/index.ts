@@ -1,5 +1,4 @@
 import { defineSingleProviderPluginEntry } from "openclaw/plugin-sdk/provider-entry";
-import { applyXaiModelCompat } from "openclaw/plugin-sdk/provider-tools";
 import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/text-runtime";
 import { applyShengSuanYunConfig, SHENGSUANYUN_DEFAULT_MODEL_REF } from "./onboard.ts";
 import { buildShengSuanYunProvider } from "./provider-catalog.js";
@@ -49,9 +48,5 @@ export default defineSingleProviderPluginEntry({
         };
       },
     },
-    normalizeResolvedModel: ({ modelId, model }) =>
-      normalizeLowercaseStringOrEmpty(modelId).includes("grok")
-        ? applyXaiModelCompat(model)
-        : undefined,
   },
 });

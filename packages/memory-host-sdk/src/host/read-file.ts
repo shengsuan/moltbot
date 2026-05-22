@@ -6,13 +6,44 @@ import {
   resolveMemorySearchConfig,
   type OpenClawConfig,
 } from "./config-utils.js";
-import { isFileMissingError, isPathInside, readRegularFile, statRegularFile } from "./fs-utils.js";
+import {
+  assertNoSymlinkParents,
+  isFileMissingError,
+  isPathInside,
+  isPathInsideWithRealpath,
+  readRegularFile,
+  root,
+  statRegularFile,
+} from "./fs-utils.js";
 import { isMemoryPath, normalizeExtraMemoryPaths } from "./internal.js";
 import {
   buildMemoryReadResult,
   DEFAULT_MEMORY_READ_LINES,
   type MemoryReadResult,
 } from "./read-file-shared.js";
+
+async function isAllowedAdditionalDirectoryPath(
+  additionalPath: string,
+  absPath: string,
+): Promise<boolean> {
+  if (!isPathInside(additionalPath, absPath)) {
+    return false;
+  }
+  try {
+    await assertNoSymlinkParents({ rootDir: additionalPath, targetPath: absPath });
+  } catch {
+    return false;
+  }
+  if (!isPathInsideWithRealpath(additionalPath, absPath)) {
+    try {
+      await fs.lstat(absPath);
+    } catch (err) {
+      return isFileMissingError(err);
+    }
+    return false;
+  }
+  return true;
+}
 
 export async function readMemoryFile(params: {
   workspaceDir: string;
@@ -43,7 +74,7 @@ export async function readMemoryFile(params: {
           continue;
         }
         if (stat.isDirectory()) {
-          if (isPathInside(additionalPath, absPath)) {
+          if (await isAllowedAdditionalDirectoryPath(additionalPath, absPath)) {
             const candidateStat = await fs.lstat(absPath).catch(() => null);
             if (candidateStat?.isSymbolicLink()) {
               continue;
@@ -65,6 +96,17 @@ export async function readMemoryFile(params: {
   }
   if (!absPath.endsWith(".md")) {
     throw new Error("path required");
+  }
+  if (allowedWorkspace) {
+    try {
+      const workspaceRoot = await root(params.workspaceDir);
+      await workspaceRoot.resolve(relPath);
+    } catch (err) {
+      if (isFileMissingError(err)) {
+        return { text: "", path: relPath };
+      }
+      throw err;
+    }
   }
   const statResult = await statRegularFile(absPath);
   if (statResult.missing) {

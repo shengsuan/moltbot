@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { writeFile, mkdir } from "node:fs/promises";
 import { join, extname } from "node:path";
-import type { TextContent, ImageContent } from "@mariozechner/pi-ai";
+import type { TextContent, ImageContent } from "@earendil-works/pi-ai";
 
 export async function saveMediaToWorkspace(
   url: string,

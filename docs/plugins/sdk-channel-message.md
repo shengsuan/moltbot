@@ -7,8 +7,6 @@ read_when:
   - You are migrating from legacy reply pipeline or inbound reply dispatch helpers
 ---
 
-# Channel Message API
-
 Channel plugins should expose one `message` adapter from
 `openclaw/plugin-sdk/channel-message`. The adapter describes the native message
 lifecycle that the platform supports:
@@ -33,7 +31,37 @@ Runtime delivery helpers are available from
 `openclaw/plugin-sdk/channel-message-runtime` for monitor/send code paths that
 are already doing asynchronous message I/O.
 
-## Minimal Adapter
+New channel and plugin send code should use the message lifecycle helpers from
+`openclaw/plugin-sdk/channel-message-runtime`: `sendDurableMessageBatch`,
+`withDurableMessageSendContext`, or `deliverInboundReplyWithMessageSendContext`.
+The older
+`deliverOutboundPayloads(...)` helper in `openclaw/plugin-sdk/outbound-runtime`
+is deprecated compatibility/runtime substrate for outbound internals, recovery,
+and legacy adapters. Do not use it for new channel or plugin send paths.
+
+`sendDurableMessageBatch(...)` returns an explicit lifecycle outcome:
+
+- `sent` - at least one visible platform message was delivered.
+- `suppressed` - no platform message should be treated as missing. Stable
+  reasons include `cancelled_by_message_sending_hook`,
+  `empty_after_message_sending_hook`, `no_visible_payload`,
+  `adapter_returned_no_identity`, and legacy `no_visible_result`.
+- `partial_failed` - at least one platform message was delivered before a later
+  payload or side effect failed. The result includes the delivered receipt prefix
+  plus the failure.
+- `failed` - no platform receipt was produced.
+
+Use `payloadOutcomes` when a batch mixes sent, suppressed, and failed payloads.
+Do not infer hook cancellation by checking whether the old direct-delivery array
+is empty.
+
+Compatibility dispatchers that still need the buffered reply dispatcher should
+build reply-prefix options with `createChannelMessageReplyPipeline(...)` from
+`openclaw/plugin-sdk/channel-message`, then call the runtime's
+`channel.turn.runPrepared(...)`. That keeps session recording and dispatch
+ordering on the shared turn lifecycle without adding another public turn wrapper.
+
+## Minimal adapter
 
 Most new channel plugins can start with a small adapter:
 
@@ -93,7 +121,7 @@ export const demoPlugin = createChatChannelPlugin({
 Only declare capabilities that the adapter really preserves. Every declared
 capability should have a contract test.
 
-## Outbound Bridge
+## Outbound bridge
 
 If the channel already has a compatible `outbound` adapter, prefer deriving the
 message adapter instead of duplicating send code:
@@ -116,7 +144,7 @@ uses `manual` receive acknowledgement policy. That makes plugin-owned platform
 acknowledgement explicit without changing channels that acknowledge webhooks,
 sockets, or polling offsets outside generic receive context.
 
-## Message Tool Sends
+## Message tool sends
 
 The shared `message(action="send")` path should use the same core delivery
 lifecycle as final replies. If a channel needs provider-specific shaping for the
@@ -126,8 +154,10 @@ tool send, implement `actions.prepareSendPayload(...)` instead of sending from
 `prepareSendPayload(...)` receives the normalized core `ReplyPayload` plus the
 full action context. Return a payload with channel-specific data in
 `payload.channelData.<channel>` and let core call `sendMessage(...)`,
-`deliverOutboundPayloads(...)`, the write-ahead queue, message-sending hooks,
-retry, recovery, and ack cleanup.
+the message lifecycle runtime, the write-ahead queue, message-sending hooks,
+retry, recovery, and ack cleanup. The lifecycle runtime may call
+`deliverOutboundPayloads(...)` internally as compatibility substrate, but channel
+plugins should not call it directly for new send behavior.
 
 Return `null` only when the send cannot be represented as a durable payload, for
 example because it contains a non-serializable component factory. Core will keep
@@ -167,7 +197,7 @@ keep the prepared send path best-effort; core will still try the write-ahead
 queue, but queue persistence or uncertain crash recovery is not part of the
 required delivery contract.
 
-## Durable Final Capabilities
+## Durable final capabilities
 
 Durable final delivery is opt in per side effect. Core will only use generic
 durable delivery when the adapter declares every capability needed by the
@@ -217,7 +247,7 @@ const requiredCapabilities = deriveDurableFinalDeliveryRequirements({
 `messageSendingHooks` is required by default. Set `messageSendingHooks: false`
 only for a path that intentionally cannot run global message-sending hooks.
 
-## Durable Send Contract
+## Durable send contract
 
 A durable final send has stricter semantics than legacy channel-owned delivery:
 
@@ -266,7 +296,7 @@ becomes the final receipt. Avoid adding new owner-local `messageIds` fields.
 Legacy `ChannelDeliveryResult.messageIds` is still produced at compatibility
 edges.
 
-## Live Preview
+## Live preview
 
 Channels that stream draft previews or progress updates should declare live
 capabilities:
@@ -300,7 +330,7 @@ finalizer decides whether the final reply edits the preview in place, sends a
 normal fallback, discards pending preview state, keeps an ambiguous failed edit
 without duplicating the message, and returns the final receipt.
 
-## Receive Ack Policy
+## Receive ack policy
 
 Inbound receivers that control platform acknowledgement timing should declare
 receive policy:
@@ -344,7 +374,7 @@ Use `createMessageReceiveContext(...)` in receivers that defer ack state, and
 `shouldAckMessageAfterStage(...)` when the receiver needs to test whether a
 stage has satisfied the configured policy.
 
-## Contract Tests
+## Contract tests
 
 Capability declarations are part of the plugin contract. Back them with tests:
 
@@ -387,29 +417,33 @@ Add live and receive proof suites when the adapter declares those features. A
 missing proof should fail the test rather than silently widening the durable
 surface.
 
-## Deprecated Compatibility APIs
+## Deprecated compatibility APIs
 
 These APIs remain importable for third-party compatibility. Do not use them for
 new channel code.
 
-| Deprecated API                               | Replacement                                                                                                         |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `openclaw/plugin-sdk/channel-reply-pipeline` | `openclaw/plugin-sdk/channel-message`                                                                               |
-| `createChannelTurnReplyPipeline(...)`        | `createChannelMessageReplyPipeline(...)` for compatibility dispatchers, or a `message` adapter for new channel code |
-| `deliverDurableInboundReplyPayload(...)`     | `deliverInboundReplyWithMessageSendContext(...)` from `openclaw/plugin-sdk/channel-message-runtime`                 |
-| `dispatchInboundReplyWithBase(...)`          | `dispatchChannelMessageReplyWithBase(...)` only for compatibility dispatchers                                       |
-| `recordInboundSessionAndDispatchReply(...)`  | `recordChannelMessageReplyDispatch(...)` only for compatibility dispatchers                                         |
-| `resolveChannelSourceReplyDeliveryMode(...)` | `resolveChannelMessageSourceReplyDeliveryMode(...)`                                                                 |
-| `deliverFinalizableDraftPreview(...)`        | `defineFinalizableLivePreviewAdapter(...)` plus `deliverWithFinalizableLivePreviewAdapter(...)`                     |
-| `DraftPreviewFinalizerDraft`                 | `LivePreviewFinalizerDraft`                                                                                         |
-| `DraftPreviewFinalizerResult`                | `LivePreviewFinalizerResult`                                                                                        |
+| Deprecated API                               | Replacement                                                                                                                |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `openclaw/plugin-sdk/channel-reply-pipeline` | `openclaw/plugin-sdk/channel-message`                                                                                      |
+| `createChannelTurnReplyPipeline(...)`        | `createChannelMessageReplyPipeline(...)` for compatibility dispatchers, or a `message` adapter for new channel code        |
+| `buildChannelMessageReplyDispatchBase(...)`  | `createChannelMessageReplyPipeline(...)` plus `channel.turn.runPrepared(...)`, or a `message` adapter for new channel code |
+| `dispatchChannelMessageReplyWithBase(...)`   | `createChannelMessageReplyPipeline(...)` plus `channel.turn.runPrepared(...)`, or a `message` adapter for new channel code |
+| `recordChannelMessageReplyDispatch(...)`     | `createChannelMessageReplyPipeline(...)` plus `channel.turn.runPrepared(...)`, or a `message` adapter for new channel code |
+| `deliverOutboundPayloads(...)`               | `sendDurableMessageBatch(...)` or `deliverInboundReplyWithMessageSendContext(...)` from `channel-message-runtime`          |
+| `deliverDurableInboundReplyPayload(...)`     | `deliverInboundReplyWithMessageSendContext(...)` from `openclaw/plugin-sdk/channel-message-runtime`                        |
+| `dispatchInboundReplyWithBase(...)`          | `createChannelMessageReplyPipeline(...)` plus `channel.turn.runPrepared(...)`, or a `message` adapter for new channel code |
+| `recordInboundSessionAndDispatchReply(...)`  | `createChannelMessageReplyPipeline(...)` plus `channel.turn.runPrepared(...)`, or a `message` adapter for new channel code |
+| `resolveChannelSourceReplyDeliveryMode(...)` | `resolveChannelMessageSourceReplyDeliveryMode(...)`                                                                        |
+| `deliverFinalizableDraftPreview(...)`        | `defineFinalizableLivePreviewAdapter(...)` plus `deliverWithFinalizableLivePreviewAdapter(...)`                            |
+| `DraftPreviewFinalizerDraft`                 | `LivePreviewFinalizerDraft`                                                                                                |
+| `DraftPreviewFinalizerResult`                | `LivePreviewFinalizerResult`                                                                                               |
 
 Compatibility dispatchers can still use `createReplyPrefixContext(...)`,
 `createReplyPrefixOptions(...)`, and `createTypingCallbacks(...)` through the
 message facade. New lifecycle code should avoid the old
 `channel-reply-pipeline` subpath.
 
-## Migration Checklist
+## Migration checklist
 
 1. Add `message: defineChannelMessageAdapter(...)` or
    `message: createChannelMessageAdapterFromOutbound(...)` to the channel plugin.

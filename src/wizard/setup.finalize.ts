@@ -33,6 +33,7 @@ import { restoreTerminalState } from "../terminal/restore.js";
 import { launchTuiCli } from "../tui/tui-launch.js";
 import { resolveUserPath } from "../utils.js";
 import { listConfiguredWebSearchProviders } from "../web-search/runtime.js";
+import { t } from "./i18n/index.js";
 import type { WizardPrompter } from "./prompts.js";
 import { setupWizardShellCompletion } from "./setup.completion.js";
 import { resolveSetupSecretInputString } from "./setup.secret-input.js";
@@ -53,6 +54,17 @@ type OnboardSearchModule = typeof import("../commands/onboard-search.js");
 
 let onboardSearchModulePromise: Promise<OnboardSearchModule> | undefined;
 const HATCH_TUI_TIMEOUT_MS = 5 * 60 * 1000;
+
+function getLocalizedGatewayDaemonRuntimeOptions() {
+  return GATEWAY_DAEMON_RUNTIME_OPTIONS.map((option) => ({
+    hint:
+      option.value === "node"
+        ? t("wizard.finalize.daemonRuntimeNodeHint")
+        : (option.hint ?? undefined),
+    label: option.value === "node" ? t("wizard.finalize.daemonRuntimeNode") : option.label,
+    value: option.value,
+  }));
+}
 
 function loadOnboardSearchModule(): Promise<OnboardSearchModule> {
   onboardSearchModulePromise ??= import("../commands/onboard-search.js");
@@ -84,7 +96,7 @@ export async function finalizeSetupWizard(
   const systemdAvailable =
     process.platform === "linux" ? await isSystemdUserServiceAvailable() : true;
   if (process.platform === "linux" && !systemdAvailable) {
-    await prompter.note("Systemd 用户服务不可用。跳过持久化检查和服务安装。", "Systemd");
+    await prompter.note(t("wizard.finalize.systemdUnavailable"), "Systemd");
   }
 
   if (process.platform === "linux" && systemdAvailable) {
@@ -95,8 +107,7 @@ export async function finalizeSetupWizard(
         confirm: prompter.confirm,
         note: prompter.note,
       },
-      reason:
-        "Linux 安装默认使用 systemd 用户服务。如果没有持久化，systemd 会在注销/空闲时停止用户会话并终止网关。",
+      reason: t("wizard.finalize.systemdLingerReason"),
       requireConfirm: false,
     });
   }
@@ -112,15 +123,15 @@ export async function finalizeSetupWizard(
     installDaemon = true;
   } else {
     installDaemon = await prompter.confirm({
-      message: "安装网关服务（推荐）",
+      message: t("wizard.finalize.installGateway"),
       initialValue: true,
     });
   }
 
   if (process.platform === "linux" && !systemdAvailable && installDaemon) {
     await prompter.note(
-      "Systemd 用户服务不可用；跳过服务安装。请使用您的容器管理程序或 `docker compose up -d`。",
-      "网关服务",
+      t("wizard.finalize.systemdInstallSkipped"),
+      t("wizard.finalize.gatewayService"),
     );
     installDaemon = false;
   }
@@ -130,14 +141,14 @@ export async function finalizeSetupWizard(
       flow === "quickstart"
         ? DEFAULT_GATEWAY_DAEMON_RUNTIME
         : await prompter.select({
-            message: "网关服务运行时",
-            options: GATEWAY_DAEMON_RUNTIME_OPTIONS,
+            message: t("wizard.finalize.daemonRuntime"),
+            options: getLocalizedGatewayDaemonRuntimeOptions(),
             initialValue: opts.daemonRuntime ?? DEFAULT_GATEWAY_DAEMON_RUNTIME,
           });
     if (flow === "quickstart") {
       await prompter.note(
-        "快速开始使用 Node 作为网关服务运行时（稳定 + 受支持）。",
-        "网关服务运行时",
+        t("wizard.finalize.quickstartNodeRuntime"),
+        t("wizard.finalize.daemonRuntime"),
       );
     }
     const service = resolveGatewayService();
@@ -145,35 +156,37 @@ export async function finalizeSetupWizard(
     let restartWasScheduled = false;
     if (loaded) {
       const action = await prompter.select({
-        message: "网关服务已安装",
+        message: t("wizard.finalize.alreadyInstalled"),
         options: [
-          { value: "restart", label: "重启" },
-          { value: "reinstall", label: "重新安装" },
-          { value: "skip", label: "跳过" },
+          { value: "restart", label: t("wizard.finalize.restart") },
+          { value: "reinstall", label: t("wizard.finalize.reinstall") },
+          { value: "skip", label: t("common.skip") },
         ],
       });
       if (action === "restart") {
-        let restartDoneMessage = "Gateway 服务已经重启.";
+        let restartDoneMessage = t("wizard.finalize.gatewayServiceRestarted");
         await withWizardProgress(
-          "Gateway 服务",
+          t("wizard.finalize.gatewayService"),
           { doneMessage: () => restartDoneMessage },
           async (progress) => {
-            progress.update("重启 Gateway 服务");
+            progress.update(t("wizard.finalize.gatewayServiceRestarting"));
             const restartResult = await service.restart({
               env: process.env,
               stdout: process.stdout,
             });
             const restartStatus = describeGatewayServiceRestart("Gateway", restartResult);
-            restartDoneMessage = restartStatus.progressMessage;
+            restartDoneMessage = restartStatus.scheduled
+              ? t("wizard.finalize.gatewayServiceRestartScheduled")
+              : t("wizard.finalize.gatewayServiceRestarted");
             restartWasScheduled = restartStatus.scheduled;
           },
         );
       } else if (action === "reinstall") {
         await withWizardProgress(
-          "网关服务",
-          { doneMessage: "网关服务已卸载。" },
+          t("wizard.finalize.gatewayService"),
+          { doneMessage: t("wizard.finalize.gatewayServiceUninstalled") },
           async (progress) => {
-            progress.update("正在卸载网关服务…");
+            progress.update(t("wizard.finalize.gatewayServiceUninstalling"));
             await service.uninstall({ env: process.env, stdout: process.stdout });
           },
         );
@@ -184,22 +197,22 @@ export async function finalizeSetupWizard(
       !loaded ||
       (!restartWasScheduled && loaded && !(await service.isLoaded({ env: process.env })))
     ) {
-      const progress = prompter.progress("Gateway 服务");
+      const progress = prompter.progress(t("wizard.finalize.gatewayService"));
       let installError: string | null = null;
       try {
-        progress.update("正在准备 Gateway 服务");
+        progress.update(t("wizard.finalize.gatewayServicePreparing"));
         const tokenResolution = await resolveGatewayInstallToken({
           config: nextConfig,
           env: process.env,
         });
         for (const warning of tokenResolution.warnings) {
-          await prompter.note(warning, "Gateway 服务");
+          await prompter.note(warning, "Gateway service");
         }
         if (tokenResolution.unavailableReason) {
           installError = [
-            "Gateway 安装被阻止:",
+            t("wizard.finalize.gatewayInstallBlocked"),
             tokenResolution.unavailableReason,
-            "修复网关认证配置/令牌输入并重新运行设置。",
+            t("wizard.finalize.gatewayInstallFixAuth"),
           ].join(" ");
         } else {
           const { programArguments, workingDirectory, environment } = await buildGatewayInstallPlan(
@@ -212,7 +225,7 @@ export async function finalizeSetupWizard(
             },
           );
 
-          progress.update("正在安装 Gateway 服务…");
+          progress.update(t("wizard.finalize.gatewayServiceInstalling"));
           await service.install({
             env: process.env,
             stdout: process.stdout,
@@ -224,11 +237,18 @@ export async function finalizeSetupWizard(
       } catch (err) {
         installError = formatErrorMessage(err);
       } finally {
-        progress.stop(installError ? "网关服务安装失败。" : "网关服务已安装。");
+        progress.stop(
+          installError
+            ? t("wizard.finalize.gatewayServiceInstallFailed")
+            : t("wizard.finalize.gatewayServiceInstalled"),
+        );
       }
       if (installError) {
-        await prompter.note(`网关服务安装失败: ${installError}`, "网关");
-        await prompter.note(gatewayInstallErrorHint(), "网关");
+        await prompter.note(
+          t("wizard.finalize.gatewayServiceInstallFailedWithError", { error: installError }),
+          "Gateway",
+        );
+        await prompter.note(gatewayInstallErrorHint(), "Gateway");
       }
     }
   }
@@ -245,10 +265,10 @@ export async function finalizeSetupWizard(
     } catch (error) {
       await prompter.note(
         [
-          "Could not resolve gateway.auth.password SecretRef for setup auth.",
+          t("wizard.finalize.secretRefAuthFailed", { field: "gateway.auth.password" }),
           formatErrorMessage(error),
         ].join("\n"),
-        "Gateway auth",
+        t("wizard.gateway.auth"),
       );
     }
   }
@@ -298,11 +318,11 @@ export async function finalizeSetupWizard(
         runtime.error(formatHealthCheckFailure(err));
         await prompter.note(
           [
-            "Docs:",
+            t("common.docs"),
             "https://docs.openclaw.ai/gateway/health",
             "https://docs.openclaw.ai/gateway/troubleshooting",
           ].join("\n"),
-          "Health check help",
+          t("wizard.finalize.healthCheckHelp"),
         );
       }
     } else if (installDaemon) {
@@ -315,22 +335,28 @@ export async function finalizeSetupWizard(
       );
       await prompter.note(
         [
-          "文档:",
+          t("common.docs"),
           "https://docs.openclaw.ai/gateway/health",
           "https://docs.openclaw.ai/gateway/troubleshooting",
         ].join("\n"),
-        "健康检查帮助",
+        t("wizard.finalize.healthCheckHelp"),
       );
     } else {
       await prompter.note(
         [
-          "尚未检测到网关.",
-          "安装程序未安装网关服务，因此不会有后台网关。",
-          `现在启动: ${formatCliCommand("openclaw gateway run")}`,
-          `或运行此命令安装网关服务: ${formatCliCommand("openclaw onboard --install-daemon")}`,
-          `或跳过此探测: ${formatCliCommand("openclaw onboard --skip-health")}`,
+          t("wizard.finalize.gatewayNotDetected"),
+          t("wizard.finalize.noBackgroundGatewayExpected"),
+          t("wizard.finalize.startGatewayNow", {
+            command: formatCliCommand("openclaw gateway run"),
+          }),
+          t("wizard.finalize.rerunInstallDaemon", {
+            command: formatCliCommand("openclaw onboard --install-daemon"),
+          }),
+          t("wizard.finalize.skipHealthNextTime", {
+            command: formatCliCommand("openclaw onboard --skip-health"),
+          }),
         ].join("\n"),
-        "网关",
+        "Gateway",
       );
     }
   }
@@ -346,12 +372,12 @@ export async function finalizeSetupWizard(
 
   await prompter.note(
     [
-      "添加节点以获得额外功能：",
-      "- macOS 应用（系统 + 通知）",
-      "- iOS 应用（摄像头/画布）",
-      "- Android 应用（摄像头/画布）",
+      t("wizard.finalize.addNodes"),
+      `- ${t("wizard.finalize.nodeMac")}`,
+      `- ${t("wizard.finalize.nodeIos")}`,
+      `- ${t("wizard.finalize.nodeAndroid")}`,
     ].join("\n"),
-    "可选应用",
+    t("wizard.finalize.optionalApps"),
   );
 
   const controlUiBasePath =
@@ -375,8 +401,10 @@ export async function finalizeSetupWizard(
     });
   }
   const gatewayStatusLine = gatewayProbe.ok
-    ? "网关: 可访问"
-    : `网关: 未检测到${gatewayProbe.detail ? ` (${gatewayProbe.detail})` : ""}`;
+    ? t("wizard.finalize.gatewayReachable")
+    : t("wizard.finalize.gatewayNotDetectedStatus", {
+        detail: gatewayProbe.detail ? ` (${gatewayProbe.detail})` : "",
+      });
   const bootstrapPath = path.join(
     resolveUserPath(options.workspaceDir),
     DEFAULT_BOOTSTRAP_FILENAME,
@@ -388,17 +416,17 @@ export async function finalizeSetupWizard(
 
   await prompter.note(
     [
-      `Web UI: ${links.httpUrl}`,
+      t("wizard.finalize.webUiUrl", { url: links.httpUrl }),
       settings.authMode === "token" && settings.gatewayToken
-        ? `Web UI（带令牌）: ${authedUrl}`
+        ? t("wizard.finalize.webUiWithTokenUrl", { url: authedUrl })
         : undefined,
-      `网关 WS: ${links.wsUrl}`,
+      t("wizard.finalize.gatewayWsUrl", { url: links.wsUrl }),
       gatewayStatusLine,
-      "文档: https://docs.openclaw.ai/web/control-ui",
+      t("wizard.finalize.controlUiDocs"),
     ]
       .filter(Boolean)
       .join("\n"),
-    "控制 UI",
+    "Control UI",
   );
 
   let controlUiOpened = false;
@@ -411,38 +439,45 @@ export async function finalizeSetupWizard(
     if (hasBootstrap) {
       await prompter.note(
         [
-          "这是让您的代理成为您自己的关键行动。",
-          "请花时间仔细考虑。",
-          "您告诉它的越多，体验就会越好。",
-          '我们将发送："醒来吧，我的朋友！"',
+          t("wizard.finalize.workspaceReady"),
+          t("wizard.finalize.firstTerminalChat"),
+          t("wizard.finalize.editBootstrap"),
         ].join("\n"),
-        "启动 TUI（最佳选择！）",
+        t("wizard.finalize.hatchYourAgent"),
       );
     }
 
     if (gatewayProbe.ok) {
       await prompter.note(
         [
-          "Gateway token: shared auth for the Gateway + Control UI.",
-          "Stored in: $OPENCLAW_CONFIG_PATH (default: ~/.openclaw/openclaw.json) under gateway.auth.token, or in OPENCLAW_GATEWAY_TOKEN.",
-          `View token: ${formatCliCommand("openclaw config get gateway.auth.token")}`,
-          `Generate token: ${formatCliCommand("openclaw doctor --generate-gateway-token")}`,
-          "Web UI keeps dashboard URL tokens in memory for the current tab and strips them from the URL after load.",
-          `Open the dashboard anytime: ${formatCliCommand("openclaw dashboard --no-open")}`,
-          "If prompted: paste the token into Control UI settings (or use the tokenized dashboard URL).",
+          t("wizard.finalize.gatewayTokenShared"),
+          t("wizard.finalize.gatewayTokenStored"),
+          t("wizard.finalize.gatewayTokenView", {
+            command: formatCliCommand("openclaw config get gateway.auth.token"),
+          }),
+          t("wizard.finalize.gatewayTokenGenerate", {
+            command: formatCliCommand("openclaw doctor --generate-gateway-token"),
+          }),
+          t("wizard.finalize.dashboardTokenMemory"),
+          t("wizard.finalize.dashboardOpenAnytime", {
+            command: formatCliCommand("openclaw dashboard --no-open"),
+          }),
+          t("wizard.finalize.dashboardTokenPrompt"),
         ].join("\n"),
         "Token",
       );
     }
 
     const hatchOptions: { value: "tui" | "web" | "later"; label: string }[] = [
-      { value: "tui", label: "Hatch in Terminal (recommended)" },
-      ...(gatewayProbe.ok ? [{ value: "web" as const, label: "Open the Web UI" }] : []),
-      { value: "later", label: "Do this later" },
+      { value: "tui", label: t("wizard.finalize.terminalHatch") },
+      ...(gatewayProbe.ok
+        ? [{ value: "web" as const, label: t("wizard.finalize.browserHatch") }]
+        : []),
+      { value: "later", label: t("wizard.finalize.hatchLater") },
     ];
 
     hatchChoice = await prompter.select({
-      message: "How do you want to hatch your bot?",
+      message: t("wizard.finalize.hatchPrompt"),
       options: hatchOptions,
       initialValue: "tui",
     });
@@ -453,7 +488,7 @@ export async function finalizeSetupWizard(
         await launchTuiCli({
           local: true,
           deliver: false,
-          message: hasBootstrap ? "Wake up, my friend!" : undefined,
+          message: hasBootstrap ? t("wizard.finalize.bootstrapHatchMessage") : undefined,
           timeoutMs: HATCH_TUI_TIMEOUT_MS,
         });
       } finally {
@@ -480,34 +515,34 @@ export async function finalizeSetupWizard(
       }
       await prompter.note(
         [
-          `仪表板链接（带令牌）: ${authedUrl}`,
+          t("wizard.finalize.dashboardLinkWithToken", { url: authedUrl }),
           controlUiOpened
-            ? "已在浏览器中打开。保留该标签页以控制 OpenClaw。"
-            : "在本机的浏览器中复制/粘贴此 URL 以控制 OpenClaw。",
+            ? t("wizard.finalize.dashboardOpened")
+            : t("wizard.finalize.dashboardCopyPaste"),
           controlUiOpenHint,
         ]
           .filter(Boolean)
           .join("\n"),
-        "仪表板已就绪",
+        t("wizard.finalize.dashboardReady"),
       );
     } else {
-      await prompter.note(`准备好后: ${formatCliCommand("openclaw dashboard --no-open")}`, "稍后");
+      await prompter.note(
+        t("wizard.finalize.dashboardWhenReady", {
+          command: formatCliCommand("openclaw dashboard --no-open"),
+        }),
+        t("wizard.finalize.laterTitle"),
+      );
     }
   } else if (opts.skipUi) {
-    await prompter.note("跳过控制 UI/TUI 提示。", "控制 UI");
+    await prompter.note(t("wizard.finalize.skipControlUi"), t("wizard.finalize.controlUiTitle"));
   }
 
   await prompter.note(
-    ["备份您的代理工作空间。", "文档: https://docs.openclaw.ai/concepts/agent-workspace"].join(
-      "\n",
-    ),
-    "工作空间备份",
+    [t("wizard.finalize.backupWorkspace"), t("wizard.finalize.workspaceDocs")].join("\n"),
+    t("wizard.finalize.workspaceBackupTitle"),
   );
 
-  await prompter.note(
-    "在您的计算机上运行代理是有风险的 — 加固您的设置: https://docs.openclaw.ai/security",
-    "安全",
-  );
+  await prompter.note(t("wizard.finalize.securityReminder"), t("wizard.security.title"));
 
   await setupWizardShellCompletion({ flow, prompter });
 
@@ -538,15 +573,15 @@ export async function finalizeSetupWizard(
 
     await prompter.note(
       [
-        `仪表板链接（带令牌）: ${authedUrl}`,
+        t("wizard.finalize.dashboardLinkWithToken", { url: authedUrl }),
         controlUiOpened
-          ? "已在浏览器中打开。保留该标签页以控制 OpenClaw。"
-          : "在本机的浏览器中复制/粘贴此 URL 以控制 OpenClaw。",
+          ? t("wizard.finalize.dashboardOpened")
+          : t("wizard.finalize.dashboardCopyPaste"),
         controlUiOpenHint,
       ]
         .filter(Boolean)
         .join("\n"),
-      "仪表板已就绪",
+      t("wizard.finalize.dashboardReady"),
     );
   }
 
@@ -563,55 +598,59 @@ export async function finalizeSetupWizard(
     const envAvailable = entry ? hasKeyInEnv(entry) : false;
     const hasKey = keyConfigured || envAvailable;
     const keySource = storedKey
-      ? "API key: 保存到配置文件中。"
+      ? t("wizard.finalize.webSearchKeyStored")
       : keyConfigured
-        ? "API key: 通过密钥引用进行配置。"
+        ? t("wizard.finalize.webSearchKeyRef")
         : envAvailable
-          ? `API key: 通过环境变量提供 ${entry?.envVars.join(" / ")}`
+          ? t("wizard.finalize.webSearchKeyEnv", { env: entry?.envVars.join(" / ") ?? "" })
           : undefined;
     if (!entry) {
       await prompter.note(
         [
-          `Web search provider ${label} is selected but unavailable under the current plugin policy.`,
-          "web_search will not work until the provider is re-enabled or a different provider is selected.",
+          t("wizard.finalize.webSearchProviderUnavailable", { provider: label }),
+          t("wizard.finalize.webSearchUnavailableAction"),
           `  ${formatCliCommand("openclaw configure --section web")}`,
           "",
-          "Docs: https://docs.openclaw.ai/tools/web",
+          t("wizard.finalize.webDocs"),
         ].join("\n"),
-        "Web search",
+        t("wizard.finalize.webSearchTitle"),
       );
     } else if (webSearchEnabled !== false && hasKey) {
       await prompter.note(
         [
-          "网络搜索功能已启用，因此您的代理人可以在需要时在线查找信息。",
+          t("wizard.finalize.webSearchEnabled"),
           "",
-          `供应商: ${label}`,
+          t("wizard.finalize.webSearchProvider", { provider: label }),
           ...(keySource ? [keySource] : []),
-          "Docs: https://docs.openclaw.ai/tools/web",
+          t("wizard.finalize.webDocs"),
         ].join("\n"),
-        "网络搜索",
+        t("wizard.finalize.webSearchTitle"),
       );
     } else if (!hasKey) {
       await prompter.note(
         [
-          `供应商 ${label} 被选中但未找到 API key.`,
-          "web_search 将不会工作直到添加密钥。",
+          t("wizard.finalize.webSearchNoKey", { provider: label }),
+          t("wizard.finalize.webSearchNeedsKey"),
           `  ${formatCliCommand("openclaw configure --section web")}`,
           "",
-          `在以下位置获取您的 API key: ${entry?.signupUrl ?? "https://docs.openclaw.ai/tools/web"}`,
-          "Docs: https://docs.openclaw.ai/tools/web",
+          t("wizard.finalize.webSearchGetKey", {
+            url: entry?.signupUrl ?? "https://docs.openclaw.ai/tools/web",
+          }),
+          t("wizard.finalize.webDocs"),
         ].join("\n"),
-        "网络搜索",
+        t("wizard.finalize.webSearchTitle"),
       );
     } else {
       await prompter.note(
         [
-          `网络搜索 (${label}) 已配置但已禁用。`,
-          `重新启用: ${formatCliCommand("openclaw configure --section web")}`,
+          t("wizard.finalize.webSearchDisabled", { provider: label }),
+          t("wizard.finalize.webSearchReenable", {
+            command: formatCliCommand("openclaw configure --section web"),
+          }),
           "",
-          "Docs: https://docs.openclaw.ai/tools/web",
+          t("wizard.finalize.webDocs"),
         ].join("\n"),
-        "网络搜索",
+        t("wizard.finalize.webSearchTitle"),
       );
     }
   } else {
@@ -624,29 +663,29 @@ export async function finalizeSetupWizard(
     if (legacyDetected) {
       await prompter.note(
         [
-          `网络搜索可通过 ${legacyDetected.label} 使用（自动检测）。`,
-          "Docs: https://docs.openclaw.ai/tools/web",
+          t("wizard.finalize.webSearchAutoDetected", { provider: legacyDetected.label }),
+          t("wizard.finalize.webDocs"),
         ].join("\n"),
-        "网络搜索",
+        t("wizard.finalize.webSearchTitle"),
       );
     } else if (codexNativeSummary) {
       await prompter.note(
         [
-          "Managed web search provider was skipped.",
+          t("wizard.finalize.managedWebSearchSkipped"),
           codexNativeSummary,
-          "Docs: https://docs.openclaw.ai/tools/web",
+          t("wizard.finalize.webDocs"),
         ].join("\n"),
-        "Web search",
+        t("wizard.finalize.webSearchTitle"),
       );
     } else {
       await prompter.note(
         [
-          "网络搜索被跳过。您可以稍后启用它:",
+          t("wizard.finalize.webSearchSkipped"),
           `  ${formatCliCommand("openclaw configure --section web")}`,
           "",
-          "Docs: https://docs.openclaw.ai/tools/web",
+          t("wizard.finalize.webDocs"),
         ].join("\n"),
-        "网络搜索",
+        t("wizard.finalize.webSearchTitle"),
       );
     }
   }
@@ -655,24 +694,21 @@ export async function finalizeSetupWizard(
     await prompter.note(
       [
         codexNativeSummary,
-        "Used only for Codex-capable models.",
-        "Docs: https://docs.openclaw.ai/tools/web",
+        t("wizard.finalize.codexNativeSearchOnly"),
+        t("wizard.finalize.webDocs"),
       ].join("\n"),
-      "Codex native search",
+      t("wizard.finalize.codexNativeSearchTitle"),
     );
   }
 
-  await prompter.note(
-    '接下来做什么: https://openclaw.ai/showcase ("人们正在构建什么")。',
-    "接下来做什么",
-  );
+  await prompter.note(t("wizard.finalize.whatNow"), t("wizard.finalize.whatNowTitle"));
 
   await prompter.outro(
     controlUiOpened
-      ? "配置完成。仪表板已打开；保留该标签页以控制 OpenClaw。"
+      ? t("wizard.finalize.outroDashboardOpened")
       : seededInBackground
-        ? "配置完成。Web UI 已在后台初始化；随时使用上面的仪表板链接打开它。"
-        : "配置完成。使用上面的仪表板链接控制 OpenClaw。",
+        ? t("wizard.finalize.outroSeeded")
+        : t("wizard.finalize.outroDashboardLink"),
   );
 
   return { launchedTui };

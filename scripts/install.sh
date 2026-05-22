@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 DEFAULT_TAGLINE="All your chats, one OpenClaw."
 NODE_DEFAULT_MAJOR=24
 NODE_MIN_MAJOR=22
-NODE_MIN_MINOR=14
+NODE_MIN_MINOR=19
 NODE_MIN_VERSION="${NODE_MIN_MAJOR}.${NODE_MIN_MINOR}"
 
 ORIGINAL_PATH="${PATH:-}"
@@ -49,7 +49,7 @@ detect_downloader() {
         DOWNLOADER="wget"
         return 0
     fi
-    ui_error "缺少下载器（需要 curl 或 wget）"
+    ui_error "Missing downloader (curl or wget required)"
     exit 1
 }
 
@@ -248,7 +248,7 @@ print_installer_banner() {
     fi
 
     echo -e "${ACCENT}${BOLD}"
-    echo "  🦞 OpenClaw 安装程序"
+    echo "  🦞 OpenClaw Installer"
     echo -e "${NC}${INFO}  ${TAGLINE}${NC}"
     echo ""
 }
@@ -262,13 +262,13 @@ detect_os_or_die() {
     fi
 
     if [[ "$OS" == "unknown" ]]; then
-        ui_error "不支持的操作系统"
-        echo "此安装程序支持 macOS 和 Linux（包括 WSL）。"
-        echo "对于 Windows，请使用：iwr -useb https://openclaw.ai/install.ps1 | iex"
+        ui_error "Unsupported operating system"
+        echo "This installer supports macOS and Linux (including WSL)."
+        echo "For Windows, use: iwr -useb https://openclaw.ai/install.ps1 | iex"
         exit 1
     fi
 
-    ui_success "检测到：$OS"
+    ui_success "Detected: $OS"
 }
 
 ui_info() {
@@ -365,7 +365,7 @@ show_install_plan() {
         ui_kv "Git update" "$GIT_UPDATE"
     fi
     if [[ -n "$detected_checkout" ]]; then
-        ui_kv "检测到的检出" "$detected_checkout"
+        ui_kv "Detected checkout" "$detected_checkout"
     fi
     if [[ "$DRY_RUN" == "1" ]]; then
         ui_kv "Dry run" "yes"
@@ -493,7 +493,7 @@ cleanup_legacy_submodules() {
     local repo_dir="$1"
     local legacy_dir="$repo_dir/Peekaboo"
     if [[ -d "$legacy_dir" ]]; then
-        ui_info "移除遗留子模块检出：${legacy_dir}"
+        ui_info "Removing legacy submodule checkout: ${legacy_dir}"
         rm -rf "$legacy_dir"
     fi
 }
@@ -713,12 +713,23 @@ run_npm_global_install() {
     local spec="$1"
     local log="$2"
 
+    local freshness_flag="--min-release-age=0"
+    local min_release_age=""
+    min_release_age="$(env -u NPM_CONFIG_BEFORE -u npm_config_before npm config get min-release-age 2>/dev/null || true)"
+    if [[ -z "$min_release_age" || "$min_release_age" == "null" || "$min_release_age" == "undefined" ]]; then
+        local before_value=""
+        before_value="$(env -u NPM_CONFIG_MIN_RELEASE_AGE -u npm_config_min_release_age -u npm_config_min-release-age npm config get before 2>/dev/null || true)"
+        if [[ -n "$before_value" && "$before_value" != "null" && "$before_value" != "undefined" ]]; then
+            freshness_flag="--before=$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')"
+        fi
+    fi
+
     local -a cmd
-    cmd=(env "SHARP_IGNORE_GLOBAL_LIBVIPS=$SHARP_IGNORE_GLOBAL_LIBVIPS" npm --loglevel "$NPM_LOGLEVEL")
+    cmd=(env -u NPM_CONFIG_BEFORE -u npm_config_before -u NPM_CONFIG_MIN_RELEASE_AGE -u npm_config_min_release_age -u npm_config_min-release-age "SHARP_IGNORE_GLOBAL_LIBVIPS=$SHARP_IGNORE_GLOBAL_LIBVIPS" npm --loglevel "$NPM_LOGLEVEL")
     if [[ -n "$NPM_SILENT_FLAG" ]]; then
         cmd+=("$NPM_SILENT_FLAG")
     fi
-    cmd+=(--no-fund --no-audit install -g "$spec")
+    cmd+=(--no-fund --no-audit "$freshness_flag" install -g "$spec")
     local cmd_display=""
     printf -v cmd_display '%q ' "${cmd[@]}"
     LAST_NPM_INSTALL_CMD="${cmd_display% }"
@@ -827,9 +838,9 @@ install_openclaw_npm() {
         local attempted_build_tool_fix=false
         if auto_install_build_tools_for_npm_failure "$log"; then
             attempted_build_tool_fix=true
-            ui_info "在构建工具设置后重试 npm 安装"
+            ui_info "Retrying npm install after build tools setup"
             if run_npm_global_install "$spec" "$log"; then
-                ui_success "OpenClaw npm 包已安装"
+                ui_success "OpenClaw npm package installed"
                 return 0
             fi
         fi
@@ -846,10 +857,10 @@ install_openclaw_npm() {
         fi
 
         if grep -q "ENOTEMPTY: directory not empty, rename .*openclaw" "$log"; then
-            ui_warn "npm 留下了过时的目录；正在清理并重试"
+            ui_warn "npm left stale directory; cleaning and retrying"
             cleanup_npm_openclaw_paths
             if run_npm_global_install "$spec" "$log"; then
-                ui_success "OpenClaw npm 包已安装"
+                ui_success "OpenClaw npm package installed"
                 return 0
             fi
             return 1
@@ -864,47 +875,47 @@ install_openclaw_npm() {
                 fi
                 return 1
             fi
-            ui_error "npm 失败，因为 openclaw 二进制文件已存在"
+            ui_error "npm failed because an openclaw binary already exists"
             if [[ -n "$conflict" ]]; then
-                ui_info "移除或移动 ${conflict}，然后重试"
+                ui_info "Remove or move ${conflict}, then retry"
             fi
-            ui_info "或使用以下命令重新运行：npm install -g --force ${spec}"
+            ui_info "Or rerun with: npm install -g --force ${spec}"
         fi
         return 1
     fi
-    ui_success "OpenClaw npm 包已安装"
+    ui_success "OpenClaw npm package installed"
     return 0
 }
 
 TAGLINES=()
-TAGLINES+=("你的终端长出了利钳——输入点什么，让机器人帮你消灭繁琐的工作。")
+TAGLINES+=("Your terminal just grew claws—type something and let the bot pinch the busywork.")
 TAGLINES+=("Welcome to the command line: where dreams compile and confidence segfaults.")
-TAGLINES+=("我的动力源自咖啡因、JSON5，以及“在我电脑上明明能跑”的迷之自信。")
+TAGLINES+=("I run on caffeine, JSON5, and the audacity of \"it worked on my machine.\"")
 TAGLINES+=("Gateway online—please keep hands, feet, and appendages inside the shell at all times.")
-TAGLINES+=("我精通 Bash，略懂讽刺，且自带极具攻击性的 Tab 补全能量。")
-TAGLINES+=("一键统御全场，再来一次重启——毕竟你刚才改了端口。")
-TAGLINES+=("跑通了叫自动化；跑挂了叫“学习机会”。")
-TAGLINES+=("配对码的存在是因为机器人也讲究知情同意——以及良好的安全习惯。")
-TAGLINES+=("你的 .env 文件暴露了；别担心，我会假装没看见。")
-TAGLINES+=("我会处理那些无聊的事，你只需要像看电影大片一样深沉地盯着日志。")
-TAGLINES+=("我不是说你的工作流很乱……我只是带了代码检查器异常处理")
-TAGLINES+=("尽管自信地输入命令——大自然会在需要时为你提供堆栈追踪")
-TAGLINES+=("我不评判，但你缺失的 API 密钥绝对在鄙视你。")
+TAGLINES+=("I speak fluent bash, mild sarcasm, and aggressive tab-completion energy.")
+TAGLINES+=("One CLI to rule them all, and one more restart because you changed the port.")
+TAGLINES+=("If it works, it's automation; if it breaks, it's a \"learning opportunity.\"")
+TAGLINES+=("Pairing codes exist because even bots believe in consent—and good security hygiene.")
+TAGLINES+=("Your .env is showing; don't worry, I'll pretend I didn't see it.")
+TAGLINES+=("I'll do the boring stuff while you dramatically stare at the logs like it's cinema.")
+TAGLINES+=("I'm not saying your workflow is chaotic... I'm just bringing a linter and a helmet.")
+TAGLINES+=("Type the command with confidence—nature will provide the stack trace if needed.")
+TAGLINES+=("I don't judge, but your missing API keys are absolutely judging you.")
 TAGLINES+=("I can grep it, git blame it, and gently roast it—pick your coping mechanism.")
-TAGLINES+=("配置在热重载，部署在冒冷汗。")
+TAGLINES+=("Hot reload for config, cold sweat for deploys.")
 TAGLINES+=("I'm the assistant your terminal demanded, not the one your sleep schedule requested.")
-TAGLINES+=("我会像保险库一样守口如瓶……除非你又把密钥打印在调试日志里。")
-TAGLINES+=("带钳子的自动化：最少的麻烦，最大的剪除。")
-TAGLINES+=("我基本上是一把瑞士军刀，只是想法更多，棱角更少。")
-TAGLINES+=("迷茫时跑 doctor；勇敢时跑 prod；明智时跑 tests。")
-TAGLINES+=("你的任务已入队；你的尊严已被弃用")
-TAGLINES+=("我没法修复你的代码审美，但我能搞定你的构建和积压任务。")
-TAGLINES+=("我不是魔法——我只是在重试和应对策略上极其执着。")
-TAGLINES+=("这不是失败，这是在探索将同一个东西配置错的新方法。")
-TAGLINES+=("给我一个工作区，我还你更少的标签页、更少的切换和更多的氧气。")
-TAGLINES+=("我读日志，是为了让你能继续假装不用读。")
-TAGLINES+=("如果起了火，我灭不了——但我能写出一份精美的复盘报告。")
-TAGLINES+=("我会像催债一样重构你的繁琐工作。")
+TAGLINES+=("I keep secrets like a vault... unless you print them in debug logs again.")
+TAGLINES+=("Automation with claws: minimal fuss, maximal pinch.")
+TAGLINES+=("I'm basically a Swiss Army knife, but with more opinions and fewer sharp edges.")
+TAGLINES+=("If you're lost, run doctor; if you're brave, run prod; if you're wise, run tests.")
+TAGLINES+=("Your task has been queued; your dignity has been deprecated.")
+TAGLINES+=("I can't fix your code taste, but I can fix your build and your backlog.")
+TAGLINES+=("I'm not magic—I'm just extremely persistent with retries and coping strategies.")
+TAGLINES+=("It's not \"failing,\" it's \"discovering new ways to configure the same thing wrong.\"")
+TAGLINES+=("Give me a workspace and I'll give you fewer tabs, fewer toggles, and more oxygen.")
+TAGLINES+=("I read logs so you can keep pretending you don't have to.")
+TAGLINES+=("If something's on fire, I can't extinguish it—but I can write a beautiful postmortem.")
+TAGLINES+=("I'll refactor your busywork like it owes me money.")
 TAGLINES+=("Say \"stop\" and I'll stop—say \"ship\" and we'll both learn a lesson.")
 TAGLINES+=("I'm the reason your shell history looks like a hacker-movie montage.")
 TAGLINES+=("I'm like tmux: confusing at first, then suddenly you can't live without me.")
@@ -943,16 +954,16 @@ TAGLINES+=("Your AI assistant, now without the \$3,499 headset.")
 TAGLINES+=("Think different. Actually think.")
 TAGLINES+=("Ah, the fruit tree company! 🍎")
 
-HOLIDAY_NEW_YEAR="元旦 (New Year's Day): 新的一年，新的配置——还是熟悉的端口占用（EADDRINUSE），但这次我们要像成年人一样解决它。"
-HOLIDAY_LUNAR_NEW_YEAR="农历新年 (Lunar New Year): 愿你的构建充满好运，分支繁荣昌盛，合并冲突都被鞭炮声赶走。"
-HOLIDAY_CHRISTMAS="圣诞节 (Christmas): 嚯嚯嚯——圣诞老人的“小钳手”助手来咯，负责分发快乐，回滚混乱，并妥善储藏密钥。"
-HOLIDAY_EID="开斋节 (Eid al-Fitr): 庆祝模式：队列已清空，任务已完成，美好的氛围已提交至 main 分支，记录干干净净。"
-HOLIDAY_DIWALI="排灯节 (Diwali): 让日志闪耀，让 Bug 逃散——今天我们点亮终端，自豪地发布。"
-HOLIDAY_EASTER="复活节 (Easter): 我找到了你丢失的环境变量——把它当成一场没有糖果、只有命令行的小小寻蛋游戏吧。"
-HOLIDAY_HANUKKAH="光明节 (Hanukkah): 八个夜晚，八次重试，毫无羞愧——愿你的网关长明，愿你的部署平安。"
-HOLIDAY_HALLOWEEN="万圣节 (Halloween): 惊悚季节：警惕被诅咒的依赖、受诅咒的缓存，以及 node_modules 过去的幽灵。"
-HOLIDAY_THANKSGIVING="感恩节 (Thanksgiving): 感激稳定的端口、正常的 DNS，以及一个替所有人读日志的机器人。"
-HOLIDAY_VALENTINES="情人节 (Valentine's Day): 玫瑰是打出来的，紫罗兰是管道（Pipe）传过来的——我会自动化所有的琐事，让你去陪人类。"
+HOLIDAY_NEW_YEAR="New Year's Day: New year, new config—same old EADDRINUSE, but this time we resolve it like grown-ups."
+HOLIDAY_LUNAR_NEW_YEAR="Lunar New Year: May your builds be lucky, your branches prosperous, and your merge conflicts chased away with fireworks."
+HOLIDAY_CHRISTMAS="Christmas: Ho ho ho—Santa's little claw-sistant is here to ship joy, roll back chaos, and stash the keys safely."
+HOLIDAY_EID="Eid al-Fitr: Celebration mode: queues cleared, tasks completed, and good vibes committed to main with clean history."
+HOLIDAY_DIWALI="Diwali: Let the logs sparkle and the bugs flee—today we light up the terminal and ship with pride."
+HOLIDAY_EASTER="Easter: I found your missing environment variable—consider it a tiny CLI egg hunt with fewer jellybeans."
+HOLIDAY_HANUKKAH="Hanukkah: Eight nights, eight retries, zero shame—may your gateway stay lit and your deployments stay peaceful."
+HOLIDAY_HALLOWEEN="Halloween: Spooky season: beware haunted dependencies, cursed caches, and the ghost of node_modules past."
+HOLIDAY_THANKSGIVING="Thanksgiving: Grateful for stable ports, working DNS, and a bot that reads the logs so nobody has to."
+HOLIDAY_VALENTINES="Valentine's Day: Roses are typed, violets are piped—I'll automate the chores so you can spend time with humans."
 
 append_holiday_taglines() {
     local today
@@ -1167,13 +1178,13 @@ choose_install_method_interactive() {
 
     if [[ -n "$GUM" ]] && gum_is_tty; then
         local header selection
-        header="检测到 OpenClaw 检出在：${detected_checkout}
-选择安装方法"
+        header="Detected OpenClaw checkout in: ${detected_checkout}
+Choose install method"
         selection="$("$GUM" choose \
             --header "$header" \
             --cursor-prefix "❯ " \
-            "git  · 更新此检出并使用它" \
-            "npm  · 通过 npm 全局安装" < /dev/tty || true)"
+            "git  · update this checkout and use it" \
+            "npm  · install globally via npm" < /dev/tty || true)"
 
         case "$selection" in
             git*)
@@ -1190,11 +1201,11 @@ choose_install_method_interactive() {
 
     local choice=""
     choice="$(prompt_choice "$(cat <<EOF
-${WARN}→${NC} 检测到 OpenClaw 源代码检出在：${INFO}${detected_checkout}${NC}
-选择安装方法：
-  1) 更新此检出（git）并使用它
-  2) 通过 npm 全局安装（从 git 迁移）
-输入 1 或 2：
+${WARN}→${NC} Detected a OpenClaw source checkout in: ${INFO}${detected_checkout}${NC}
+Choose install method:
+  1) Update this checkout (git) and use it
+  2) Install global via npm (migrate away from git)
+Enter 1 or 2:
 EOF
 )" || true)"
 
@@ -1241,13 +1252,13 @@ is_macos_admin_user() {
 print_homebrew_admin_fix() {
     local current_user
     current_user="$(id -un 2>/dev/null || echo "${USER:-current user}")"
-    ui_error "Homebrew 安装需要 macOS 管理员账户"
-    echo "当前用户 (${current_user}) 不在管理员组中。"
-    echo "修复选项："
-    echo "  1) 使用管理员账户并重新运行安装程序。"
-    echo "  2) 让管理员授予管理员权限，然后注销/登录："
+    ui_error "Homebrew installation requires a macOS Administrator account"
+    echo "Current user (${current_user}) is not in the admin group."
+    echo "Fix options:"
+    echo "  1) Use an Administrator account and re-run the installer."
+    echo "  2) Ask an Administrator to grant admin rights, then sign out/in:"
     echo "     sudo dseditgroup -o edit -a ${current_user} -t user admin"
-    echo "然后重试："
+    echo "Then retry:"
     echo "  curl -fsSL https://openclaw.ai/install.sh | bash"
 }
 
@@ -1267,20 +1278,21 @@ install_homebrew() {
             elif [[ -f "/usr/local/bin/brew" ]]; then
                 eval "$(/usr/local/bin/brew shellenv)"
             fi
-            ui_success "Homebrew 已安装"
+            ui_success "Homebrew installed"
         else
-            ui_success "Homebrew 已安装"
+            ui_success "Homebrew already installed"
         fi
     fi
 }
 
 # Check Node.js version
-parse_node_version_components() {
-    if ! command -v node &> /dev/null; then
+parse_node_version_components_for_binary() {
+    local node_bin="${1:-node}"
+    if ! command -v "$node_bin" &> /dev/null && [[ ! -x "$node_bin" ]]; then
         return 1
     fi
     local version major minor
-    version="$(node -v 2>/dev/null || true)"
+    version="$("$node_bin" -v 2>/dev/null || true)"
     major="${version#v}"
     major="${major%%.*}"
     minor="${version#v}"
@@ -1295,6 +1307,13 @@ parse_node_version_components() {
     fi
     echo "${major} ${minor}"
     return 0
+}
+
+parse_node_version_components() {
+    if ! command -v node &> /dev/null; then
+        return 1
+    fi
+    parse_node_version_components_for_binary node
 }
 
 node_major_version() {
@@ -1322,6 +1341,113 @@ node_is_at_least_required() {
         return 0
     fi
     return 1
+}
+
+node_binary_is_at_least_required() {
+    local node_bin="$1"
+    local version_components major minor
+    version_components="$(parse_node_version_components_for_binary "$node_bin" || true)"
+    read -r major minor <<< "$version_components"
+    if [[ ! "$major" =~ ^[0-9]+$ || ! "$minor" =~ ^[0-9]+$ ]]; then
+        return 1
+    fi
+    if [[ "$major" -gt "$NODE_MIN_MAJOR" ]]; then
+        return 0
+    fi
+    if [[ "$major" -eq "$NODE_MIN_MAJOR" && "$minor" -ge "$NODE_MIN_MINOR" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+prepend_path_dir() {
+    local dir="${1%/}"
+    if [[ -z "$dir" || ! -d "$dir" ]]; then
+        return 1
+    fi
+    local current=":${PATH:-}:"
+    current="${current//:${dir}:/:}"
+    current="${current#:}"
+    current="${current%:}"
+    if [[ -n "$current" ]]; then
+        export PATH="${dir}:${current}"
+    else
+        export PATH="${dir}"
+    fi
+    refresh_shell_command_cache
+}
+
+persist_shell_path_prepend() {
+    local dir="${1%/}"
+    if [[ -z "$dir" ]]; then
+        return 1
+    fi
+
+    local path_expr="${2:-$dir}"
+    local path_line="export PATH=\"${path_expr}:\$PATH\""
+    local wrote_rc=0
+    for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+        if [[ -f "$rc" ]]; then
+            if [[ "$(sed -n '1p' "$rc")" != "$path_line" ]]; then
+                local tmp_rc="${rc}.openclaw-tmp"
+                {
+                    printf '%s\n' "$path_line"
+                    grep -Fvx "$path_line" "$rc" || true
+                } > "$tmp_rc"
+                mv "$tmp_rc" "$rc"
+            fi
+            wrote_rc=1
+        fi
+    done
+    if [[ "$wrote_rc" -eq 0 ]]; then
+        printf '%s\n' "$path_line" >> "$HOME/.bashrc"
+    fi
+}
+
+promote_supported_node_binary() {
+    local candidates=()
+    local candidate dir seen_dirs=":"
+
+    while IFS= read -r candidate; do
+        candidates+=("$candidate")
+    done < <(type -P -a node 2>/dev/null || true)
+
+    candidates+=(
+        "/usr/bin/node"
+        "/usr/local/bin/node"
+        "/opt/homebrew/bin/node"
+        "/opt/homebrew/opt/node@${NODE_DEFAULT_MAJOR}/bin/node"
+        "/usr/local/opt/node@${NODE_DEFAULT_MAJOR}/bin/node"
+    )
+
+    for candidate in "${candidates[@]}"; do
+        if [[ -z "$candidate" || ! -x "$candidate" ]]; then
+            continue
+        fi
+        if dir="$(cd "$(dirname "$candidate")" && pwd 2>/dev/null)"; then
+            :
+        else
+            dir=""
+        fi
+        if [[ -z "$dir" || "$seen_dirs" == *":$dir:"* ]]; then
+            continue
+        fi
+        seen_dirs="${seen_dirs}${dir}:"
+        if node_binary_is_at_least_required "$candidate"; then
+            prepend_path_dir "$dir" || continue
+            if [[ "$OS" == "linux" ]]; then
+                persist_shell_path_prepend "$dir" || true
+            fi
+            ui_info "Using Node.js runtime at ${candidate}"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+activate_supported_node_on_path() {
+    promote_supported_node_binary
 }
 
 print_active_node_paths() {
@@ -1378,7 +1504,12 @@ ensure_macos_default_node_active() {
     return 1
 }
 
+ensure_macos_node22_active() {
+    ensure_macos_default_node_active "$@"
+}
+
 ensure_default_node_active_shell() {
+    promote_supported_node_binary || true
     if node_is_at_least_required; then
         return 0
     fi
@@ -1387,7 +1518,7 @@ ensure_default_node_active_shell() {
     active_path="$(command -v node 2>/dev/null || echo "not found")"
     active_version="$(node -v 2>/dev/null || echo "missing")"
 
-    ui_error "活动 Node.js 必须是 v${NODE_MIN_VERSION}+，但此 shell 使用 ${active_version} (${active_path})"
+    ui_error "Active Node.js must be v${NODE_MIN_VERSION}+ but this shell is using ${active_version} (${active_path})"
     print_active_node_paths || true
 
     local nvm_detected=0
@@ -1426,7 +1557,7 @@ load_nvm_for_node_detection() {
     fi
 
     export NVM_DIR="$nvm_dir"
-    # shellcheck disable=SC1090
+    # shellcheck disable=SC1090,SC1091
     . "$NVM_DIR/nvm.sh" --no-use >/dev/null 2>&1 || . "$NVM_DIR/nvm.sh" >/dev/null 2>&1 || true
     if command -v nvm >/dev/null 2>&1; then
         nvm use default --silent >/dev/null 2>&1 || nvm use node --silent >/dev/null 2>&1 || true
@@ -1467,14 +1598,14 @@ install_node() {
         if ! ensure_macos_default_node_active; then
             exit 1
         fi
-        ui_success "Node.js 已安装"
+        ui_success "Node.js installed"
         print_active_node_paths || true
     elif [[ "$OS" == "linux" ]]; then
         require_sudo
 
         ui_info "Installing Linux build tools (make/g++/cmake/python3)"
         if install_build_tools_linux; then
-            ui_success "构建工具已安装"
+            ui_success "Build tools installed"
         else
             ui_warn "Continuing without auto-installing build tools"
         fi
@@ -1487,7 +1618,8 @@ install_node() {
             else
                 run_quiet_step "Installing Node.js" sudo pacman -Sy --noconfirm nodejs npm
             fi
-            ui_success "Node.js v${NODE_DEFAULT_MAJOR} 安装成功"
+            promote_supported_node_binary || true
+            ui_success "Node.js v${NODE_DEFAULT_MAJOR} installed"
             print_active_node_paths || true
             return 0
         fi
@@ -1527,12 +1659,13 @@ install_node() {
                 run_quiet_step "Installing Node.js" sudo yum install -y -q nodejs
             fi
         else
-            ui_error "无法检测包管理器"
-            echo "请手动安装 Node.js ${NODE_DEFAULT_MAJOR} (或 Node ${NODE_MIN_VERSION}+ 最低要求): https://nodejs.org"
+            ui_error "Could not detect package manager"
+            echo "Please install Node.js ${NODE_DEFAULT_MAJOR} manually (or Node ${NODE_MIN_VERSION}+ minimum): https://nodejs.org"
             exit 1
         fi
 
-        ui_success "Node.js v${NODE_DEFAULT_MAJOR} 安装成功"
+        ui_success "Node.js v${NODE_DEFAULT_MAJOR} installed"
+        activate_supported_node_on_path || true
         print_active_node_paths || true
     fi
 }
@@ -1540,7 +1673,7 @@ install_node() {
 # Check Git
 check_git() {
     if command -v git &> /dev/null; then
-        ui_success "Git 已安装"
+        ui_success "Git already installed"
         return 0
     fi
     ui_info "Git not found, installing it now"
@@ -1578,8 +1711,8 @@ require_sudo() {
         fi
         return 0
     fi
-    ui_error "在 Linux 上进行系统安装需要 sudo"
-    echo "  安装 sudo 或以 root 身份重新运行。"
+    ui_error "sudo is required for system installs on Linux"
+    echo "  Install sudo or re-run as root."
     exit 1
 }
 
@@ -1610,11 +1743,11 @@ install_git() {
                 run_quiet_step "Installing Git" sudo yum install -y -q git
             fi
         else
-            ui_error "无法检测 Git 的包管理器"
+            ui_error "Could not detect package manager for Git"
             exit 1
         fi
     fi
-    ui_success "Git 已安装"
+    ui_success "Git installed"
 }
 
 # Fix npm permissions for global installs (Linux)
@@ -1640,13 +1773,7 @@ fix_npm_permissions() {
     npm config set prefix "$HOME/.npm-global"
     ui_warn "Avoid sudo npm i -g for future OpenClaw updates; use npm i -g openclaw@latest so npm keeps using this user prefix instead of a different global prefix."
 
-    # shellcheck disable=SC2016
-    local path_line='export PATH="$HOME/.npm-global/bin:$PATH"'
-    for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
-        if [[ -f "$rc" ]] && ! grep -q ".npm-global" "$rc"; then
-            echo "$path_line" >> "$rc"
-        fi
-    done
+    persist_shell_path_prepend "$HOME/.npm-global/bin" "\$HOME/.npm-global/bin" || true
 
     export PATH="$HOME/.npm-global/bin:$PATH"
     ui_success "npm configured for user installs"
@@ -1723,7 +1850,7 @@ ensure_pnpm() {
     if command -v corepack &> /dev/null; then
         ui_info "Configuring pnpm via Corepack"
         corepack enable >/dev/null 2>&1 || true
-        if ! run_quiet_step "Activating pnpm" corepack prepare pnpm@10 --activate; then
+        if ! run_quiet_step "Activating pnpm" corepack prepare pnpm@11 --activate; then
             ui_warn "Corepack pnpm activation failed; falling back"
         fi
         refresh_shell_command_cache
@@ -1738,14 +1865,14 @@ ensure_pnpm() {
 
     ui_info "Installing pnpm via npm"
     fix_npm_permissions
-    run_quiet_step "Installing pnpm" npm install -g pnpm@10
+    run_quiet_step "Installing pnpm" npm install -g pnpm@11
     refresh_shell_command_cache
     if detect_pnpm_cmd && pnpm_cmd_is_ready; then
         ui_success "pnpm ready ($(pnpm_cmd_pretty))"
         return 0
     fi
 
-    ui_error "pnpm 安装失败"
+    ui_error "pnpm installation failed"
     return 1
 }
 
@@ -1757,7 +1884,7 @@ ensure_pnpm_binary_for_scripts() {
     if command -v corepack >/dev/null 2>&1; then
         ui_info "Ensuring pnpm command is available"
         corepack enable >/dev/null 2>&1 || true
-        corepack prepare pnpm@10 --activate >/dev/null 2>&1 || true
+        corepack prepare pnpm@11 --activate >/dev/null 2>&1 || true
         refresh_shell_command_cache
         if command -v pnpm >/dev/null 2>&1; then
             ui_success "pnpm command enabled via Corepack"
@@ -1777,13 +1904,13 @@ EOF
         refresh_shell_command_cache
 
         if command -v pnpm >/dev/null 2>&1; then
-            ui_warn "pnpm shim 不在 PATH 中；在 ${user_pnpm} 安装了用户本地包装器"
+            ui_warn "pnpm shim not on PATH; installed user-local wrapper at ${user_pnpm}"
             return 0
         fi
     fi
 
-    ui_error "pnpm 命令在 PATH 中不可用"
-    ui_info "全局安装 pnpm（npm install -g pnpm@10）并重试"
+    ui_error "pnpm command not available on PATH"
+    ui_info "Install pnpm globally (npm install -g pnpm@11) and retry"
     return 1
 }
 
@@ -1794,14 +1921,143 @@ run_pnpm() {
     "${PNPM_CMD[@]}" "$@"
 }
 
+resolve_git_openclaw_ref() {
+    local requested="${OPENCLAW_VERSION:-latest}"
+    local resolved_version=""
+
+    case "$requested" in
+        ""|latest)
+            resolved_version="$(npm view "openclaw" "dist-tags.${requested:-latest}" 2>/dev/null || true)"
+            if [[ -n "$resolved_version" ]]; then
+                echo "v${resolved_version}"
+                return 0
+            fi
+            echo "main"
+            return 0
+            ;;
+        next|beta)
+            resolved_version="$(npm view "openclaw" "dist-tags.${requested:-latest}" 2>/dev/null || true)"
+            if [[ -n "$resolved_version" ]]; then
+                echo "v${resolved_version}"
+                return 0
+            fi
+            echo "$requested"
+            return 0
+            ;;
+        main)
+            echo "main"
+            return 0
+            ;;
+        v[0-9]*)
+            echo "$requested"
+            return 0
+            ;;
+        [0-9]*.[0-9]*.[0-9]*)
+            echo "v${requested}"
+            return 0
+            ;;
+        *)
+            echo "$requested"
+            return 0
+            ;;
+    esac
+}
+
+checkout_git_openclaw_ref() {
+    local repo_dir="$1"
+    local ref="$2"
+
+    if [[ -z "$ref" ]]; then
+        return 0
+    fi
+
+    if [[ "$ref" == "main" ]]; then
+        run_quiet_step "Fetching requested version" git -C "$repo_dir" fetch --no-tags origin main
+        run_quiet_step "Checking out main" git -C "$repo_dir" checkout main
+        if [[ "$GIT_UPDATE" == "1" ]]; then
+            run_quiet_step "Updating repository" git -C "$repo_dir" pull --rebase --no-tags || true
+        fi
+        return 0
+    fi
+
+    if git -C "$repo_dir" ls-remote --exit-code --heads origin "$ref" >/dev/null 2>&1; then
+        run_quiet_step "Fetching requested version" git -C "$repo_dir" fetch --no-tags origin "refs/heads/${ref}:refs/remotes/origin/${ref}"
+        run_quiet_step "Checking out ${ref}" git -C "$repo_dir" checkout -B "$ref" "origin/$ref"
+        if [[ "$GIT_UPDATE" == "1" ]]; then
+            run_quiet_step "Updating repository" git -C "$repo_dir" pull --rebase --no-tags || true
+        fi
+        return 0
+    fi
+
+    run_quiet_step "Fetching requested version" git -C "$repo_dir" fetch --tags origin
+
+    if git -C "$repo_dir" rev-parse --verify --quiet "refs/tags/${ref}^{commit}" >/dev/null; then
+        run_quiet_step "Checking out ${ref}" git -C "$repo_dir" checkout --detach "$ref"
+        return 0
+    fi
+
+    if git -C "$repo_dir" rev-parse --verify --quiet "${ref}^{commit}" >/dev/null; then
+        run_quiet_step "Checking out ${ref}" git -C "$repo_dir" checkout --detach "$ref"
+        return 0
+    fi
+
+    ui_error "Requested git version not found: ${ref}"
+    return 1
+}
+
+git_install_lockfile_flag() {
+    local repo_dir="$1"
+    local ref="$2"
+
+    if [[ "$ref" == "main" ]] || git -C "$repo_dir" ls-remote --exit-code --heads origin "$ref" >/dev/null 2>&1; then
+        echo "--no-frozen-lockfile"
+        return 0
+    fi
+
+    echo "--frozen-lockfile"
+}
+
+repo_pnpm_spec() {
+    local repo_dir="$1"
+    local package_json="${repo_dir}/package.json"
+
+    if [[ ! -f "$package_json" ]]; then
+        return 1
+    fi
+
+    sed -n -E 's/^[[:space:]]*"packageManager"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "$package_json" | head -n1
+}
+
+activate_repo_pnpm_version() {
+    local repo_dir="$1"
+    local spec version
+
+    spec="$(repo_pnpm_spec "$repo_dir" || true)"
+    if [[ "$spec" != pnpm@* ]]; then
+        return 0
+    fi
+
+    version="${spec#pnpm@}"
+    version="${version%%+*}"
+    if [[ -z "$version" ]]; then
+        return 0
+    fi
+
+    if command -v corepack >/dev/null 2>&1; then
+        ui_info "Activating repo pnpm ${version}"
+        corepack prepare "pnpm@${version}" --activate >/dev/null 2>&1 || true
+        refresh_shell_command_cache
+        detect_pnpm_cmd || true
+    fi
+}
+
 ensure_user_local_bin_on_path() {
     local target="$HOME/.local/bin"
     mkdir -p "$target"
 
     export PATH="$target:$PATH"
 
-    # shellcheck disable=SC2016
-    local path_line='export PATH="$HOME/.local/bin:$PATH"'
+    local path_line="export PATH=\"\$HOME/.local/bin:\$PATH\""
     for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
         if [[ -f "$rc" ]] && ! grep -q ".local/bin" "$rc"; then
             echo "$path_line" >> "$rc"
@@ -2006,6 +2262,24 @@ warn_shell_path_missing_dir() {
     echo "    export PATH=\"${dir}:\$PATH\""
 }
 
+openclaw_command_for_user() {
+    local claw="${1:-}"
+    if [[ -z "$claw" ]]; then
+        echo "openclaw"
+        return 0
+    fi
+
+    local claw_dir="${claw%/*}"
+    if [[ "$claw_dir" != "$claw" ]] && path_has_dir "$ORIGINAL_PATH" "$claw_dir"; then
+        echo "openclaw"
+        return 0
+    fi
+
+    local quoted_claw=""
+    printf -v quoted_claw '%q' "$claw"
+    echo "$quoted_claw"
+}
+
 ensure_npm_global_bin_on_path() {
     local bin_dir=""
     bin_dir="$(npm_global_bin_dir || true)"
@@ -2021,7 +2295,7 @@ maybe_nodenv_rehash() {
 }
 
 warn_openclaw_not_found() {
-    ui_warn "已安装，但在此 shell 中 openclaw 在 PATH 中不可发现"
+    ui_warn "Installed, but openclaw is not discoverable on PATH in this shell"
     echo "  Try: hash -r (bash) or rehash (zsh), then retry."
     local t=""
     t="$(type -t openclaw 2>/dev/null || true)"
@@ -2091,7 +2365,7 @@ install_openclaw_from_git() {
     local repo_url="https://github.com/openclaw/openclaw.git"
 
     if [[ -d "$repo_dir/.git" ]]; then
-        ui_info "从 git 检出安装 OpenClaw：${repo_dir}"
+        ui_info "Installing OpenClaw from git checkout: ${repo_dir}"
     else
         ui_info "Installing OpenClaw from GitHub (${repo_url})"
     fi
@@ -2107,17 +2381,21 @@ install_openclaw_from_git() {
         run_quiet_step "Cloning OpenClaw" git clone "$repo_url" "$repo_dir"
     fi
 
-    if [[ "$GIT_UPDATE" == "1" ]]; then
-        if [[ -z "$(git -C "$repo_dir" status --porcelain 2>/dev/null || true)" ]]; then
-            run_quiet_step "Updating repository" git -C "$repo_dir" pull --rebase || true
-        else
-            ui_info "Repo has local changes; skipping git pull"
-        fi
+    local git_ref
+    git_ref="$(resolve_git_openclaw_ref)"
+    if [[ -z "$(git -C "$repo_dir" status --porcelain 2>/dev/null || true)" ]]; then
+        ui_info "Using git ref: ${git_ref}"
+        checkout_git_openclaw_ref "$repo_dir" "$git_ref"
+    else
+        ui_info "Repo has local changes; skipping git checkout/update"
     fi
 
     cleanup_legacy_submodules "$repo_dir"
+    activate_repo_pnpm_version "$repo_dir"
 
-    SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" run_quiet_step "Installing dependencies" run_pnpm -C "$repo_dir" install
+    local install_lockfile_flag
+    install_lockfile_flag="$(git_install_lockfile_flag "$repo_dir" "$git_ref")"
+    CI="${CI:-true}" SHARP_IGNORE_GLOBAL_LIBVIPS="$SHARP_IGNORE_GLOBAL_LIBVIPS" run_quiet_step "Installing dependencies" run_pnpm -C "$repo_dir" install "$install_lockfile_flag"
 
     if ! run_quiet_step "Building UI" run_pnpm -C "$repo_dir" ui:build; then
         ui_warn "UI build failed; continuing (CLI may still work)"
@@ -2132,8 +2410,8 @@ set -euo pipefail
 exec node "${repo_dir}/dist/entry.js" "\$@"
 EOF
     chmod +x "$HOME/.local/bin/openclaw"
-    ui_success "OpenClaw 包装器已安装到 \$HOME/.local/bin/openclaw"
-    ui_info "此检出使用 pnpm — 运行 pnpm install（或 corepack pnpm install）以获取依赖"
+    ui_success "OpenClaw wrapper installed to \$HOME/.local/bin/openclaw"
+    ui_info "This checkout uses pnpm — run pnpm install (or corepack pnpm install) for deps"
 }
 
 # Install OpenClaw
@@ -2239,23 +2517,23 @@ install_openclaw() {
 
     ensure_openclaw_bin_link || true
 
-    ui_success "OpenClaw 已安装"
+    ui_success "OpenClaw installed"
 }
 
 # Run doctor for migrations (safe, non-interactive)
 run_doctor() {
-    ui_info "运行 doctor 以迁移设置"
+    ui_info "Running doctor to migrate settings"
     local claw="${OPENCLAW_BIN:-}"
     if [[ -z "$claw" ]]; then
         claw="$(resolve_openclaw_bin || true)"
     fi
     if [[ -z "$claw" ]]; then
-        ui_info "跳过 doctor（openclaw 尚未在 PATH 中）"
+        ui_info "Skipping doctor (openclaw not on PATH yet)"
         warn_openclaw_not_found
         return 0
     fi
-    run_quiet_step "运行 doctor" "$claw" doctor --non-interactive || true
-    ui_success "Doctor 完成"
+    run_quiet_step "Running doctor" "$claw" doctor --non-interactive || true
+    ui_success "Doctor complete"
 }
 
 maybe_open_dashboard() {
@@ -2300,7 +2578,9 @@ run_bootstrap_onboarding_if_needed() {
     fi
 
     if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
-        ui_info "BOOTSTRAP.md found but no TTY; run openclaw onboard to finish setup"
+        local user_claw
+        user_claw="$(openclaw_command_for_user "${OPENCLAW_BIN:-}")"
+        ui_info "BOOTSTRAP.md found but no TTY; run ${user_claw} onboard to finish setup"
         return
     fi
 
@@ -2316,7 +2596,9 @@ run_bootstrap_onboarding_if_needed() {
     fi
 
     "$claw" onboard || {
-        ui_error "入职失败；运行 openclaw onboard 重试"
+        local user_claw
+        user_claw="$(openclaw_command_for_user "$claw")"
+        ui_error "Onboarding failed; run ${user_claw} onboard to retry"
         return
     }
 }
@@ -2328,10 +2610,15 @@ load_install_version_helpers() {
     if [[ -z "$source_path" || ! -f "$source_path" ]]; then
         return 0
     fi
-    script_dir="$(cd "$(dirname "$source_path")" && pwd 2>/dev/null || true)"
+    if script_dir="$(cd "$(dirname "$source_path")" && pwd 2>/dev/null)"; then
+        :
+    else
+        script_dir=""
+    fi
     helper_path="${script_dir}/docker/install-sh-common/version-parse.sh"
     if [[ -n "$script_dir" && -r "$helper_path" ]]; then
         # shellcheck source=docker/install-sh-common/version-parse.sh
+        # shellcheck disable=SC1091
         source "$helper_path"
     fi
 }
@@ -2486,7 +2773,7 @@ main() {
 
     if [[ -z "$INSTALL_METHOD" && -n "$detected_checkout" ]]; then
         if ! is_promptable; then
-            ui_info "找到 OpenClaw 检出但没有 TTY；默认使用 npm 安装"
+            ui_info "Found OpenClaw checkout but no TTY; defaulting to npm install"
             INSTALL_METHOD="npm"
         else
             local selected_method=""
@@ -2496,8 +2783,8 @@ main() {
                     INSTALL_METHOD="$selected_method"
                     ;;
                 *)
-                    ui_error "未选择安装方法"
-                    echo "使用以下命令重新运行：--install-method git|npm（或设置 OPENCLAW_INSTALL_METHOD）。"
+                    ui_error "no install method selected"
+                    echo "Re-run with: --install-method git|npm (or set OPENCLAW_INSTALL_METHOD)."
                     exit 2
                     ;;
             esac
@@ -2509,8 +2796,8 @@ main() {
     fi
 
     if [[ "$INSTALL_METHOD" != "npm" && "$INSTALL_METHOD" != "git" ]]; then
-        ui_error "无效的 --install-method：${INSTALL_METHOD}"
-        echo "使用：--install-method npm|git"
+        ui_error "invalid --install-method: ${INSTALL_METHOD}"
+        echo "Use: --install-method npm|git"
         exit 2
     fi
 
@@ -2539,6 +2826,7 @@ main() {
     if ! check_node; then
         install_node
     fi
+    activate_supported_node_on_path || true
     if ! ensure_default_node_active_shell; then
         exit 1
     fi
@@ -2563,9 +2851,9 @@ main() {
     else
         # Clean up git wrapper if switching to npm
         if [[ -x "$HOME/.local/bin/openclaw" ]]; then
-            ui_info "移除 git 包装器（切换到 npm）"
+            ui_info "Removing git wrapper (switching to npm)"
             rm -f "$HOME/.local/bin/openclaw"
-            ui_success "git 包装器已移除"
+            ui_success "git wrapper removed"
         fi
 
         # Step 3: Git (required for npm installs that may fetch from git or apply patches)
@@ -2623,42 +2911,42 @@ main() {
     fi
     if [[ "$is_upgrade" == "true" ]]; then
         local update_messages=(
-            "升级了！新技能解锁。欢迎。"
-            "新鲜代码，同样的龙虾。想我了吗？"
-            "回来并且更好。您甚至注意到我走了吗？"
-            "更新完成。我出去时学了一些新把戏。"
-            "升级了！现在有 23% 更多的 sass。"
-            "我进化了。试着跟上。🦞"
-            "新版本，谁啊？哦对了，还是我但更闪亮。"
-            "打补丁、抛光，并准备捏。走吧。"
-            "龙虾蜕皮了。更硬的壳，更锋利的爪子。"
-            "更新完成！检查变更日志或就相信我，它很好。"
-            "从 npm 的沸水中重生。现在更强壮。"
-            "我走了又回来更聪明了。您应该试试。"
-            "更新完成。bug 害怕我，所以它们离开了。"
-            "新版本安装。旧版本问候。"
-            "固件新鲜。大脑皱纹：增加。"
-            "我见过您不会相信的事情。总之，我更新了。"
-            "重新上线。变更日志很长但我们的友谊更长。"
-            "升级了！Peter 修复了东西。如果坏了怪他。"
-            "蜕皮完成。请不要看我的软壳阶段。"
-            "版本提升！同样的混乱能量，更少的崩溃（可能）。"
+            "Leveled up! New skills unlocked. You're welcome."
+            "Fresh code, same lobster. Miss me?"
+            "Back and better. Did you even notice I was gone?"
+            "Update complete. I learned some new tricks while I was out."
+            "Upgraded! Now with 23% more sass."
+            "I've evolved. Try to keep up. 🦞"
+            "New version, who dis? Oh right, still me but shinier."
+            "Patched, polished, and ready to pinch. Let's go."
+            "The lobster has molted. Harder shell, sharper claws."
+            "Update done! Check the changelog or just trust me, it's good."
+            "Reborn from the boiling waters of npm. Stronger now."
+            "I went away and came back smarter. You should try it sometime."
+            "Update complete. The bugs feared me, so they left."
+            "New version installed. Old version sends its regards."
+            "Firmware fresh. Brain wrinkles: increased."
+            "I've seen things you wouldn't believe. Anyway, I'm updated."
+            "Back online. The changelog is long but our friendship is longer."
+            "Upgraded! Peter fixed stuff. Blame him if it breaks."
+            "Molting complete. Please don't look at my soft shell phase."
+            "Version bump! Same chaos energy, fewer crashes (probably)."
         )
         local update_message
         update_message="${update_messages[RANDOM % ${#update_messages[@]}]}"
         echo -e "${MUTED}${update_message}${NC}"
     else
         local completion_messages=(
-            "啊不错，我喜欢这里。有零食吗？"
-            "家，甜蜜的家。别担心，我不会重新安排家具。"
-            "我在。让我们造成一些负责任的混乱。"
-            "安装完成。您的生产力即将变得奇怪。"
-            "安顿下来。无论您是否准备好，是时候自动化您的生活了。"
-            "舒适。我已经读了您的日历。我们需要谈谈。"
-            "终于解压了。现在指向我的问题。"
-            "cracks claws 好吧，我们在建什么？"
-            "龙虾降落了。您的终端将永远不同。"
-            "全部完成！我保证只稍微评判您的代码。"
+            "Ahh nice, I like it here. Got any snacks? "
+            "Home sweet home. Don't worry, I won't rearrange the furniture."
+            "I'm in. Let's cause some responsible chaos."
+            "Installation complete. Your productivity is about to get weird."
+            "Settled in. Time to automate your life whether you're ready or not."
+            "Cozy. I've already read your calendar. We need to talk."
+            "Finally unpacked. Now point me at your problems."
+            "cracks claws Alright, what are we building?"
+            "The lobster has landed. Your terminal will never be the same."
+            "All done! I promise to only judge your code a little bit."
         )
         local completion_message
         completion_message="${completion_messages[RANDOM % ${#completion_messages[@]}]}"
@@ -2667,20 +2955,20 @@ main() {
     echo ""
 
     if [[ "$INSTALL_METHOD" == "git" && -n "$final_git_dir" ]]; then
-        ui_section "源代码安装详情"
+        ui_section "Source install details"
         ui_kv "Checkout" "$final_git_dir"
         ui_kv "Wrapper" "$HOME/.local/bin/openclaw"
         ui_kv "Update command" "openclaw update"
         ui_kv "Switch to npm" "curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --install-method npm"
     elif [[ "$is_upgrade" == "true" ]]; then
-        ui_info "升级完成"
+        ui_info "Upgrade complete"
         if [[ -r /dev/tty && -w /dev/tty ]]; then
             local claw="${OPENCLAW_BIN:-}"
             if [[ -z "$claw" ]]; then
                 claw="$(resolve_openclaw_bin || true)"
             fi
             if [[ -z "$claw" ]]; then
-                ui_info "跳过 doctor（openclaw 尚未在 PATH 中）"
+                ui_info "Skipping doctor (openclaw not on PATH yet)"
                 warn_openclaw_not_found
                 return 0
             fi
@@ -2702,15 +2990,19 @@ main() {
                 ui_warn "Doctor failed; skipping plugin updates"
             fi
         else
-            ui_info "No TTY; run openclaw doctor and openclaw plugins update --all manually"
+            local user_claw
+            user_claw="$(openclaw_command_for_user "${OPENCLAW_BIN:-}")"
+            ui_info "No TTY; run ${user_claw} doctor and ${user_claw} plugins update --all manually"
         fi
     else
         if [[ "$NO_ONBOARD" == "1" || "$skip_onboard" == "true" ]]; then
-            ui_info "Skipping onboard (requested); run openclaw onboard later"
+            local user_claw
+            user_claw="$(openclaw_command_for_user "${OPENCLAW_BIN:-}")"
+            ui_info "Skipping onboard (requested); run ${user_claw} onboard later"
         else
             local config_path="${OPENCLAW_CONFIG_PATH:-$HOME/.openclaw/openclaw.json}"
             if [[ -f "${config_path}" || -f "$HOME/.clawdbot/clawdbot.json" ]]; then
-                ui_info "配置已存在；运行 doctor"
+                ui_info "Config already present; running doctor"
                 run_doctor
                 should_open_dashboard=true
                 ui_info "Config already present; skipping onboarding"
@@ -2731,7 +3023,9 @@ main() {
                 exec </dev/tty
                 exec "$claw" onboard
             fi
-            ui_info "No TTY; run openclaw onboard to finish setup"
+            local user_claw
+            user_claw="$(openclaw_command_for_user "${OPENCLAW_BIN:-}")"
+            ui_info "No TTY; run ${user_claw} onboard to finish setup"
             return 0
         fi
     fi

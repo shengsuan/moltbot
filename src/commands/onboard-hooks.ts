@@ -3,21 +3,22 @@ import { formatCliCommand } from "../cli/command-format.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { buildWorkspaceHookStatus } from "../hooks/hooks-status.js";
 import type { RuntimeEnv } from "../runtime.js";
+import { t } from "../wizard/i18n/index.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 
 export async function setupInternalHooks(
   cfg: OpenClawConfig,
-  runtime: RuntimeEnv,
+  _runtime: RuntimeEnv,
   prompter: WizardPrompter,
 ): Promise<OpenClawConfig> {
   await prompter.note(
     [
-      "钩子允许您在发出代理命令时自动执行操作。",
-      "示例：发出 /new 或 /reset 时将会话上下文保存到记忆中。",
+      "Hooks let you automate actions when agent commands are issued.",
+      "Example: Save session context to memory when you issue /new or /reset.",
       "",
-      "了解更多：https://docs.openclaw.ai/automation/hooks",
+      "Learn more: https://docs.openclaw.ai/automation/hooks",
     ].join("\n"),
-    "钩子",
+    t("wizard.hooks.introTitle"),
   );
 
   // Discover available hooks using the hook discovery system
@@ -28,14 +29,14 @@ export async function setupInternalHooks(
   const eligibleHooks = report.hooks.filter((h) => h.loadable);
 
   if (eligibleHooks.length === 0) {
-    await prompter.note("未找到符合条件的钩子。您可以稍后在配置中配置钩子。", "无可用钩子");
+    await prompter.note(t("wizard.hooks.noHooksMessage"), t("wizard.hooks.noHooksTitle"));
     return cfg;
   }
 
   const toEnable = await prompter.multiselect({
-    message: "启用钩子？",
+    message: t("wizard.hooks.enable"),
     options: [
-      { value: "__skip__", label: "暂时跳过" },
+      { value: "__skip__", label: t("common.skipForNow") },
       ...eligibleHooks.map((hook) => ({
         value: hook.name,
         label: `${hook.emoji ?? "🔗"} ${hook.name}`,
@@ -68,14 +69,14 @@ export async function setupInternalHooks(
 
   await prompter.note(
     [
-      `已启用 ${selected.length} 个钩子${selected.length > 1 ? "" : ""}：${selected.join("、")}`,
+      `Enabled ${selected.length} hook${selected.length > 1 ? "s" : ""}: ${selected.join(", ")}`,
       "",
-      "您可以稍后通过以下命令管理钩子：",
+      "You can manage hooks later with:",
       `  ${formatCliCommand("openclaw hooks list")}`,
       `  ${formatCliCommand("openclaw hooks enable <name>")}`,
       `  ${formatCliCommand("openclaw hooks disable <name>")}`,
     ].join("\n"),
-    "已配置钩子",
+    t("wizard.hooks.configuredTitle"),
   );
 
   return next;

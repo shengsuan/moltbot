@@ -50,13 +50,17 @@ export async function setupWizardCommand(
     normalizedOpts.secretInputMode !== "plaintext" && // pragma: allowlist secret
     normalizedOpts.secretInputMode !== "ref" // pragma: allowlist secret
   ) {
-    runtime.error('无效的 --secret-input-mode。请使用 "plaintext" 或 "ref"。');
+    runtime.error(
+      `Invalid --secret-input-mode. Use "plaintext" or "ref", or run ${formatCliCommand("openclaw onboard")} for the interactive setup.`,
+    );
     runtime.exit(1);
     return;
   }
 
   if (normalizedOpts.resetScope && !VALID_RESET_SCOPES.has(normalizedOpts.resetScope)) {
-    runtime.error('无效的 --reset-scope。请使用 "config"、"config+creds+sessions" 或 "full"。');
+    runtime.error(
+      `Invalid --reset-scope. Use "config", "config+creds+sessions", or "full". Run ${formatCliCommand("openclaw onboard --reset --reset-scope config")} for a config-only reset.`,
+    );
     runtime.exit(1);
     return;
   }
@@ -64,9 +68,9 @@ export async function setupWizardCommand(
   if (normalizedOpts.nonInteractive && normalizedOpts.acceptRisk !== true) {
     runtime.error(
       [
-        "非交互式设置需要明确告知风险。",
-        "阅读: https://docs.openclaw.ai/security",
-        `重新运行命令: ${formatCliCommand("openclaw onboard --non-interactive --accept-risk ...")}`,
+        "Non-interactive setup requires explicit risk acknowledgement.",
+        "Read: https://docs.openclaw.ai/security",
+        `Re-run with: ${formatCliCommand("openclaw onboard --non-interactive --accept-risk ...")}`,
       ].join("\n"),
     );
     runtime.exit(1);
@@ -85,10 +89,10 @@ export async function setupWizardCommand(
   if (process.platform === "win32") {
     runtime.log(
       [
-        "检测到 Windows 系统 - OpenClaw 在 WSL2 上运行良好！",
-        "原生 Windows 系统可能比较棘手。",
-        "快速安装：wsl --install（一条命令，一次重启）",
-        "指南: https://docs.openclaw.ai/windows",
+        "Windows detected - OpenClaw runs great on WSL2!",
+        "Native Windows might be trickier.",
+        "Quick setup: wsl --install (one command, one reboot)",
+        "Guide: https://docs.openclaw.ai/windows",
       ].join("\n"),
     );
   }

@@ -18,6 +18,7 @@ import { resolvePluginWebSearchProviders } from "../plugins/web-search-providers
 import { sortWebSearchProviders } from "../plugins/web-search-providers.shared.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { normalizeOptionalString } from "../shared/string-coerce.js";
+import { t } from "../wizard/i18n/index.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import type { FlowContribution, FlowOption } from "./types.js";
 import { sortFlowContributionsByLabel } from "./types.js";
@@ -41,6 +42,7 @@ type SearchProviderSetupContribution = FlowContribution & {
 };
 
 const SEARCH_INSTALL_CATALOG_ENTRY = Symbol("search-install-catalog-entry");
+const WEB_SEARCH_DOCS_URL = "https://docs.openclaw.ai/tools/web";
 
 type SearchProviderEntryWithInstall = PluginWebSearchProviderEntry & {
   [SEARCH_INSTALL_CATALOG_ENTRY]?: WebSearchInstallCatalogEntry;
@@ -390,22 +392,22 @@ export async function runSearchSetupFlow(
   if (providerOptions.length === 0) {
     await prompter.note(
       [
-        "当前没有可用的网络搜索提供者。",
-        "启用插件或移除拒绝规则，然后再次运行设置。",
-        "文档: https://docs.openclaw.ai/tools/web",
+        t("wizard.search.noProvidersByPolicy"),
+        t("wizard.search.noProvidersAction"),
+        t("wizard.search.docsLine", { url: WEB_SEARCH_DOCS_URL }),
       ].join("\n"),
-      "网络搜索",
+      t("wizard.search.title"),
     );
     return config;
   }
 
   await prompter.note(
     [
-      "网络搜索让您的代理能够在在线查找信息。",
-      "选择一个提供者。一些提供者需要 API 密钥，而一些则无需密钥。",
-      "Docs: https://docs.openclaw.ai/tools/web",
+      t("wizard.search.intro"),
+      t("wizard.search.chooseProvider"),
+      t("wizard.search.docsLine", { url: WEB_SEARCH_DOCS_URL }),
     ].join("\n"),
-    "网络搜索",
+    t("wizard.search.title"),
   );
 
   const existingProvider = config.tools?.web?.search?.provider;
@@ -413,9 +415,9 @@ export async function runSearchSetupFlow(
   const options = providerOptions.map((entry) => {
     const hint =
       entry.requiresCredential === false
-        ? `${entry.hint} · key-free`
+        ? `${entry.hint} · ${t("wizard.search.keyFree")}`
         : providerIsReady(config, entry)
-          ? `${entry.hint} · configured`
+          ? `${entry.hint} · ${t("wizard.search.configured")}`
           : entry.hint;
     return { value: entry.id, label: entry.label, hint };
   });
@@ -432,13 +434,13 @@ export async function runSearchSetupFlow(
   })();
 
   const choice = await prompter.select({
-    message: "Search provider",
+    message: t("wizard.search.providerPrompt"),
     options: [
       ...options,
       {
         value: "__skip__" as const,
-        label: "暂时跳过",
-        hint: "稍后使用 openclaw configure --section web 进行配置",
+        label: t("common.skipForNow"),
+        hint: t("wizard.search.configureLaterHint"),
       },
     ],
     initialValue: defaultProvider,
@@ -477,11 +479,11 @@ export async function runSearchSetupFlow(
   if (!needsCredential) {
     await prompter.note(
       [
-        `${entry.label} 不需要 API key.`,
-        "OpenClaw 将启用该插件并将其用作您的网络搜索提供者。",
-        `文档: ${entry.docsUrl ?? "https://docs.openclaw.ai/tools/web"}`,
+        `${entry.label} works without an API key.`,
+        "OpenClaw will enable the plugin and use it as your web_search provider.",
+        `Docs: ${entry.docsUrl ?? "https://docs.openclaw.ai/tools/web"}`,
       ].join("\n"),
-      "网络搜索",
+      "Web search",
     );
     return await finalizeSearchProviderSetup({
       originalConfig: config,
@@ -512,12 +514,12 @@ export async function runSearchSetupFlow(
     const ref = buildSearchEnvRef(config, choice);
     await prompter.note(
       [
-        "已启用秘密引用 — OpenClaw 将存储引用而不是 API 密钥。",
+        "Secret references enabled — OpenClaw will store a reference instead of the API key.",
         `Env var: ${ref.id}${envAvailable ? " (detected)" : ""}.`,
         ...(envAvailable ? [] : [`Set ${ref.id} in the Gateway environment.`]),
         "Docs: https://docs.openclaw.ai/tools/web",
       ].join("\n"),
-      "网络搜索",
+      "Web search",
     );
     return await finalizeSearchProviderSetup({
       originalConfig: config,
@@ -531,9 +533,9 @@ export async function runSearchSetupFlow(
 
   const keyInput = await prompter.text({
     message: keyConfigured
-      ? `${credentialLabel} (留空使用当前值)`
+      ? `${credentialLabel} (leave blank to keep current)`
       : envAvailable
-        ? `${credentialLabel} (留空使用环境变量)`
+        ? `${credentialLabel} (leave blank to use env var)`
         : credentialLabel,
     placeholder: keyConfigured ? "Leave blank to keep current" : entry.placeholder,
     sensitive: true,
@@ -576,11 +578,11 @@ export async function runSearchSetupFlow(
 
   await prompter.note(
     [
-      `没有存储 ${credentialLabel} — web_search 在有密钥之前不会工作。`,
-      `在 ${entry.signupUrl} 获取您的密钥`,
-      "文档: https://docs.openclaw.ai/tools/web",
+      `No ${credentialLabel} stored — web_search won't work until a key is available.`,
+      `Get your key at: ${entry.signupUrl}`,
+      "Docs: https://docs.openclaw.ai/tools/web",
     ].join("\n"),
-    "网络搜索",
+    "Web search",
   );
 
   const search: SearchConfig = {

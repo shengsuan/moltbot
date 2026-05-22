@@ -32,11 +32,12 @@ import {
   convertPcmToMulaw8k,
   mulawToPcm,
   REALTIME_VOICE_AUDIO_FORMAT_G711_ULAW_8KHZ,
+  REALTIME_VOICE_AUDIO_FORMAT_PCM16_24KHZ,
   REALTIME_VOICE_AGENT_CONSULT_TOOL_NAME,
   resamplePcm,
 } from "openclaw/plugin-sdk/realtime-voice";
 import { normalizeResolvedSecretInputString } from "openclaw/plugin-sdk/secret-input";
-import { normalizeOptionalString } from "openclaw/plugin-sdk/text-runtime";
+import { normalizeOptionalString } from "openclaw/plugin-sdk/string-coerce-runtime";
 import { createGoogleGenAI } from "./google-genai-runtime.js";
 
 const GOOGLE_REALTIME_DEFAULT_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025";
@@ -877,7 +878,7 @@ async function createGoogleRealtimeBrowserSession(
 
   return {
     provider: "google",
-    transport: "json-pcm-websocket",
+    transport: "provider-websocket",
     protocol: "google-live-bidi",
     clientSecret,
     websocketUrl: GOOGLE_REALTIME_BROWSER_WEBSOCKET_URL,
@@ -900,6 +901,22 @@ export function buildGoogleRealtimeVoiceProvider(): RealtimeVoiceProviderPlugin 
     label: "Google Live Voice",
     defaultModel: GOOGLE_REALTIME_DEFAULT_MODEL,
     autoSelectOrder: 20,
+    capabilities: {
+      transports: ["provider-websocket", "gateway-relay"],
+      inputAudioFormats: [
+        REALTIME_VOICE_AUDIO_FORMAT_G711_ULAW_8KHZ,
+        REALTIME_VOICE_AUDIO_FORMAT_PCM16_24KHZ,
+      ],
+      outputAudioFormats: [
+        REALTIME_VOICE_AUDIO_FORMAT_G711_ULAW_8KHZ,
+        REALTIME_VOICE_AUDIO_FORMAT_PCM16_24KHZ,
+      ],
+      supportsBrowserSession: true,
+      supportsBargeIn: true,
+      supportsToolCalls: true,
+      supportsVideoFrames: true,
+      supportsSessionResumption: true,
+    },
     resolveConfig: ({ cfg, rawConfig }) => normalizeProviderConfig(rawConfig, cfg),
     isConfigured: ({ providerConfig }) =>
       Boolean(normalizeProviderConfig(providerConfig).apiKey || resolveEnvApiKey()),

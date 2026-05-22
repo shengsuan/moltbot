@@ -1,7 +1,7 @@
-import type { TextContent, ImageContent } from "@mariozechner/pi-ai";
+import type { TextContent, ImageContent } from "@earendil-works/pi-ai";
 import {
   getShengSuanYunModalityModels,
-  SHENGSUANYUN_BASE_URL
+  SHENGSUANYUN_BASE_URL,
 } from "@openclaw/shengsuanyun/provider-catalog.ts";
 import { createSubsystemLogger } from "openclaw/plugin-sdk/logging-core";
 import { Type, type TSchema } from "typebox";
@@ -19,19 +19,19 @@ export const APP_HEADERS: Record<string, string> = {
   "Content-Type": "application/json",
 };
 interface TaskRes {
-  "code": string;
-  "message": string;
-  "data": {
-    "request_id": string;
-    "task_id": string;
-    "action": string;
-    "status": string;
-    "fail_reason": string;
-    "submit_time": number;
-    "start_time": number;
-    "finish_time": number;
-    "progress": string;
-    "data": {
+  code: string;
+  message: string;
+  data: {
+    request_id: string;
+    task_id: string;
+    action: string;
+    status: string;
+    fail_reason: string;
+    submit_time: number;
+    start_time: number;
+    finish_time: number;
+    progress: string;
+    data: {
       image_urls?: string[];
       video_urls?: string[];
       audio_urls?: string[];
@@ -39,8 +39,8 @@ interface TaskRes {
       text?: string;
       progress: number;
     };
-    [key :string]:unknown;
-  }
+    [key: string]: unknown;
+  };
 }
 async function generate(
   params: Record<string, unknown>,

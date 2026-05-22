@@ -1,13 +1,10 @@
-# syntax=docker/dockerfile:1.7
-
 # Opt-in plugin dependencies at build time (space- or comma-separated directory names).
 # Example: docker build --build-arg OPENCLAW_EXTENSIONS="diagnostics-otel,matrix" .
 #
 # Multi-stage build produces a minimal runtime image without build tools,
 # source code, or Bun. Works with Docker, Buildx, and Podman.
-# The ext-deps stage extracts only the package.json files we need from the
-# bundled plugin workspace tree, so the main build layer is not invalidated by
-# unrelated plugin source changes.
+# The dependency manifest stages extract only package.json files, so the main
+# build layer is not invalidated by unrelated source changes.
 #
 # Build stages use full bookworm; the runtime image is always bookworm-slim.
 ARG OPENCLAW_EXTENSIONS=""
@@ -26,16 +23,24 @@ ARG OPENCLAW_BUN_IMAGE="oven/bun:1.3.13@sha256:87416c977a612a204eb54ab9f3927023c
 # node:24-bookworm-slim (or podman) and replace the digests below with the
 # current multi-arch manifest list entries.
 
-FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS ext-deps
+FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS workspace-deps
 ARG OPENCLAW_EXTENSIONS
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
-# Copy package.json for opted-in extensions so pnpm resolves their deps.
-RUN --mount=type=bind,source=${OPENCLAW_BUNDLED_PLUGIN_DIR},target=/tmp/${OPENCLAW_BUNDLED_PLUGIN_DIR},readonly \
-    mkdir -p /out && \
+# Copy package.json files for workspace packages used by the install layer.
+RUN --mount=type=bind,source=packages,target=/tmp/packages,readonly \
+    --mount=type=bind,source=${OPENCLAW_BUNDLED_PLUGIN_DIR},target=/tmp/${OPENCLAW_BUNDLED_PLUGIN_DIR},readonly \
+    mkdir -p /out/packages "/out/${OPENCLAW_BUNDLED_PLUGIN_DIR}" && \
+    for manifest in /tmp/packages/*/package.json; do \
+      [ -f "$manifest" ] || continue; \
+      pkg_dir="${manifest%/package.json}"; \
+      pkg_name="${pkg_dir##*/}"; \
+      mkdir -p "/out/packages/$pkg_name" && \
+      cp "$manifest" "/out/packages/$pkg_name/package.json"; \
+    done && \
     for ext in $(printf '%s\n' "$OPENCLAW_EXTENSIONS" | tr ',' ' '); do \
       if [ -f "/tmp/${OPENCLAW_BUNDLED_PLUGIN_DIR}/$ext/package.json" ]; then \
-        mkdir -p "/out/$ext" && \
-        cp "/tmp/${OPENCLAW_BUNDLED_PLUGIN_DIR}/$ext/package.json" "/out/$ext/package.json"; \
+        mkdir -p "/out/${OPENCLAW_BUNDLED_PLUGIN_DIR}/$ext" && \
+        cp "/tmp/${OPENCLAW_BUNDLED_PLUGIN_DIR}/$ext/package.json" "/out/${OPENCLAW_BUNDLED_PLUGIN_DIR}/$ext/package.json"; \
       fi; \
     done
 
@@ -58,12 +63,16 @@ COPY patches ./patches
 COPY scripts/postinstall-bundled-plugins.mjs scripts/preinstall-package-manager-warning.mjs scripts/npm-runner.mjs scripts/windows-cmd-helpers.mjs ./scripts/
 COPY scripts/lib/package-dist-imports.mjs ./scripts/lib/package-dist-imports.mjs
 
-COPY --from=ext-deps /out/ ./${OPENCLAW_BUNDLED_PLUGIN_DIR}/
+COPY --from=workspace-deps /out/packages/ ./packages/
+COPY --from=workspace-deps /out/${OPENCLAW_BUNDLED_PLUGIN_DIR}/ ./${OPENCLAW_BUNDLED_PLUGIN_DIR}/
 
 # Reduce OOM risk on low-memory hosts during dependency installation.
 # Docker builds on small VMs may otherwise fail with "Killed" (exit 137).
 RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
-    NODE_OPTIONS=--max-old-space-size=2048 pnpm install --frozen-lockfile
+    NODE_OPTIONS=--max-old-space-size=2048 pnpm install --frozen-lockfile \
+      --config.supportedArchitectures.os=linux \
+      --config.supportedArchitectures.cpu="$(node -p 'process.arch')" \
+      --config.supportedArchitectures.libc=glibc
 
 # pnpm v10+ may append peer-resolution hashes to virtual-store folder names; do not hardcode `.pnpm/...`
 # paths. Matrix's native downloader can hit transient release CDN errors while
@@ -95,36 +104,29 @@ RUN for dir in /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} /app/.agent /app/.agents; do 
 # A2UI bundle may fail under QEMU cross-compilation (e.g. building amd64
 # on Apple Silicon). CI builds natively per-arch so this is a no-op there.
 # Stub it so local cross-arch builds still succeed.
-RUN pnpm canvas:a2ui:bundle || \
+RUN pnpm_config_verify_deps_before_run=false pnpm canvas:a2ui:bundle || \
     (echo "A2UI bundle: creating stub (non-fatal)" && \
-     mkdir -p src/canvas-host/a2ui && \
-     echo "/* A2UI bundle unavailable in this build */" > src/canvas-host/a2ui/a2ui.bundle.js && \
-     echo "stub" > src/canvas-host/a2ui/.bundle.hash && \
+     mkdir -p extensions/canvas/src/host/a2ui && \
+     echo "/* A2UI bundle unavailable in this build */" > extensions/canvas/src/host/a2ui/a2ui.bundle.js && \
+     echo "stub" > extensions/canvas/src/host/a2ui/.bundle.hash && \
      rm -rf vendor/a2ui apps/shared/OpenClawKit/Tools/CanvasA2UI)
-
-     
-RUN pnpm build:docker
+RUN NODE_OPTIONS=--max-old-space-size=8192 pnpm_config_verify_deps_before_run=false pnpm build:docker
 # Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
 ENV OPENCLAW_PREFER_PNPM=1
-RUN pnpm ui:build
-RUN pnpm qa:lab:build
+RUN pnpm_config_verify_deps_before_run=false pnpm ui:build
+RUN pnpm_config_verify_deps_before_run=false pnpm qa:lab:build
 
 # Prune dev dependencies and strip build-only metadata before copying
 # runtime assets into the final image.
 FROM build AS runtime-assets
 ARG OPENCLAW_EXTENSIONS
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
-# Keep the install layer frozen, but allow prune to run against the full copied
-# workspace tree subset used during `pnpm install`. The build stage only copied
-# the root, `ui`, and opted-in plugin manifests into the install layer, so
-# prune must not rediscover unrelated workspaces from the later full source
-# copy.
-RUN printf 'packages:\n  - .\n  - ui\n' > /tmp/pnpm-workspace.runtime.yaml && \
-    for ext in $(printf '%s\n' "$OPENCLAW_EXTENSIONS" | tr ',' ' '); do \
-      printf '  - %s/%s\n' "$OPENCLAW_BUNDLED_PLUGIN_DIR" "$ext" >> /tmp/pnpm-workspace.runtime.yaml; \
-    done && \
-    cp /tmp/pnpm-workspace.runtime.yaml pnpm-workspace.yaml && \
-    CI=true NPM_CONFIG_FROZEN_LOCKFILE=false pnpm prune --prod && \
+RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
+    CI=true pnpm prune --prod \
+      --config.offline=true \
+      --config.supportedArchitectures.os=linux \
+      --config.supportedArchitectures.cpu="$(node -p 'process.arch')" \
+      --config.supportedArchitectures.libc=glibc && \
     node scripts/postinstall-bundled-plugins.mjs && \
     OPENCLAW_EXTENSIONS="$OPENCLAW_EXTENSIONS" node scripts/prune-docker-plugin-dist.mjs && \
     find dist -type f \( -name '*.d.ts' -o -name '*.d.mts' -o -name '*.d.cts' -o -name '*.map' \) -delete && \
@@ -162,8 +164,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      openssh-server nano gettext-base \
-      ca-certificates procps hostname curl git lsof openssl python3 && \
+      ca-certificates curl git hostname lsof openssl procps python3 tini openssh-server nano gettext-base && \
     update-ca-certificates
 
 RUN --mount=type=secret,id=ssh_key \
@@ -174,27 +175,13 @@ RUN --mount=type=secret,id=ssh_key \
 RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
   sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
   sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
-
+  
 # RUN chown node:node /app
-# COPY --from=runtime-assets --chown=node:node /app/dist ./dist
-# COPY --from=runtime-assets --chown=node:node /app/node_modules ./node_modules
-# COPY --from=runtime-assets --chown=node:node /app/package.json .
-# COPY --from=runtime-assets --chown=node:node /app/patches ./patches
-# COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
-# COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
-# COPY --from=runtime-assets --chown=node:node /app/skills ./skills
-# COPY --from=runtime-assets --chown=node:node /app/docs ./docs
-# COPY --from=runtime-assets --chown=node:node /app/qa ./qa
-# COPY --from=runtime-assets --chown=node:node /app/scripts/cfg.sh ./scripts/cfg.sh
-# COPY --from=runtime-assets --chown=node:node /app/scripts/cfg.templates.json ./cfg.templates.json
-# RUN mkdir -p /run/sshd /root/.ssh && \
-#     chmod 700 /root/.ssh && \
-#     ssh-keygen -A && \
-#     chown node:node /app
 
 COPY --from=runtime-assets /app/dist ./dist
 COPY --from=runtime-assets /app/node_modules ./node_modules
 COPY --from=runtime-assets /app/package.json .
+COPY --from=runtime-assets /app/pnpm-workspace.yaml .
 COPY --from=runtime-assets /app/patches ./patches
 COPY --from=runtime-assets /app/openclaw.mjs .
 COPY --from=runtime-assets /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
@@ -206,14 +193,7 @@ COPY --from=runtime-assets /app/scripts/cfg.templates.json ./cfg.templates.json
 RUN mkdir -p /run/sshd /root/.ssh && \
     chmod 700 /root/.ssh && \
     ssh-keygen -A 
-    
-# COPY ./plugins /app/plugins/
-    
-# In npm-installed Docker images, prefer the copied source extension tree for
-# bundled discovery so package metadata that points at source entries stays valid.
-ENV OPENCLAW_BUNDLED_PLUGINS_DIR=/app/${OPENCLAW_BUNDLED_PLUGIN_DIR}
-# COPY --from=runtime-assets --chown=node:node /app/qa ./qa
-COPY --from=runtime-assets /app/qa ./qa
+RUN chmod +x /app/scripts/cfg.sh
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a
 # first-run network fetch when invoking pnpm.
@@ -232,13 +212,29 @@ RUN install -d -m 0755 "$COREPACK_HOME" && \
     chmod -R a+rX "$COREPACK_HOME"
 
 # Install additional system packages needed by your skills or extensions.
-# Example: docker build --build-arg OPENCLAW_DOCKER_APT_PACKAGES="python3 wget" .
+# Example: docker build --build-arg OPENCLAW_IMAGE_APT_PACKAGES="python3 wget" .
+# Legacy alias: OPENCLAW_DOCKER_APT_PACKAGES is still accepted as a fallback.
+ARG OPENCLAW_IMAGE_APT_PACKAGES
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
-    if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
+    packages="${OPENCLAW_IMAGE_APT_PACKAGES-$OPENCLAW_DOCKER_APT_PACKAGES}"; \
+    if [ -n "$packages" ]; then \
       apt-get update && \
-      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES; \
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $packages; \
+    fi
+
+# Install additional Python packages needed by your plugins or skills.
+# Example: docker build --build-arg OPENCLAW_IMAGE_PIP_PACKAGES="requests humanize" .
+ARG OPENCLAW_IMAGE_PIP_PACKAGES=""
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    if [ -n "$OPENCLAW_IMAGE_PIP_PACKAGES" ]; then \
+      if ! python3 -m pip --version >/dev/null 2>&1; then \
+        apt-get update && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-pip; \
+      fi && \
+      python3 -m pip install --no-cache-dir --break-system-packages $OPENCLAW_IMAGE_PIP_PACKAGES; \
     fi
 
 # Optionally install Chromium and Xvfb for browser automation.
@@ -246,51 +242,16 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 # Adds ~300MB but eliminates the 60-90s Playwright install on every container start.
 # Must run after node_modules COPY so playwright-core is available.
 ARG OPENCLAW_INSTALL_BROWSER=""
-# RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
-#     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
-#     set -e; \
-#     if [ "$OPENCLAW_INSTALL_BROWSER" = "1" ] || [ "$OPENCLAW_INSTALL_BROWSER" = "true" ]; then \
-#       apt-get update && \
-#       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
-#       mkdir -p /home/node/.cache/ms-playwright && \
-#       export PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright && \
-#       node /app/node_modules/playwright-core/cli.js install-deps chromium && \
-#       node /app/node_modules/playwright-core/cli.js install chromium && \
-#       chown -R node:node /home/node/.cache && \
-#       ACTUAL_CHROME=$(find /home/node/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
-#       if [ -z "$ACTUAL_CHROME" ]; then echo "Browser binary not found" >&2; exit 1; fi; \
-#       for TARGET in /usr/bin/chromium \
-#                     /usr/bin/chromium-browser \
-#                     /usr/bin/google-chrome \
-#                     /usr/bin/google-chrome-stable \
-#                     /usr/bin/msedge \
-#                     /usr/bin/brave-browser \
-#                     /snap/bin/chromium; do \
-#         mkdir -p $(dirname "$TARGET") && ln -sf "$ACTUAL_CHROME" "$TARGET"; \
-#       done; \
-#     fi
+ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
-    set -e; \
-    if [ "$OPENCLAW_INSTALL_BROWSER" = "1" ] || [ "$OPENCLAW_INSTALL_BROWSER" = "true" ]; then \
+    if [ -n "$OPENCLAW_INSTALL_BROWSER" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends xvfb && \
-      mkdir -p /root/.cache/ms-playwright && \
-      export PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright && \
-      node /app/node_modules/playwright-core/cli.js install-deps chromium && \
-      node /app/node_modules/playwright-core/cli.js install chromium && \
-      ACTUAL_CHROME=$(find /root/.cache/ms-playwright -type f \( -name "chrome" -o -name "chromium-headless-shell" \) | head -n 1) && \
-      if [ -z "$ACTUAL_CHROME" ]; then echo "Browser binary not found" >&2; exit 1; fi; \
-      for TARGET in /usr/bin/chromium \
-                    /usr/bin/chromium-browser \
-                    /usr/bin/google-chrome \
-                    /usr/bin/google-chrome-stable \
-                    /usr/bin/msedge \
-                    /usr/bin/brave-browser \
-                    /snap/bin/chromium; do \
-        mkdir -p $(dirname "$TARGET") && ln -sf "$ACTUAL_CHROME" "$TARGET"; \
-      done; \
+      mkdir -p "$PLAYWRIGHT_BROWSERS_PATH" && \
+      node /app/node_modules/playwright-core/cli.js install --with-deps chromium; \
     fi
+
 # Optionally install Docker CLI for sandbox container management.
 # Build with: docker build --build-arg OPENCLAW_INSTALL_DOCKER_CLI=1 ...
 # Adds ~50MB. Only the CLI is installed — no Docker daemon.
@@ -299,7 +260,6 @@ ARG OPENCLAW_INSTALL_DOCKER_CLI=""
 ARG OPENCLAW_DOCKER_GPG_FINGERPRINT="9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
-    timeout 300 openclaw plugins install @soimy/dingtalk || true && \
     if [ -n "$OPENCLAW_INSTALL_DOCKER_CLI" ]; then \
       apt-get update && \
       DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -331,31 +291,11 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
         docker-ce-cli docker-compose-plugin; \
     fi
 
-# RUN npm install @coohu/coding-helper@latest -g && \
-#     echo 'alias ch="coding-helper"' >> /home/node/.bashrc
-# RUN npm i -g @openai/codex
-# RUN curl -fsSL -o /tmp/claude_install.sh https://claude.ai/install.sh && \
-#     chmod +x /tmp/claude_install.sh && \
-#     /tmp/claude_install.sh && \
-#     echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/node/.bashrc && \
-#     rm /tmp/claude_install.sh
-
-# RUN chmod -R 755 /usr/local/lib/node_modules && \
-#     chmod -R 755 /usr/local/bin
-
 # Expose the CLI binary without requiring npm global writes as non-root.
 RUN ln -sf /app/openclaw.mjs /usr/local/bin/openclaw \
- && chmod 755 /app/openclaw.mjs \
- && chmod 755 /app/scripts/cfg.sh
-
+ && chmod 755 /app/openclaw.mjs
 
 RUN install -d -m 0700  /root/.openclaw 
-
-# Pre-create the default state dir so first-run Docker named volumes mounted
-# here inherit node ownership instead of root-owned state.
-# RUN install -d -m 0700 -o node -g node /home/node/.openclaw && \
-#     stat -c '%U:%G %a' /home/node/.openclaw | grep -qx 'node:node 700'
-
 ENV NODE_ENV=production
 
 # Security hardening: Run as non-root user
@@ -375,7 +315,12 @@ ENV NODE_ENV=production
 #   - GET /healthz (liveness) and GET /readyz (readiness)
 #   - aliases: /health and /ready
 # For external access from host/ingress, override bind to "lan" and set auth.
+# HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
+#   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# ENTRYPOINT ["tini", "-s", "--"]
+# CMD ["node", "openclaw.mjs", "gateway"]
+
 EXPOSE 18789 18790 22
 # HEALTHCHECK --interval=3m --timeout=10s --start-period=15s --retries=3 \
 #   CMD node -e "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-ENTRYPOINT ["/app/scripts/cfg.sh"]
+ENTRYPOINT ["tini", "-s", "--", "/app/scripts/cfg.sh"]

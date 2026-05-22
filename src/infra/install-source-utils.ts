@@ -5,6 +5,7 @@ import { runCommandWithTimeout } from "../process/exec.js";
 import { resolveUserPath } from "../utils.js";
 import { resolveArchiveKind } from "./archive.js";
 import { pathExists } from "./fs-safe.js";
+import { applyNpmFreshnessBypassEnv, type NpmProjectInstallEnvOptions } from "./npm-install-env.js";
 import { withTempWorkspace } from "./private-temp-workspace.js";
 
 export type NpmSpecResolution = {
@@ -34,6 +35,17 @@ export function buildNpmResolutionFields(resolution?: NpmSpecResolution): NpmRes
     shasum: resolution?.shasum,
     resolvedAt: resolution?.resolvedAt,
   };
+}
+
+export function createNpmMetadataEnv(
+  scope: Pick<NpmProjectInstallEnvOptions, "npmConfigCwd"> = {},
+): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+    NPM_CONFIG_IGNORE_SCRIPTS: "true",
+  };
+  applyNpmFreshnessBypassEnv(env, new Date(), scope);
+  return env;
 }
 
 function normalizeNpmViewMetadata(value: unknown): NpmSpecResolution | null {
@@ -69,10 +81,7 @@ export async function resolveNpmSpecMetadata(params: { spec: string; timeoutMs?:
     ["npm", "view", params.spec, "name", "version", "dist.integrity", "dist.shasum", "--json"],
     {
       timeoutMs: Math.max(params.timeoutMs ?? 60_000, 60_000),
-      env: {
-        COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
-        NPM_CONFIG_IGNORE_SCRIPTS: "true",
-      },
+      env: createNpmMetadataEnv(),
     },
   );
   if (res.code !== 0) {
@@ -279,10 +288,7 @@ export async function packNpmSpecToArchive(params: {
     {
       timeoutMs: Math.max(params.timeoutMs, 300_000),
       cwd: params.cwd,
-      env: {
-        COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
-        NPM_CONFIG_IGNORE_SCRIPTS: "true",
-      },
+      env: createNpmMetadataEnv({ npmConfigCwd: params.cwd }),
     },
   );
   if (res.code !== 0) {
@@ -319,5 +325,51 @@ export async function packNpmSpecToArchive(params: {
     ok: true,
     archivePath,
     metadata: parsedJson?.metadata ?? {},
+  };
+}
+
+export async function resolveNpmPackArchiveMetadata(params: {
+  archivePath: string;
+  timeoutMs?: number;
+}): Promise<
+  | {
+      ok: true;
+      archivePath: string;
+      tarballName: string;
+      metadata: NpmSpecResolution;
+    }
+  | {
+      ok: false;
+      error: string;
+    }
+> {
+  const archivePathResult = await resolveArchiveSourcePath(params.archivePath);
+  if (!archivePathResult.ok) {
+    return archivePathResult;
+  }
+  const archivePath = archivePathResult.path;
+  const res = await runCommandWithTimeout(
+    ["npm", "pack", archivePath, "--ignore-scripts", "--dry-run", "--json"],
+    {
+      timeoutMs: Math.max(params.timeoutMs ?? 60_000, 60_000),
+      env: createNpmMetadataEnv(),
+    },
+  );
+  if (res.code !== 0) {
+    return {
+      ok: false,
+      error: `npm pack metadata read failed: ${res.stderr.trim() || res.stdout.trim()}`,
+    };
+  }
+
+  const parsedJson = parseNpmPackJsonOutput(res.stdout || "");
+  if (!parsedJson?.metadata.name || !parsedJson.metadata.version) {
+    return { ok: false, error: "npm pack metadata read produced incomplete package metadata" };
+  }
+  return {
+    ok: true,
+    archivePath,
+    tarballName: parsedJson.filename ?? path.basename(archivePath),
+    metadata: parsedJson.metadata,
   };
 }

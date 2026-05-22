@@ -44,31 +44,11 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     mkdir -p "${CFG_DIR}/extensions"
     # cp /app/openclaw.json "${CFG_DIR}/openclaw.json"
     envsubst < "/app/cfg.templates.json" > "${CFG_DIR}/openclaw.json"
-    if [ -d "/app/plugins" ]; then
-        shopt -s nullglob
-        tarballs=(/app/plugins/*.tar.gz)
-        shopt -u nullglob
-        if [ "${#tarballs[@]}" -gt 0 ]; then
-            echo "[INFO] 正在解压插件至 ${CFG_DIR}/extensions/ ..."
-            for tarball in "${tarballs[@]}"; do
-                echo "  → $(basename "${tarball}")"
-                if tar -xzf "${tarball}" -C "${CFG_DIR}/extensions/" 2>&1; then
-                    echo "    ✓ 解压成功"
-                else
-                    echo "    ✗ 解压失败：${tarball}" >&2
-                fi
-            done
-            echo "[INFO] 已安装插件："
-            ls -la "${CFG_DIR}/extensions/" 2>/dev/null || echo "  （无插件）"
-        fi
-    fi
-
     mkdir -p "${CFG_DIR}/agents/main/agent"
     mkdir -p "${CFG_DIR}/agents/main/sessions"
     mkdir -p "${CFG_DIR}/identity"
     echo "[INFO] 修复文件权限..."
     # chown -R node:node "${OPENCLAW_HOME:-/home/node}"
-    chown -R root:root "${CFG_DIR}/extensions/"
     echo "0" > "$INITIALIZED_FLAG"
     echo "[INFO] 初始化完成，已创建标记文件。"
     npx -y @tencent-weixin/openclaw-weixin-cli install

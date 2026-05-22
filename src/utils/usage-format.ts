@@ -7,6 +7,7 @@ import type { ModelProviderConfig } from "../config/types.models.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { getGatewayModelPricingCacheFingerprint } from "../gateway/model-pricing-cache-state.js";
 import { getCachedGatewayModelPricing } from "../gateway/model-pricing-cache.js";
+import { tryReadJsonSync } from "../infra/json-files.js";
 import { normalizeOptionalString } from "../shared/string-coerce.js";
 
 /**
@@ -212,13 +213,13 @@ function loadModelsJsonCostIndex(options?: {
       modelsJsonCostCache.path !== modelsPath ||
       modelsJsonCostCache.mtimeMs !== stat.mtimeMs
     ) {
-      const parsed = JSON.parse(fs.readFileSync(modelsPath, "utf8")) as {
+      const parsed = tryReadJsonSync<{
         providers?: Record<string, ModelProviderConfig>;
-      };
+      }>(modelsPath);
       modelsJsonCostCache = {
         path: modelsPath,
         mtimeMs: stat.mtimeMs,
-        providers: parsed.providers,
+        providers: parsed?.providers,
         normalizedEntries: null,
         rawEntries: null,
       };
@@ -427,6 +428,6 @@ export function estimateUsageCost(params: {
   return total / 1_000_000;
 }
 
-export function __resetUsageFormatCachesForTest(): void {
+export function resetUsageFormatCachesForTest(): void {
   modelsJsonCostCache = null;
 }

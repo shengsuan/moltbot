@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import pkg from "../../package.json" with { type: "json" };
 import { openClawRootFs, openClawRootFsSync } from "./openclaw-root.fs.runtime.js";
 
-const CORE_PACKAGE_NAMES = new Set(["@coohu/openclaw"]);
+const CORE_PACKAGE_NAMES = new Set(["openclaw"]);
 const packageNameCache = new Map<string, string | null>();
 const packageRootCache = new Map<string, string | null>();
 const argv1CandidateCache = new Map<string, string[]>();
@@ -189,10 +189,11 @@ function createPackageRootCacheKey(candidates: readonly string[]): string {
   return candidates.join("\0");
 }
 
-export const __testing = {
+export const testing = {
   clearOpenClawPackageRootCaches(): void {
     packageNameCache.clear();
     packageRootCache.clear();
     argv1CandidateCache.clear();
   },
 };
+export { testing as __testing };

@@ -94,6 +94,7 @@
         "shengsuanyun/google/gemini-2.5-flash-lite": {},
         "shengsuanyun/google/gemini-2.5-pro": {},
         "shengsuanyun/google/gemini-3-flash": {},
+        "shengsuanyun/google/gemini-3.1-flash-lite": {},
         "shengsuanyun/google/gemini-3.1-flash-lite-preview": {},
         "shengsuanyun/google/gemini-3.1-pro-preview": {},
         "shengsuanyun/meta/llama-3.3-70b-instruct": {},
@@ -216,8 +217,12 @@
     "elevated": {
       "enabled": true,
       "allowFrom": {
-        "webchat": ["*"],
-        "direct": ["*"]
+        "webchat": [
+          "*"
+        ],
+        "direct": [
+          "*"
+        ]
       }
     },
     "alsoAllow": []
@@ -234,7 +239,12 @@
         "enabled": true
       }
     },
-    "allow": ["shengsuanyun", "browser", "memory-core", "openclaw-weixin"]
+    "allow": [
+      "shengsuanyun",
+      "browser",
+      "memory-core",
+      "openclaw-weixin"
+    ]
   },
   "browser": {
     "enabled": true,
@@ -243,8 +253,16 @@
     "attachOnly": false,
     "ssrfPolicy": {
       "dangerouslyAllowPrivateNetwork": true,
-      "hostnameAllowlist": ["*.com", "*.net", "*.org", "*.io", "localhost"],
-      "allowedHostnames": ["*"]
+      "hostnameAllowlist": [
+        "*.com",
+        "*.net",
+        "*.org",
+        "*.io",
+        "localhost"
+      ],
+      "allowedHostnames": [
+        "*"
+      ]
     }
   },
   "skills": {

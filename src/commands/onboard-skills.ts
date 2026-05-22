@@ -2,8 +2,11 @@ import { installSkill } from "../agents/skills-install.js";
 import { buildWorkspaceSkillStatus } from "../agents/skills-status.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { resolveBrewExecutable } from "../infra/brew.js";
+import { isContainerEnvironment } from "../infra/container-environment.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
+import { t } from "../wizard/i18n/index.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import { detectBinary, resolveNodeManagerOptions } from "./onboard-helpers.js";
 
@@ -24,10 +27,21 @@ function formatSkillHint(skill: {
   const installLabel = skill.install[0]?.label?.trim();
   const combined = desc && installLabel ? `${desc} — ${installLabel}` : desc || installLabel;
   if (!combined) {
-    return "安装";
+    return "install";
   }
   const maxLen = 90;
   return combined.length > maxLen ? `${combined.slice(0, maxLen - 1)}…` : combined;
+}
+
+function isBrewOnlyInstallableSkill(skill: {
+  install: Array<{ kind: string }>;
+  missing: { bins: string[] };
+}): boolean {
+  return (
+    skill.install.length > 0 &&
+    skill.missing.bins.length > 0 &&
+    skill.install.every((option) => option.kind === "brew")
+  );
 }
 
 function upsertSkillEntry(
@@ -65,34 +79,51 @@ export async function setupSkills(
 
   await prompter.note(
     [
-      `符合条件：${eligible.length}`,
-      `缺少依赖：${missing.length}`,
-      `此操作系统不支持：${unsupportedOs.length}`,
-      `被允许列表阻止：${blocked.length}`,
+      `Eligible: ${eligible.length}`,
+      `Missing requirements: ${missing.length}`,
+      `Unsupported on this OS: ${unsupportedOs.length}`,
+      `Blocked by allowlist: ${blocked.length}`,
     ].join("\n"),
-    "技能状态",
+    t("wizard.skills.statusTitle"),
   );
 
   const shouldConfigure = await prompter.confirm({
-    message: "现在配置技能？（推荐）",
+    message: t("wizard.skills.configure"),
     initialValue: true,
   });
   if (!shouldConfigure) {
     return cfg;
   }
 
-  const installable = missing.filter(
+  const baseInstallable = missing.filter(
     (skill) => skill.install.length > 0 && skill.missing.bins.length > 0,
   );
+  let brewAvailable: boolean | undefined;
+  const detectBrewOnce = async () => {
+    brewAvailable ??= (await detectBinary("brew")) || resolveBrewExecutable() !== undefined;
+    return brewAvailable;
+  };
+  const inLinuxContainer = process.platform === "linux" && isContainerEnvironment();
+  let installable = baseInstallable;
+  if (inLinuxContainer && baseInstallable.length > 0 && !(await detectBrewOnce())) {
+    const hiddenBrewOnly = baseInstallable.filter(isBrewOnlyInstallableSkill);
+    installable = baseInstallable.filter((skill) => !isBrewOnlyInstallableSkill(skill));
+    if (hiddenBrewOnly.length > 0) {
+      await prompter.note(
+        [t("wizard.skills.containerBrewHidden"), t("wizard.skills.containerBrewManual")].join("\n"),
+        t("wizard.skills.containerInstallsTitle"),
+      );
+    }
+  }
   let next: OpenClawConfig = cfg;
   if (installable.length > 0) {
     const toInstall = await prompter.multiselect({
-      message: "安装缺失的技能依赖",
+      message: t("wizard.skills.installDeps"),
       options: [
         {
           value: "__skip__",
-          label: "暂时跳过",
-          hint: "继续而不安装依赖",
+          label: t("common.skipForNow"),
+          hint: t("wizard.skills.skipDepsHint"),
         },
         ...installable.map((skill) => ({
           value: skill.name,
@@ -111,27 +142,27 @@ export async function setupSkills(
     const needsBrewPrompt =
       process.platform !== "win32" &&
       selectedSkills.some((skill) => skill.install.some((option) => option.kind === "brew")) &&
-      !(await detectBinary("brew"));
+      !(await detectBrewOnce());
 
     if (needsBrewPrompt) {
       await prompter.note(
         [
-          "许多技能依赖通过 Homebrew 提供。",
-          "如果没有 brew，您需要从源代码构建或手动下载发行版。",
+          "Many skill dependencies are shipped via Homebrew.",
+          "Without brew, you'll need to build from source or download releases manually.",
         ].join("\n"),
-        "推荐使用 Homebrew",
+        t("wizard.skills.homebrewRecommendedTitle"),
       );
       const showBrewInstall = await prompter.confirm({
-        message: "显示 Homebrew 安装命令？",
+        message: t("wizard.skills.homebrewCommand"),
         initialValue: true,
       });
       if (showBrewInstall) {
         await prompter.note(
           [
-            "运行：",
+            "Run:",
             '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
           ].join("\n"),
-          "Homebrew 安装",
+          t("wizard.skills.homebrewInstallTitle"),
         );
       }
     }
@@ -141,7 +172,7 @@ export async function setupSkills(
     );
     if (needsNodeManagerPrompt) {
       const nodeManager = (await prompter.select({
-        message: "技能安装首选的 node 管理器",
+        message: t("wizard.skills.nodeManager"),
         options: resolveNodeManagerOptions(),
       })) as "npm" | "pnpm" | "bun";
       next = {
@@ -165,7 +196,7 @@ export async function setupSkills(
       if (!installId) {
         continue;
       }
-      const spin = prompter.progress(`正在安装 ${name}…`);
+      const spin = prompter.progress(t("wizard.skills.installing", { name }));
       const result = await installSkill({
         workspaceDir,
         skillName: target.name,
@@ -174,15 +205,21 @@ export async function setupSkills(
       });
       const warnings = result.warnings ?? [];
       if (result.ok) {
-        spin.stop(warnings.length > 0 ? `已安装 ${name}（有警告）` : `已安装 ${name}`);
+        spin.stop(
+          warnings.length > 0
+            ? t("wizard.skills.installedWithWarnings", { name })
+            : t("wizard.skills.installed", { name }),
+        );
         for (const warning of warnings) {
           runtime.log(warning);
         }
         continue;
       }
-      const code = result.code == null ? "" : ` (退出代码 ${result.code})`;
+      const code = result.code == null ? "" : ` (exit ${result.code})`;
       const detail = summarizeInstallFailure(result.message);
-      spin.stop(`安装失败：${name}${code}${detail ? ` — ${detail}` : ""}`);
+      spin.stop(
+        t("wizard.skills.installFailed", { name, code, detail: detail ? ` - ${detail}` : "" }),
+      );
       for (const warning of warnings) {
         runtime.log(warning);
       }
@@ -191,8 +228,10 @@ export async function setupSkills(
       } else if (result.stdout) {
         runtime.log(result.stdout.trim());
       }
-      runtime.log(`提示：运行 \`${formatCliCommand("openclaw doctor")}\` 以查看技能和依赖要求。`);
-      runtime.log("文档：https://docs.openclaw.ai/skills");
+      runtime.log(
+        `Tip: run \`${formatCliCommand("openclaw doctor")}\` to review skills + requirements.`,
+      );
+      runtime.log(t("wizard.skills.docsLine"));
     }
   }
 
@@ -201,15 +240,15 @@ export async function setupSkills(
       continue;
     }
     const wantsKey = await prompter.confirm({
-      message: `为 ${skill.name} 设置 ${skill.primaryEnv}？`,
+      message: t("wizard.skills.setEnv", { env: skill.primaryEnv, name: skill.name }),
       initialValue: false,
     });
     if (!wantsKey) {
       continue;
     }
     const apiKey = await prompter.text({
-      message: `Enter ${skill.primaryEnv}`,
-      validate: (value) => (value?.trim() ? undefined : "Required"),
+      message: t("wizard.skills.enterEnv", { env: skill.primaryEnv }),
+      validate: (value) => (value?.trim() ? undefined : t("common.required")),
       sensitive: true,
     });
     next = upsertSkillEntry(next, skill.skillKey, { apiKey: normalizeSecretInput(apiKey) });

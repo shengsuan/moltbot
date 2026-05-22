@@ -34,7 +34,7 @@ script aliases; both forms are supported.
 | `qa run`                                            | Bundled QA self-check; writes a Markdown report.                                                                                                                                                                                                                        |
 | `qa suite`                                          | Run repo-backed scenarios against the QA gateway lane. Aliases: `pnpm openclaw qa suite --runner multipass` for a disposable Linux VM.                                                                                                                                  |
 | `qa coverage`                                       | Print the markdown scenario-coverage inventory (`--json` for machine output).                                                                                                                                                                                           |
-| `qa parity-report`                                  | Compare two `qa-suite-summary.json` files and write the agentic parity report.                                                                                                                                                                                          |
+| `qa parity-report`                                  | Compare two `qa-suite-summary.json` files and write the agentic parity report, or use `--runtime-axis --token-efficiency` to write Codex-vs-Pi runtime parity and token-efficiency reports from one runtime-pair summary.                                               |
 | `qa character-eval`                                 | Run the character QA scenario across multiple live models with a judged report. See [Reporting](#reporting).                                                                                                                                                            |
 | `qa manual`                                         | Run a one-off prompt against the selected provider/model lane.                                                                                                                                                                                                          |
 | `qa ui`                                             | Start the QA debugger UI and local QA bus (alias: `pnpm qa:lab:ui`).                                                                                                                                                                                                    |
@@ -119,6 +119,11 @@ timeline, or `--scenario discord-thread-reply-filepath-attachment` to create a
 real Discord thread and verify that `message.thread-reply` preserves a
 `filePath` attachment. These scenarios stay out of the default live Discord lane
 because they are before/after repro probes rather than broad smoke coverage.
+The thread-attachment Mantis workflow can also add a logged-in Discord Web
+witness video when `MANTIS_DISCORD_VIEWER_CHROME_PROFILE_DIR` or
+`MANTIS_DISCORD_VIEWER_CHROME_PROFILE_TGZ_B64` is configured in the QA
+environment. That viewer profile is only for visual capture; the pass/fail
+decision still comes from the Discord REST oracle.
 
 CI uses the same command surface in `.github/workflows/qa-live-transports-convex.yml`. Scheduled and default manual runs execute the fast Matrix profile with live frontier credentials, `--fast`, and `OPENCLAW_QA_MATRIX_NO_REPLY_WINDOW_MS=3000`. Manual `matrix_profile=all` fans out into the five profile shards so the exhaustive catalog can run in parallel while keeping one artifact directory per shard.
 
@@ -170,7 +175,7 @@ For an agent/CV style desktop task, run:
 pnpm openclaw qa mantis visual-task \
   --browser-url https://example.net \
   --expect-text "Example Domain" \
-  --vision-model openai/gpt-5.4
+  --vision-model openai/gpt-5.5
 ```
 
 `visual-task` leases or reuses a Crabbox desktop/browser machine, starts
@@ -226,6 +231,9 @@ Host and Multipass suite runs execute multiple selected scenarios in parallel
 with isolated gateway workers by default. `qa-channel` defaults to concurrency
 4, capped by the selected scenario count. Use `--concurrency <count>` to tune
 the worker count, or `--concurrency 1` for serial execution.
+Use `--pack personal-agent` to run the personal assistant benchmark pack. The
+pack selector is additive with repeated `--scenario` flags: explicit scenarios
+run first, then pack scenarios run in pack order with duplicates removed.
 The command exits non-zero when any scenario fails. Use `--allow-failures` when
 you want artifacts without a failing exit code.
 Live runs forward the supported QA auth inputs that are practical for the
@@ -235,7 +243,7 @@ can write back through the mounted workspace.
 
 ## Telegram, Discord, and Slack QA reference
 
-Matrix has a [dedicated page](/concepts/qa-matrix) because of its scenario count and Docker-backed homeserver provisioning. Telegram, Discord, and Slack are smaller — a handful of scenarios each, no profile system, against pre-existing real channels — so their reference lives here.
+Matrix has a [dedicated page](/concepts/qa-matrix) because of its scenario count and Docker-backed homeserver provisioning. Telegram, Discord, and Slack are smaller - a handful of scenarios each, no profile system, against pre-existing real channels - so their reference lives here.
 
 ### Shared CLI flags
 
@@ -243,7 +251,7 @@ These lanes register through `extensions/qa-lab/src/live-transports/shared/live-
 
 | Flag                                  | Default                                                         | Description                                                                                                           |
 | ------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `--scenario <id>`                     | —                                                               | Run only this scenario. Repeatable.                                                                                   |
+| `--scenario <id>`                     | -                                                               | Run only this scenario. Repeatable.                                                                                   |
 | `--output-dir <path>`                 | `<repo>/.artifacts/qa-e2e/{telegram,discord,slack}-<timestamp>` | Where reports/summary/observed messages and the output log are written. Relative paths resolve against `--repo-root`. |
 | `--repo-root <path>`                  | `process.cwd()`                                                 | Repository root when invoking from a neutral cwd.                                                                     |
 | `--sut-account <id>`                  | `sut`                                                           | Temporary account id inside the QA gateway config.                                                                    |
@@ -265,7 +273,7 @@ Targets one real private Telegram group with two distinct bots (driver + SUT). T
 
 Required env when `--credential-source env`:
 
-- `OPENCLAW_QA_TELEGRAM_GROUP_ID` — numeric chat id (string).
+- `OPENCLAW_QA_TELEGRAM_GROUP_ID` - numeric chat id (string).
 - `OPENCLAW_QA_TELEGRAM_DRIVER_BOT_TOKEN`
 - `OPENCLAW_QA_TELEGRAM_SUT_BOT_TOKEN`
 
@@ -273,7 +281,7 @@ Optional:
 
 - `OPENCLAW_QA_TELEGRAM_CAPTURE_CONTENT=1` keeps message bodies in observed-message artifacts (default redacts).
 
-Scenarios (`extensions/qa-lab/src/live-transports/telegram/telegram-live.runtime.ts:44`):
+Scenarios (`extensions/qa-lab/src/live-transports/telegram/telegram-live.runtime.ts`):
 
 - `telegram-canary`
 - `telegram-mention-gating`
@@ -282,15 +290,42 @@ Scenarios (`extensions/qa-lab/src/live-transports/telegram/telegram-live.runtime
 - `telegram-commands-command`
 - `telegram-tools-compact-command`
 - `telegram-whoami-command`
+- `telegram-status-command`
+- `telegram-repeated-command-authorization`
+- `telegram-other-bot-command-gating`
 - `telegram-context-command`
+- `telegram-current-session-status-tool`
+- `telegram-reply-chain-exact-marker`
+- `telegram-stream-final-single-message`
 - `telegram-long-final-reuses-preview`
 - `telegram-long-final-three-chunks`
+
+The implicit default set always covers canary, mention gating, native command replies, command addressing, and bot-to-bot group replies. `mock-openai` defaults also include deterministic reply-chain and final-message streaming checks. `telegram-current-session-status-tool` remains opt-in because it is only stable when threaded directly after canary, not after arbitrary native command replies. Use `pnpm openclaw qa telegram --list-scenarios --provider-mode mock-openai` to print the current default/optional split with regression refs.
 
 Output artifacts:
 
 - `telegram-qa-report.md`
-- `telegram-qa-summary.json` — includes per-reply RTT (driver send → observed SUT reply) starting with the canary.
-- `telegram-qa-observed-messages.json` — bodies redacted unless `OPENCLAW_QA_TELEGRAM_CAPTURE_CONTENT=1`.
+- `telegram-qa-summary.json` - includes per-reply RTT (driver send → observed SUT reply) starting with the canary.
+- `telegram-qa-observed-messages.json` - bodies redacted unless `OPENCLAW_QA_TELEGRAM_CAPTURE_CONTENT=1`.
+
+Package RTT comparison uses the same Telegram credential contract while keeping
+its RTT sample controls on the RTT harness path:
+
+```bash
+pnpm rtt openclaw@beta \
+  --credential-source convex \
+  --credential-role maintainer \
+  --samples 20 \
+  --sample-timeout-ms 30000
+```
+
+When `--credential-source convex` is set, the RTT Docker wrapper leases a
+`kind: "telegram"` credential, exports the leased group/driver/SUT bot env into
+the installed-package run, heartbeats the lease, and releases it on shutdown.
+`--samples` and `--sample-timeout-ms` still feed
+`OPENCLAW_NPM_TELEGRAM_WARM_SAMPLES` and
+`OPENCLAW_NPM_TELEGRAM_SAMPLE_TIMEOUT_MS`, so `result.json` remains comparable
+across env-backed and Convex-backed RTT runs.
 
 ### Discord QA
 
@@ -306,18 +341,28 @@ Required env when `--credential-source env`:
 - `OPENCLAW_QA_DISCORD_CHANNEL_ID`
 - `OPENCLAW_QA_DISCORD_DRIVER_BOT_TOKEN`
 - `OPENCLAW_QA_DISCORD_SUT_BOT_TOKEN`
-- `OPENCLAW_QA_DISCORD_SUT_APPLICATION_ID` — must match the SUT bot user id returned by Discord (the lane fails fast otherwise).
+- `OPENCLAW_QA_DISCORD_SUT_APPLICATION_ID` - must match the SUT bot user id returned by Discord (the lane fails fast otherwise).
 
 Optional:
 
 - `OPENCLAW_QA_DISCORD_CAPTURE_CONTENT=1` keeps message bodies in observed-message artifacts.
+- `OPENCLAW_QA_DISCORD_VOICE_CHANNEL_ID` selects the voice/stage channel for `discord-voice-autojoin`; without it, the scenario picks the first visible voice/stage channel for the SUT bot.
 
 Scenarios (`extensions/qa-lab/src/live-transports/discord/discord-live.runtime.ts:36`):
 
 - `discord-canary`
 - `discord-mention-gating`
 - `discord-native-help-command-registration`
-- `discord-status-reactions-tool-only` — opt-in Mantis scenario. Runs by itself because it switches the SUT to always-on, tool-only guild replies with `messages.statusReactions.enabled=true`, then captures a REST reaction timeline plus HTML/PNG visual artifacts. Mantis before/after reports also preserve scenario-provided MP4 artifacts as `baseline.mp4` and `candidate.mp4`.
+- `discord-voice-autojoin` - opt-in voice scenario. Runs by itself, enables `channels.discord.voice.autoJoin`, and verifies the SUT bot's current Discord voice state is the target voice/stage channel. Convex Discord credentials may include optional `voiceChannelId`; otherwise the runner discovers the first visible voice/stage channel in the guild.
+- `discord-status-reactions-tool-only` - opt-in Mantis scenario. Runs by itself because it switches the SUT to always-on, tool-only guild replies with `messages.statusReactions.enabled=true`, then captures a REST reaction timeline plus HTML/PNG visual artifacts. Mantis before/after reports also preserve scenario-provided MP4 artifacts as `baseline.mp4` and `candidate.mp4`.
+
+Run the Discord voice auto-join scenario explicitly:
+
+```bash
+pnpm openclaw qa discord \
+  --scenario discord-voice-autojoin \
+  --provider-mode mock-openai
+```
 
 Run the Mantis status-reaction scenario explicitly:
 
@@ -325,8 +370,8 @@ Run the Mantis status-reaction scenario explicitly:
 pnpm openclaw qa discord \
   --scenario discord-status-reactions-tool-only \
   --provider-mode live-frontier \
-  --model openai/gpt-5.4 \
-  --alt-model openai/gpt-5.4 \
+  --model openai/gpt-5.5 \
+  --alt-model openai/gpt-5.5 \
   --fast
 ```
 
@@ -334,7 +379,7 @@ Output artifacts:
 
 - `discord-qa-report.md`
 - `discord-qa-summary.json`
-- `discord-qa-observed-messages.json` — bodies redacted unless `OPENCLAW_QA_DISCORD_CAPTURE_CONTENT=1`.
+- `discord-qa-observed-messages.json` - bodies redacted unless `OPENCLAW_QA_DISCORD_CAPTURE_CONTENT=1`.
 - `discord-qa-reaction-timelines.json` and `discord-status-reactions-tool-only-timeline.png` when the status-reaction scenario runs.
 
 ### Slack QA
@@ -370,16 +415,16 @@ Output artifacts:
 
 - `slack-qa-report.md`
 - `slack-qa-summary.json`
-- `slack-qa-observed-messages.json` — bodies redacted unless `OPENCLAW_QA_SLACK_CAPTURE_CONTENT=1`.
+- `slack-qa-observed-messages.json` - bodies redacted unless `OPENCLAW_QA_SLACK_CAPTURE_CONTENT=1`.
 
 #### Setting up the Slack workspace
 
 The lane needs two distinct Slack apps in one workspace, plus a channel both bots are members of:
 
-- `channelId` — the `Cxxxxxxxxxx` id of a channel both bots have been invited to. Use a dedicated channel; the lane posts on every run.
-- `driverBotToken` — bot token (`xoxb-...`) of the **Driver** app.
-- `sutBotToken` — bot token (`xoxb-...`) of the **SUT** app, which must be a separate Slack app from the driver so its bot user id is distinct.
-- `sutAppToken` — app-level token (`xapp-...`) of the SUT app with `connections:write`, used by Socket Mode so the SUT app can receive events.
+- `channelId` - the `Cxxxxxxxxxx` id of a channel both bots have been invited to. Use a dedicated channel; the lane posts on every run.
+- `driverBotToken` - bot token (`xoxb-...`) of the **Driver** app.
+- `sutBotToken` - bot token (`xoxb-...`) of the **SUT** app, which must be a separate Slack app from the driver so its bot user id is distinct.
+- `sutAppToken` - app-level token (`xapp-...`) of the SUT app with `connections:write`, used by Socket Mode so the SUT app can receive events.
 
 Prefer a Slack workspace dedicated to QA over reusing a production workspace.
 
@@ -412,7 +457,7 @@ Go to [api.slack.com/apps](https://api.slack.com/apps) → _Create New App_ → 
 }
 ```
 
-Copy the _Bot User OAuth Token_ (`xoxb-...`) — that becomes `driverBotToken`. The driver only needs to post messages and identify itself; no events, no Socket Mode.
+Copy the _Bot User OAuth Token_ (`xoxb-...`) - that becomes `driverBotToken`. The driver only needs to post messages and identify itself; no events, no Socket Mode.
 
 **2. Create the SUT app**
 
@@ -499,7 +544,7 @@ In the QA workspace, create a channel (e.g. `#openclaw-qa`) and invite both bots
 /invite @OpenClaw QA SUT
 ```
 
-Copy the `Cxxxxxxxxxx` id from _channel info → About → Channel ID_ — that becomes `channelId`. A public channel works; if you use a private channel both apps already have `groups:history` so the harness's history reads will still succeed.
+Copy the `Cxxxxxxxxxx` id from _channel info → About → Channel ID_ - that becomes `channelId`. A public channel works; if you use a private channel both apps already have `groups:history` so the harness's history reads will still succeed.
 
 **4. Register the credentials**
 
@@ -540,19 +585,33 @@ pnpm openclaw qa slack \
   --output-dir .artifacts/qa-e2e/slack-local
 ```
 
-A green run completes in well under 30 seconds and `slack-qa-report.md` shows both `slack-canary` and `slack-mention-gating` at status `pass`. If the lane hangs for ~90 seconds and exits with `Convex credential pool exhausted for kind "slack"`, either the pool is empty or every row is leased — `qa credentials list --kind slack --status all --json` will tell you which.
+A green run completes in well under 30 seconds and `slack-qa-report.md` shows both `slack-canary` and `slack-mention-gating` at status `pass`. If the lane hangs for ~90 seconds and exits with `Convex credential pool exhausted for kind "slack"`, either the pool is empty or every row is leased - `qa credentials list --kind slack --status all --json` will tell you which.
 
 ### Convex credential pool
 
-Telegram, Discord, and Slack lanes can lease credentials from a shared Convex pool instead of reading the env vars above. Pass `--credential-source convex` (or set `OPENCLAW_QA_CREDENTIAL_SOURCE=convex`); QA Lab acquires an exclusive lease, heartbeats it for the duration of the run, and releases it on shutdown. Pool kinds are `"telegram"`, `"discord"`, and `"slack"`.
+Telegram, Discord, Slack, and WhatsApp lanes can lease credentials from a shared Convex pool instead of reading the env vars above. Pass `--credential-source convex` (or set `OPENCLAW_QA_CREDENTIAL_SOURCE=convex`); QA Lab acquires an exclusive lease, heartbeats it for the duration of the run, and releases it on shutdown. Pool kinds are `"telegram"`, `"discord"`, `"slack"`, and `"whatsapp"`.
 
 Payload shapes the broker validates on `admin/add`:
 
-- Telegram (`kind: "telegram"`): `{ groupId: string, driverToken: string, sutToken: string }` — `groupId` must be a numeric chat-id string.
+- Telegram (`kind: "telegram"`): `{ groupId: string, driverToken: string, sutToken: string }` - `groupId` must be a numeric chat-id string.
+- Telegram real user (`kind: "telegram-user"`): `{ groupId: string, sutToken: string, testerUserId: string, testerUsername: string, telegramApiId: string, telegramApiHash: string, tdlibDatabaseEncryptionKey: string, tdlibArchiveBase64: string, tdlibArchiveSha256: string, desktopTdataArchiveBase64: string, desktopTdataArchiveSha256: string }` - Mantis Telegram Desktop proof only. Generic QA Lab lanes must not acquire this kind.
 - Discord (`kind: "discord"`): `{ guildId: string, channelId: string, driverBotToken: string, sutBotToken: string, sutApplicationId: string }`.
-- Slack (`kind: "slack"`): `{ channelId: string, driverBotToken: string, sutBotToken: string, sutAppToken: string }` — `channelId` must match `^[A-Z][A-Z0-9]+$` (a Slack id like `Cxxxxxxxxxx`). See [Setting up the Slack workspace](#setting-up-the-slack-workspace) for app and scope provisioning.
+- WhatsApp (`kind: "whatsapp"`): `{ driverPhoneE164: string, sutPhoneE164: string, driverAuthArchiveBase64: string, sutAuthArchiveBase64: string, groupJid?: string }` - phone numbers must be distinct E.164 strings.
 
-Operational env vars and the Convex broker endpoint contract live in [Testing → Shared Telegram credentials via Convex](/help/testing#shared-telegram-credentials-via-convex-v1) (the section name predates Discord support; the broker semantics are identical for both kinds).
+The Mantis Telegram Desktop proof workflow holds one exclusive Convex
+`telegram-user` lease for both the TDLib CLI driver and Telegram Desktop
+witness, then releases it after publishing proof.
+
+When a PR needs a deterministic visual diff, Mantis can use the same mock model
+reply on `main` and on the PR head while the Telegram formatter or delivery
+layer changes. Capture defaults are tuned for PR comments: standard Crabbox
+class, 24fps desktop recording, 24fps motion GIF, and 1920px preview width.
+Before/after comments should publish a clean bundle that contains only the
+intended GIFs.
+
+Slack lanes can also use the pool. Slack payload shape checks currently live in the Slack QA runner rather than the broker; use `{ channelId: string, driverBotToken: string, sutBotToken: string, sutAppToken: string }`, with a Slack channel id like `Cxxxxxxxxxx`. See [Setting up the Slack workspace](#setting-up-the-slack-workspace) for app and scope provisioning.
+
+Operational env vars and the Convex broker endpoint contract live in [Testing → Shared Telegram credentials via Convex](/help/testing#shared-telegram-credentials-via-convex-v1) (the section name predates the multi-channel pool; the lease semantics are shared across kinds).
 
 ## Repo-backed seeds
 
@@ -685,7 +744,7 @@ Preferred generic helpers for new scenarios:
 - `formatTransportTranscript`
 - `resetTransport`
 
-Compatibility aliases remain available for existing scenarios — `waitForQaChannelReady`, `waitForOutboundMessage`, `waitForNoOutbound`, `formatConversationTranscript`, `resetBus` — but new scenario authoring should use the generic names. The aliases exist to avoid a flag-day migration, not as the model going forward.
+Compatibility aliases remain available for existing scenarios - `waitForQaChannelReady`, `waitForOutboundMessage`, `waitForNoOutbound`, `formatConversationTranscript`, `resetBus` - but new scenario authoring should use the generic names. The aliases exist to avoid a flag-day migration, not as the model going forward.
 
 ## Reporting
 
@@ -697,7 +756,7 @@ The report should answer:
 - What stayed blocked
 - What follow-up scenarios are worth adding
 
-For the inventory of available scenarios — useful when sizing follow-up work or wiring a new transport — run `pnpm openclaw qa coverage` (add `--json` for machine-readable output).
+For the inventory of available scenarios - useful when sizing follow-up work or wiring a new transport - run `pnpm openclaw qa coverage` (add `--json` for machine-readable output).
 
 For character and style checks, run the same scenario across multiple live model
 refs and write a judged Markdown report:
@@ -707,13 +766,13 @@ pnpm openclaw qa character-eval \
   --model openai/gpt-5.5,thinking=medium,fast \
   --model openai/gpt-5.2,thinking=xhigh \
   --model openai/gpt-5,thinking=xhigh \
-  --model anthropic/claude-opus-4-6,thinking=high \
+  --model anthropic/claude-opus-4-7,thinking=high \
   --model anthropic/claude-sonnet-4-6,thinking=high \
   --model zai/glm-5.1,thinking=high \
   --model moonshot/kimi-k2.5,thinking=high \
   --model google/gemini-3.1-pro-preview,thinking=high \
   --judge-model openai/gpt-5.5,thinking=xhigh,fast \
-  --judge-model anthropic/claude-opus-4-6,thinking=high \
+  --judge-model anthropic/claude-opus-4-7,thinking=high \
   --blind-judge-models \
   --concurrency 16 \
   --judge-concurrency 16
@@ -744,17 +803,18 @@ Candidate and judge model runs both default to concurrency 16. Lower
 `--concurrency` or `--judge-concurrency` when provider limits or local gateway
 pressure make a run too noisy.
 When no candidate `--model` is passed, the character eval defaults to
-`openai/gpt-5.5`, `openai/gpt-5.2`, `openai/gpt-5`, `anthropic/claude-opus-4-6`,
+`openai/gpt-5.5`, `openai/gpt-5.2`, `openai/gpt-5`, `anthropic/claude-opus-4-7`,
 `anthropic/claude-sonnet-4-6`, `zai/glm-5.1`,
 `moonshot/kimi-k2.5`, and
 `google/gemini-3.1-pro-preview` when no `--model` is passed.
 When no `--judge-model` is passed, the judges default to
 `openai/gpt-5.5,thinking=xhigh,fast` and
-`anthropic/claude-opus-4-6,thinking=high`.
+`anthropic/claude-opus-4-7,thinking=high`.
 
 ## Related docs
 
 - [Matrix QA](/concepts/qa-matrix)
+- [Personal agent benchmark pack](/concepts/personal-agent-benchmark-pack)
 - [QA Channel](/channels/qa-channel)
 - [Testing](/help/testing)
 - [Dashboard](/web/dashboard)

@@ -1,15 +1,15 @@
 {
   "name": "@openclaw/migrate-claude",
-  "version": "2026.5.4",
+  "version": "2026.5.19",
   "private": true,
   "description": "Claude to OpenClaw migration provider",
   "type": "module",
   "devDependencies": {
     "@openclaw/plugin-sdk": "workspace:*",
-    "@coohu/openclaw": "workspace:*"
+    "openclaw": "workspace:*"
   },
   "peerDependencies": {
-    "@coohu/openclaw": ">=2026.5.4"
+    "openclaw": ">=2026.5.19"
   },
   "peerDependenciesMeta": {
     "openclaw": {

@@ -10,6 +10,7 @@ import { resolveWideAreaDiscoveryDomain } from "../infra/widearea-dns.js";
 import { resolveSecretInputModeForEnvSelection } from "../plugins/provider-auth-mode.js";
 import { promptSecretRefForSetup } from "../plugins/provider-auth-ref.js";
 import { maskApiKey } from "../utils/mask-api-key.js";
+import { t } from "../wizard/i18n/index.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import { detectBinary } from "./onboard-helpers.js";
 import type { SecretInputMode } from "./onboard-types.js";
@@ -31,17 +32,14 @@ function ensureWsUrl(value: string): string {
 function validateGatewayWebSocketUrl(value: string): string | undefined {
   const trimmed = value.trim();
   if (!trimmed.startsWith("ws://") && !trimmed.startsWith("wss://")) {
-    return "URL 必须以 ws:// or wss:// 开头";
+    return t("wizard.remote.validWebSocketUrl");
   }
   if (
     !isSecureWebSocketUrl(trimmed, {
       allowPrivateWs: process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS === "1",
     })
   ) {
-    return (
-      "远程主机使用 wss:// , 或 ws://127.0.0.1/localhost 通过 SSH tunnel. " +
-      "私有可信任网络使用 Break-glass: OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=1."
-    );
+    return t("wizard.remote.insecureRemoteUrl");
   }
   return undefined;
 }
@@ -59,7 +57,7 @@ export async function promptRemoteGatewayConfig(
   const hasBonjourTool = (await detectBinary("dns-sd")) || (await detectBinary("avahi-browse"));
   const wantsDiscover = hasBonjourTool
     ? await prompter.confirm({
-        message: "搜索本地局域网的 gateway?",
+        message: t("wizard.remote.bonjour"),
         initialValue: true,
       })
     : false;
@@ -67,10 +65,10 @@ export async function promptRemoteGatewayConfig(
   if (!hasBonjourTool) {
     await prompter.note(
       [
-        "搜索需要 dns-sd (macOS) 或 avahi-browse (Linux).",
-        "文档: https://docs.openclaw.ai/gateway/discovery",
+        "Bonjour discovery requires dns-sd (macOS) or avahi-browse (Linux).",
+        "Docs: https://docs.openclaw.ai/gateway/discovery",
       ].join("\n"),
-      "搜索",
+      "Discovery",
     );
   }
 
@@ -78,19 +76,23 @@ export async function promptRemoteGatewayConfig(
     const wideAreaDomain = resolveWideAreaDiscoveryDomain({
       configDomain: cfg.discovery?.wideArea?.domain,
     });
-    const spin = prompter.progress("正在搜索 gateways…");
+    const spin = prompter.progress(t("wizard.remote.searchProgress"));
     const beacons = await discoverGatewayBeacons({ timeoutMs: 2000, wideAreaDomain });
-    spin.stop(beacons.length > 0 ? `找到 ${beacons.length} 个gateway(s)` : "未发现 gateways");
+    spin.stop(
+      beacons.length > 0
+        ? t("wizard.remote.foundGateways", { count: beacons.length })
+        : t("wizard.remote.noGatewaysFound"),
+    );
 
     if (beacons.length > 0) {
       const selection = await prompter.select({
-        message: "选择 gateway",
+        message: t("wizard.remote.selectGateway"),
         options: [
           ...beacons.map((beacon, index) => ({
             value: String(index),
             label: buildLabel(beacon),
           })),
-          { value: "manual", label: "输入 URL" },
+          { value: "manual", label: t("wizard.remote.enterUrlManually") },
         ],
       });
       if (selection !== "manual") {
@@ -105,20 +107,23 @@ export async function promptRemoteGatewayConfig(
     if (target.endpoint) {
       const { host, port } = target.endpoint;
       const mode = await prompter.select({
-        message: "链接方式",
+        message: t("wizard.remote.connectionMethod"),
         options: [
           {
             value: "direct",
-            label: `直连 gateway WS (${host}:${port})`,
+            label: `Direct gateway WS (${host}:${port})`,
           },
-          { value: "ssh", label: "SSH tunnel (loopback)" },
+          { value: "ssh", label: t("wizard.remote.sshTunnel") },
         ],
       });
       if (mode === "direct") {
         suggestedUrl = `wss://${host}:${port}`;
         const fingerprint = target.endpoint.gatewayTlsFingerprintSha256;
         const trusted = await prompter.confirm({
-          message: `信任此 gateway? Host: ${host}:${port} TLS fingerprint: ${fingerprint ?? "未公开宣传（连接不会被固定）"}`,
+          message: t("wizard.remote.trustGateway", {
+            host: `${host}:${port}`,
+            fingerprint: fingerprint ?? t("wizard.remote.fingerprintMissing"),
+          }),
           initialValue: false,
         });
         if (trusted) {
@@ -126,12 +131,12 @@ export async function promptRemoteGatewayConfig(
           trustedDiscoveryUrl = suggestedUrl;
           await prompter.note(
             [
-              "直接远程访问默认使用TLS协议。",
+              t("wizard.remote.directDefaultsTls"),
               `Using: ${suggestedUrl}`,
               ...(fingerprint ? [`TLS pin: ${fingerprint}`] : []),
-              "如果您的网关仅支持环回，请选择 SSH 隧道并保留 ws://127.0.0.1:18789.",
+              t("wizard.remote.loopbackSshHint"),
             ].join("\n"),
-            "Direct remote",
+            t("wizard.remote.directAccessTitle"),
           );
         } else {
           // Clear the discovered endpoint so the manual prompt falls back to a safe default.
@@ -141,18 +146,18 @@ export async function promptRemoteGatewayConfig(
         suggestedUrl = DEFAULT_GATEWAY_URL;
         await prompter.note(
           [
-            "使用 CLI 前请先建立隧道：",
+            "Start a tunnel before using the CLI:",
             `ssh -N -L 18789:127.0.0.1:18789 <user>@${host}${target.sshPort ? ` -p ${target.sshPort}` : ""}`,
-            "文档: https://docs.openclaw.ai/gateway/remote",
+            "Docs: https://docs.openclaw.ai/gateway/remote",
           ].join("\n"),
-          "SSH 隧道",
+          t("wizard.remote.sshTunnelTitle"),
         );
       }
     }
   }
 
   const urlInput = await prompter.text({
-    message: "Gateway WebSocket URL",
+    message: t("wizard.remote.websocketUrl"),
     initialValue: suggestedUrl,
     validate: (value) => validateGatewayWebSocketUrl(value),
   });
@@ -161,11 +166,11 @@ export async function promptRemoteGatewayConfig(
     discoveryTlsFingerprint && url === trustedDiscoveryUrl ? discoveryTlsFingerprint : undefined;
 
   const authChoice = await prompter.select({
-    message: "Gateway 认证",
+    message: t("wizard.remote.auth"),
     options: [
-      { value: "token", label: "Token (recommended)" },
-      { value: "password", label: "密码" },
-      { value: "off", label: "无认证" },
+      { value: "token", label: t("common.tokenRecommended") },
+      { value: "password", label: t("common.password") },
+      { value: "off", label: t("common.noAuth") },
     ],
   });
 
@@ -176,9 +181,9 @@ export async function promptRemoteGatewayConfig(
       prompter,
       explicitMode: options?.secretInputMode,
       copy: {
-        modeMessage: "您希望如何提供此网关令牌?",
-        plaintextLabel: "输入 token ",
-        plaintextHint: "保存 token 到 OpenClaw 配置文件",
+        modeMessage: t("wizard.gateway.remoteTokenMode"),
+        plaintextLabel: t("wizard.remote.plaintextTokenLabel"),
+        plaintextHint: t("wizard.remote.plaintextTokenHint"),
       },
     });
     if (selectedMode === "ref") {
@@ -188,7 +193,7 @@ export async function promptRemoteGatewayConfig(
         prompter,
         preferredEnvVar: "OPENCLAW_GATEWAY_TOKEN",
         copy: {
-          sourceMessage: "gateway token 保存在哪里?",
+          sourceMessage: t("wizard.remote.gatewayTokenStoredMessage"),
           envVarPlaceholder: "OPENCLAW_GATEWAY_TOKEN",
         },
       });
@@ -198,7 +203,7 @@ export async function promptRemoteGatewayConfig(
       if (
         existingToken &&
         (await prompter.confirm({
-          message: `Use existing gateway token (${maskApiKey(existingToken)})?`,
+          message: t("wizard.gateway.existingTokenConfirm", { token: maskApiKey(existingToken) }),
           initialValue: true,
         }))
       ) {
@@ -206,8 +211,8 @@ export async function promptRemoteGatewayConfig(
       } else {
         token = (
           await prompter.text({
-            message: "Gateway token",
-            validate: (value) => (value?.trim() ? undefined : "Required"),
+            message: t("wizard.remote.tokenPrompt"),
+            validate: (value) => (value?.trim() ? undefined : t("common.required")),
             sensitive: true,
           })
         ).trim();
@@ -219,9 +224,9 @@ export async function promptRemoteGatewayConfig(
       prompter,
       explicitMode: options?.secretInputMode,
       copy: {
-        modeMessage: "您想如何提供此网关密码?",
-        plaintextLabel: "现在输入密码",
-        plaintextHint: "密码保存到 OpenClaw 配置文件中",
+        modeMessage: t("wizard.gateway.remotePasswordMode"),
+        plaintextLabel: t("wizard.remote.plaintextPasswordLabel"),
+        plaintextHint: t("wizard.remote.plaintextPasswordHint"),
       },
     });
     if (selectedMode === "ref") {
@@ -231,7 +236,7 @@ export async function promptRemoteGatewayConfig(
         prompter,
         preferredEnvVar: "OPENCLAW_GATEWAY_PASSWORD",
         copy: {
-          sourceMessage: "gateway 密码保存在哪里?",
+          sourceMessage: t("wizard.remote.gatewayPasswordStoredMessage"),
           envVarPlaceholder: "OPENCLAW_GATEWAY_PASSWORD",
         },
       });
@@ -241,7 +246,9 @@ export async function promptRemoteGatewayConfig(
       if (
         existingPassword &&
         (await prompter.confirm({
-          message: `Use existing gateway password (${maskApiKey(existingPassword)})?`,
+          message: t("wizard.gateway.existingPasswordConfirm", {
+            password: maskApiKey(existingPassword),
+          }),
           initialValue: true,
         }))
       ) {
@@ -249,8 +256,8 @@ export async function promptRemoteGatewayConfig(
       } else {
         password = (
           await prompter.text({
-            message: "Gateway password",
-            validate: (value) => (value?.trim() ? undefined : "Required"),
+            message: t("wizard.remote.passwordPrompt"),
+            validate: (value) => (value?.trim() ? undefined : t("common.required")),
             sensitive: true,
           })
         ).trim();

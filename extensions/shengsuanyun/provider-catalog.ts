@@ -5,7 +5,7 @@ import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-s
 import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
 import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
 
-export const SHENGSUANYUN_BASE_URL = "https://test-router.claw.shengsuanyun.com/api/v1";
+export const SHENGSUANYUN_BASE_URL = "https://router.shengsuanyun.com/api/v1";
 export const SHENGSUANYUN_MODALITIES_BASE_URL = "https://api.shengsuanyun.com/modelrouter";
 
 const log = createSubsystemLogger("models");
@@ -77,14 +77,29 @@ function supportsVision(m: ShengSuanYunModel) {
   return i.includes("image") || i.includes("vision") || i === "text+image->text";
 }
 
+export function resolveModelApi(supportApis: string[]): ModelDefinitionConfig["api"] {
+  const API_PRIORITY: Array<{ path: string; api: ModelDefinitionConfig["api"] }> = [
+    { path: "/v1/messages", api: "anthropic-messages" },
+    { path: "/v1/responses", api: "openai-responses" },
+    { path: "/v1/chat/completions", api: "openai-completions" },
+  ];
+  for (const { path, api } of API_PRIORITY) {
+    if (supportApis.includes(path)) return api;
+  }
+  return undefined;
+}
+
 function mapModels(list: ShengSuanYunModel[]): ModelDefinitionConfig[] {
-  return list
-    .filter((m) => Array.isArray(m.support_apis) && m.support_apis.includes("/v1/messages"))
-    .map((m) => ({
+  const result: ModelDefinitionConfig[] = [];
+  for (const m of list) {
+    const apis = Array.isArray(m.support_apis) ? m.support_apis : [];
+    const api = resolveModelApi(apis);
+    if (api === undefined) continue;
+    result.push({
       id: m.id,
       name: m.name,
       reasoning: isReasoningModel(m),
-      api: "openai-completions",
+      api,
       input: supportsVision(m) ? ["text", "image"] : ["text"],
       cost: {
         input: m.pricing.prompt,
@@ -94,7 +109,9 @@ function mapModels(list: ShengSuanYunModel[]): ModelDefinitionConfig[] {
       },
       contextWindow: m.context_window || 128000,
       maxTokens: m.max_tokens || 8192,
-    }));
+    });
+  }
+  return result;
 }
 
 export async function discoverShengSuanYunModels(): Promise<ModelDefinitionConfig[]> {

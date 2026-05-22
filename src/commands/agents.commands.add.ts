@@ -10,8 +10,15 @@ import {
   ensureAuthProfileStore,
 } from "../agents/auth-profiles.js";
 import { resolveAuthStorePath } from "../agents/auth-profiles/paths.js";
-import { loadPersistedAuthProfileStore } from "../agents/auth-profiles/persisted.js";
-import { commitConfigWithPendingPluginInstalls } from "../cli/plugins-install-record-commit.js";
+import {
+  buildPersistedAuthProfileSecretsStore,
+  loadPersistedAuthProfileStore,
+} from "../agents/auth-profiles/persisted.js";
+import { formatCliCommand } from "../cli/command-format.js";
+import {
+  commitConfigWithPendingPluginInstalls,
+  transformConfigWithPendingPluginInstalls,
+} from "../cli/plugins-install-record-commit.js";
 import { logConfigUpdated } from "../config/logging.js";
 import { pathExists } from "../infra/fs-safe.js";
 import { saveJsonFile } from "../infra/json-file.js";
@@ -49,11 +56,31 @@ type AgentsAddOptions = {
   json?: boolean;
 };
 
+type AgentBindingResult = ReturnType<typeof applyAgentBindings>;
+
+type AgentsAddMutationResult = {
+  agentDir: string;
+  bindingResult: AgentBindingResult;
+};
+
+class AgentsAddMutationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AgentsAddMutationError";
+  }
+}
+
+function emptyBindingResult(config: Parameters<typeof applyAgentBindings>[0]): AgentBindingResult {
+  return { config, added: [], updated: [], skipped: [], conflicts: [] };
+}
+
 async function copyPortableAuthProfiles(params: {
   destAuthPath: string;
   sourceAgentDir: string;
 }): Promise<{ copied: number; skipped: number }> {
-  const sourceStore = loadPersistedAuthProfileStore(params.sourceAgentDir);
+  const sourceStore = loadPersistedAuthProfileStore(params.sourceAgentDir, {
+    resolveLegacyOAuthSidecars: false,
+  });
   if (!sourceStore || Object.keys(sourceStore.profiles).length === 0) {
     return { copied: 0, skipped: 0 };
   }
@@ -62,7 +89,7 @@ async function copyPortableAuthProfiles(params: {
     return { copied: 0, skipped: portable.skippedProfileIds.length };
   }
   await fs.mkdir(path.dirname(params.destAuthPath), { recursive: true });
-  saveJsonFile(params.destAuthPath, portable.store);
+  saveJsonFile(params.destAuthPath, buildPersistedAuthProfileSecretsStore(portable.store));
   return {
     copied: portable.copiedProfileIds.length,
     skipped: portable.skippedProfileIds.length,
@@ -97,7 +124,7 @@ export async function agentsAddCommand(
 
   if (nonInteractive && !workspaceFlag) {
     runtime.error(
-      "非交互模式需要使用 `--workspace` 参数。要使用向导，请重新运行程序而不添加任何参数。",
+      `Non-interactive agent creation requires --workspace. Re-run ${formatCliCommand("openclaw agents add <id> --workspace <path>")} or omit flags to use the wizard.`,
     );
     runtime.exit(1);
     return;
@@ -105,20 +132,24 @@ export async function agentsAddCommand(
 
   if (nonInteractive) {
     if (!nameInput) {
-      runtime.error("在非交互模式下，需要输入代理名称。");
+      runtime.error(
+        `Agent name is required in non-interactive mode. Run ${formatCliCommand("openclaw agents add <id> --workspace <path>")}.`,
+      );
       runtime.exit(1);
       return;
     }
     if (!workspaceFlag) {
       runtime.error(
-        "非交互模式需要使用 `--workspace` 参数。要使用向导，请重新运行程序而不添加任何参数。",
+        `Non-interactive agent creation requires --workspace. Re-run ${formatCliCommand("openclaw agents add <id> --workspace <path>")} or omit flags to use the wizard.`,
       );
       runtime.exit(1);
       return;
     }
     const agentId = normalizeAgentId(nameInput);
     if (agentId === DEFAULT_AGENT_ID) {
-      runtime.error(`"${DEFAULT_AGENT_ID}" 已经占用，请选择其他名称。`);
+      runtime.error(
+        `"${DEFAULT_AGENT_ID}" is reserved. Choose another name, or run ${formatCliCommand("openclaw agents list")} to inspect the default agent.`,
+      );
       runtime.exit(1);
       return;
     }
@@ -126,50 +157,72 @@ export async function agentsAddCommand(
       runtime.log(`Normalized agent id to "${agentId}".`);
     }
     if (findAgentEntryIndex(listAgentEntries(cfg), agentId) >= 0) {
-      runtime.error(`Agent "${agentId}" already exists.`);
+      runtime.error(
+        `Agent "${agentId}" already exists. Run ${formatCliCommand("openclaw agents list")} to inspect configured agents.`,
+      );
       runtime.exit(1);
       return;
     }
 
     const workspaceDir = resolveUserPath(workspaceFlag);
-    const agentDir = opts.agentDir?.trim()
+    const explicitAgentDir = opts.agentDir?.trim()
       ? resolveUserPath(opts.agentDir.trim())
-      : resolveAgentDir(cfg, agentId);
+      : undefined;
     const model = opts.model?.trim();
-    const nextConfig = applyAgentConfig(cfg, {
-      agentId,
-      name: nameInput,
-      workspace: workspaceDir,
-      agentDir,
-      ...(model ? { model } : {}),
-    });
 
-    const bindingParse = parseBindingSpecs({
-      agentId,
-      specs: opts.bind,
-      config: nextConfig,
-    });
-    if (bindingParse.errors.length > 0) {
-      runtime.error(bindingParse.errors.join("\n"));
-      runtime.exit(1);
-      return;
+    let committed;
+    try {
+      committed = await transformConfigWithPendingPluginInstalls<AgentsAddMutationResult>({
+        transform: (latestConfig) => {
+          if (findAgentEntryIndex(listAgentEntries(latestConfig), agentId) >= 0) {
+            throw new AgentsAddMutationError(`Agent "${agentId}" already exists.`);
+          }
+          const agentDir = explicitAgentDir ?? resolveAgentDir(latestConfig, agentId);
+          const nextConfig = applyAgentConfig(latestConfig, {
+            agentId,
+            name: nameInput,
+            workspace: workspaceDir,
+            agentDir,
+            ...(model ? { model } : {}),
+          });
+          const bindingParse = parseBindingSpecs({
+            agentId,
+            specs: opts.bind,
+            config: nextConfig,
+          });
+          if (bindingParse.errors.length > 0) {
+            throw new AgentsAddMutationError(bindingParse.errors.join("\n"));
+          }
+          const bindingResult =
+            bindingParse.bindings.length > 0
+              ? applyAgentBindings(nextConfig, bindingParse.bindings)
+              : emptyBindingResult(nextConfig);
+          return {
+            nextConfig: bindingResult.config,
+            result: { agentDir, bindingResult },
+          };
+        },
+      });
+    } catch (err) {
+      if (err instanceof AgentsAddMutationError) {
+        runtime.error(err.message);
+        runtime.exit(1);
+        return;
+      }
+      throw err;
     }
-    const bindingResult =
-      bindingParse.bindings.length > 0
-        ? applyAgentBindings(nextConfig, bindingParse.bindings)
-        : { config: nextConfig, added: [], updated: [], skipped: [], conflicts: [] };
-
-    await commitConfigWithPendingPluginInstalls({
-      nextConfig: bindingResult.config,
-      ...(baseHash !== undefined ? { baseHash } : {}),
-    });
+    const mutationResult = committed.result;
+    if (!mutationResult) {
+      throw new Error("Agent config mutation did not return a result.");
+    }
+    const { agentDir, bindingResult } = mutationResult;
     if (!opts.json) {
       logConfigUpdated(runtime);
     }
     const quietRuntime = opts.json ? createQuietRuntime(runtime) : runtime;
     await ensureWorkspaceAndSessions(workspaceDir, quietRuntime, {
-      skipBootstrap: Boolean(bindingResult.config.agents?.defaults?.skipBootstrap),
-      skipOptionalBootstrapFiles: bindingResult.config.agents?.defaults?.skipOptionalBootstrapFiles,
+      skipBootstrap: Boolean(committed.nextConfig.agents?.defaults?.skipBootstrap),
+      skipOptionalBootstrapFiles: committed.nextConfig.agents?.defaults?.skipOptionalBootstrapFiles,
       agentId,
     });
 
@@ -200,7 +253,7 @@ export async function agentsAddCommand(
       if (bindingResult.conflicts.length > 0) {
         runtime.error(
           [
-            "已由其他代理声明的绑定被跳过：",
+            "Skipped bindings already claimed by another agent:",
             ...bindingResult.conflicts.map(
               (conflict) =>
                 `- ${describeBinding(conflict.binding)} (agent=${conflict.existingAgentId})`,
@@ -214,7 +267,7 @@ export async function agentsAddCommand(
 
   const prompter = createClackPrompter();
   try {
-    await prompter.intro("增加 OpenClaw agent");
+    await prompter.intro("Add OpenClaw agent");
     const name =
       nameInput ??
       (await prompter.text({
@@ -225,7 +278,7 @@ export async function agentsAddCommand(
           }
           const normalized = normalizeAgentId(value);
           if (normalized === DEFAULT_AGENT_ID) {
-            return `"${DEFAULT_AGENT_ID}" 该名称已被占用。请选择其他名称。`;
+            return `"${DEFAULT_AGENT_ID}" is reserved. Choose another name.`;
           }
           return undefined;
         },
@@ -242,7 +295,7 @@ export async function agentsAddCommand(
     );
     if (existingAgent) {
       const shouldUpdate = await prompter.confirm({
-        message: `Agent "${agentId}" 已经存在。是否更新？`,
+        message: `Agent "${agentId}" already exists. Update it?`,
         initialValue: false,
       });
       if (!shouldUpdate) {
@@ -253,7 +306,7 @@ export async function agentsAddCommand(
 
     const workspaceDefault = resolveAgentWorkspaceDir(cfg, agentId);
     const workspaceInput = await prompter.text({
-      message: "工作区目录",
+      message: "Workspace directory",
       initialValue: workspaceDefault,
       validate: (value) => (value?.trim() ? undefined : "Required"),
     });
@@ -286,7 +339,9 @@ export async function agentsAddCommand(
         (await pathExists(sourceAuthPath)) &&
         !(await pathExists(destAuthPath))
       ) {
-        const sourceStore = loadPersistedAuthProfileStore(sourceAgentDir);
+        const sourceStore = loadPersistedAuthProfileStore(sourceAgentDir, {
+          resolveLegacyOAuthSidecars: false,
+        });
         const portable = sourceStore
           ? buildPortableAuthProfileSecretsStoreForAgentCopy(sourceStore)
           : undefined;
@@ -297,7 +352,7 @@ export async function agentsAddCommand(
           });
           if (shouldCopy) {
             await fs.mkdir(path.dirname(destAuthPath), { recursive: true });
-            saveJsonFile(destAuthPath, portable.store);
+            saveJsonFile(destAuthPath, buildPersistedAuthProfileSecretsStore(portable.store));
             const skippedText =
               portable.skippedProfileIds.length > 0
                 ? ` ${formatSkippedOAuthProfilesMessage({
@@ -323,7 +378,7 @@ export async function agentsAddCommand(
     }
 
     const wantsAuth = await prompter.confirm({
-      message: "现在是否要为此代理配置模型/身份验证？",
+      message: "Configure model/auth for this agent now?",
       initialValue: false,
     });
     if (wantsAuth) {
@@ -381,7 +436,7 @@ export async function agentsAddCommand(
 
     if (selection.length > 0) {
       const wantsBindings = await prompter.confirm({
-        message: "现在是否将选定的通道路由到此代理？（绑定）",
+        message: "Route selected channels to this agent now? (bindings)",
         initialValue: false,
       });
       if (wantsBindings) {
@@ -396,7 +451,7 @@ export async function agentsAddCommand(
         if (result.conflicts.length > 0) {
           await prompter.note(
             [
-              "已由其他代理声明的绑定被跳过：",
+              "Skipped bindings already claimed by another agent:",
               ...result.conflicts.map(
                 (conflict) =>
                   `- ${describeBinding(conflict.binding)} (agent=${conflict.existingAgentId})`,
@@ -408,10 +463,10 @@ export async function agentsAddCommand(
       } else {
         await prompter.note(
           [
-            "路由设置不变。准备就绪后再添加绑定。",
+            "Routing unchanged. Add bindings when you're ready.",
             "Docs: https://docs.openclaw.ai/concepts/multi-agent",
           ].join("\n"),
-          "路由",
+          "Routing",
         );
       }
     }
@@ -447,7 +502,8 @@ export async function agentsAddCommand(
   }
 }
 
-export const __testing = {
+export const testing = {
   copyPortableAuthProfiles,
   formatSkippedOAuthProfilesMessage,
 };
+export { testing as __testing };

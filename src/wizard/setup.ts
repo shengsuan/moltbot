@@ -19,13 +19,14 @@ import {
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import { resolveUserPath } from "../utils.js";
+import { t } from "./i18n/index.js";
 import { WizardCancelledError, type WizardPrompter } from "./prompts.js";
 import { detectSetupMigrationSources, runSetupMigrationImport } from "./setup.migration-import.js";
 import { resolveSetupSecretInputString } from "./setup.secret-input.js";
 import {
-  SECURITY_CONFIRM_MESSAGE,
-  SECURITY_NOTE_MESSAGE,
-  SECURITY_NOTE_TITLE,
+  getSecurityConfirmMessage,
+  getSecurityNoteMessage,
+  getSecurityNoteTitle,
 } from "./setup.security-note.js";
 import type { QuickstartGatewayDefaults, WizardFlow } from "./setup.types.js";
 
@@ -58,7 +59,7 @@ async function writeWizardConfigFile(config: OpenClawConfig): Promise<OpenClawCo
   const committed = await commitConfigWriteWithPendingPluginInstalls({
     nextConfig: config,
     commit: async (nextConfig, writeOptions) => {
-      await replaceConfigFile({
+      return await replaceConfigFile({
         nextConfig,
         writeOptions: { ...writeOptions, allowConfigSizeDrop: true },
         afterWrite: { mode: "auto" },
@@ -165,25 +166,26 @@ async function requireRiskAcknowledgement(params: {
     return;
   }
 
-  await params.prompter.note(SECURITY_NOTE_MESSAGE, SECURITY_NOTE_TITLE);
+  await params.prompter.note(getSecurityNoteMessage(), getSecurityNoteTitle());
 
   const ok = await params.prompter.confirm({
-    message: SECURITY_CONFIRM_MESSAGE,
+    message: getSecurityConfirmMessage(),
     initialValue: false,
   });
   if (!ok) {
-    throw new WizardCancelledError("risk not accepted");
+    throw new WizardCancelledError(t("wizard.setup.riskNotAccepted"));
   }
 }
 
 export async function runSetupWizard(
   opts: OnboardOptions,
-  runtime: RuntimeEnv = defaultRuntime,
+  runtime: RuntimeEnv | undefined,
   prompter: WizardPrompter,
 ) {
+  runtime ??= defaultRuntime;
   const onboardHelpers = await import("../commands/onboard-helpers.js");
   onboardHelpers.printWizardHeader(runtime);
-  await prompter.intro("OpenClaw 安装");
+  await prompter.intro(t("wizard.setup.intro"));
   await requireRiskAcknowledgement({ opts, prompter });
 
   const snapshot = await readSetupConfigFileSnapshot();
@@ -194,19 +196,22 @@ export async function runSetupWizard(
     : {};
 
   if (snapshot.exists && !snapshot.valid) {
-    await prompter.note(onboardHelpers.summarizeExistingConfig(baseConfig), "配置无效");
+    await prompter.note(
+      onboardHelpers.summarizeExistingConfig(baseConfig),
+      t("wizard.setup.invalidConfigTitle"),
+    );
     if (snapshot.issues.length > 0) {
       await prompter.note(
         [
           ...snapshot.issues.map((iss) => `- ${iss.path}: ${iss.message}`),
           "",
-          "文档: https://docs.openclaw.ai/gateway/configuration",
+          "Docs: https://docs.openclaw.ai/gateway/configuration",
         ].join("\n"),
-        "配置问题",
+        "Config issues",
       );
     }
     await prompter.outro(
-      `配置文件无效。Run \`${formatCliCommand("openclaw doctor")}\` 重新运行安装修复`,
+      `Config invalid. Run \`${formatCliCommand("openclaw doctor")}\` to repair it, then re-run setup.`,
     );
     runtime.exit(1);
     return;
@@ -218,7 +223,7 @@ export async function runSetupWizard(
   if (compatibilityNotices.length > 0) {
     await prompter.note(
       [
-        `监测到 ${compatibilityNotices.length} plugin compatibility notice${compatibilityNotices.length === 1 ? "" : "s"} in the current config.`,
+        `Detected ${compatibilityNotices.length} plugin compatibility notice${compatibilityNotices.length === 1 ? "" : "s"} in the current config.`,
         ...compatibilityNotices
           .slice(0, 4)
           .map((notice) => `- ${formatPluginCompatibilityNotice(notice)}`),
@@ -226,21 +231,23 @@ export async function runSetupWizard(
           ? [`- ... +${compatibilityNotices.length - 4} more`]
           : []),
         "",
-        `审查: ${formatCliCommand("openclaw doctor")}`,
-        `检查: ${formatCliCommand("openclaw plugins inspect --all")}`,
+        `Review: ${formatCliCommand("openclaw doctor")}`,
+        `Inspect: ${formatCliCommand("openclaw plugins inspect --all")}`,
       ].join("\n"),
-      "插件兼容性",
+      t("wizard.setup.pluginCompatibilityTitle"),
     );
   }
 
-  const quickstartHint = `Configure details later via ${formatCliCommand("openclaw configure")}.`;
-  const manualHint = "配置端口，网络，认证.";
+  const quickstartHint = t("wizard.setup.flowQuickstartHint", {
+    command: formatCliCommand("openclaw configure"),
+  });
+  const manualHint = t("wizard.setup.flowAdvancedHint");
   const migrationDetections = await detectSetupMigrationSources({ config: baseConfig, runtime });
   const firstMigrationDetection = migrationDetections[0];
   const importOption = firstMigrationDetection
     ? {
         value: "import" as const,
-        label: `从 ${firstMigrationDetection.label} 导入`,
+        label: `Import from ${firstMigrationDetection.label}`,
         ...(firstMigrationDetection.source ? { hint: firstMigrationDetection.source } : {}),
       }
     : undefined;
@@ -252,7 +259,9 @@ export async function runSetupWizard(
     normalizedExplicitFlow !== "advanced" &&
     normalizedExplicitFlow !== "import"
   ) {
-    runtime.error("Invalid --flow (use quickstart, manual, advanced, or import).");
+    runtime.error(
+      "Invalid --flow. Use quickstart, manual, advanced, or import. Example: openclaw onboard --flow quickstart",
+    );
     runtime.exit(1);
     return;
   }
@@ -265,29 +274,32 @@ export async function runSetupWizard(
   let flow: SetupFlowChoice =
     explicitFlow ??
     (await prompter.select({
-      message: "安装模式",
+      message: t("wizard.setup.setupMode"),
       options: [
-        { value: "quickstart", label: "快速开始", hint: quickstartHint },
-        { value: "advanced", label: "手动", hint: manualHint },
+        { value: "quickstart", label: t("wizard.setup.flowQuickstart"), hint: quickstartHint },
+        { value: "advanced", label: t("wizard.setup.flowAdvanced"), hint: manualHint },
         ...(importOption ? [importOption] : []),
       ],
       initialValue: "quickstart",
     }));
 
   if (opts.mode === "remote" && flow === "quickstart") {
-    await prompter.note("快速开始仅支持本地网关。正在切换至手动模式。", "快速开始");
+    await prompter.note(t("wizard.setup.quickstartOnlyLocal"), t("wizard.setup.quickstartTitle"));
     flow = "advanced";
   }
 
   if (snapshot.exists) {
-    await prompter.note(onboardHelpers.summarizeExistingConfig(baseConfig), "检测到现有配置");
+    await prompter.note(
+      onboardHelpers.summarizeExistingConfig(baseConfig),
+      t("wizard.setup.existingConfigTitle"),
+    );
 
     const action = await prompter.select({
-      message: "配置处理方式",
+      message: t("wizard.setup.configHandling"),
       options: [
-        { value: "keep", label: "使用现有值" },
-        { value: "modify", label: "更新值" },
-        { value: "reset", label: "重置" },
+        { value: "keep", label: t("wizard.setup.keepCurrent") },
+        { value: "modify", label: t("wizard.setup.modifyCurrent") },
+        { value: "reset", label: t("wizard.setup.resetBefore") },
       ],
     });
 
@@ -295,16 +307,16 @@ export async function runSetupWizard(
       const workspaceDefault =
         baseConfig.agents?.defaults?.workspace ?? onboardHelpers.DEFAULT_WORKSPACE;
       const resetScope = (await prompter.select({
-        message: "重置范围",
+        message: t("wizard.setup.resetScope"),
         options: [
-          { value: "config", label: "仅配置" },
+          { value: "config", label: t("wizard.setup.resetConfig") },
           {
             value: "config+creds+sessions",
-            label: "配置 + 凭据 + 会话",
+            label: t("wizard.setup.resetConfigCredsSessions"),
           },
           {
             value: "full",
-            label: "完全重置（配置 + 凭据 + 会话 + 工作空间）",
+            label: t("wizard.setup.resetFull"),
           },
         ],
       })) as ResetScope;
@@ -380,54 +392,60 @@ export async function runSetupWizard(
   if (flow === "quickstart") {
     const formatBind = (value: "loopback" | "lan" | "auto" | "custom" | "tailnet") => {
       if (value === "loopback") {
-        return "本地回环 (127.0.0.1)";
+        return t("wizard.gateway.bindLoopback");
       }
       if (value === "lan") {
-        return "局域网";
+        return t("wizard.gateway.bindLan");
       }
       if (value === "custom") {
-        return "自定义 IP";
+        return t("wizard.gateway.bindCustom");
       }
       if (value === "tailnet") {
-        return "Tailnet (Tailscale IP)";
+        return t("wizard.gateway.bindTailnet");
       }
-      return "自动";
+      return t("wizard.gateway.bindAuto");
     };
     const formatAuth = (value: GatewayAuthChoice) => {
       if (value === "token") {
-        return "令牌（默认）";
+        return t("wizard.setup.quickstartAuthTokenDefault");
       }
-      return "密码";
+      return t("common.password");
     };
     const formatTailscale = (value: "off" | "serve" | "funnel") => {
-      if (value === "off") {
-        return "关闭";
-      }
-      if (value === "serve") {
-        return "Serve";
-      }
-      return "Funnel";
+      return t(`wizard.gatewayTailscale.${value}`);
     };
     const quickstartLines = quickstartGateway.hasExisting
       ? [
-          "保留您当前的网关设置：",
-          `网关端口: ${quickstartGateway.port}`,
-          `网关绑定: ${formatBind(quickstartGateway.bind)}`,
+          t("wizard.setup.quickstartKeepSettings"),
+          t("wizard.setup.quickstartGatewayPort", { port: quickstartGateway.port }),
+          t("wizard.setup.quickstartGatewayBind", { bind: formatBind(quickstartGateway.bind) }),
           ...(quickstartGateway.bind === "custom" && quickstartGateway.customBindHost
-            ? [`网关自定义 IP: ${quickstartGateway.customBindHost}`]
+            ? [
+                t("wizard.setup.quickstartGatewayCustomIp", {
+                  host: quickstartGateway.customBindHost,
+                }),
+              ]
             : []),
-          `网关认证: ${formatAuth(quickstartGateway.authMode)}`,
-          `Tailscale 暴露: ${formatTailscale(quickstartGateway.tailscaleMode)}`,
-          "直接连接聊天频道。",
+          t("wizard.setup.quickstartGatewayAuth", {
+            auth: formatAuth(quickstartGateway.authMode),
+          }),
+          t("wizard.setup.quickstartTailscaleExposure", {
+            exposure: formatTailscale(quickstartGateway.tailscaleMode),
+          }),
+          t("wizard.setup.quickstartDirectChannels"),
         ]
       : [
-          `Gateway port: ${quickstartGateway.port}`,
-          "Gateway bind: Loopback (127.0.0.1)",
-          "Gateway auth: Token (default)",
-          "Tailscale exposure: Off",
-          "直接进入聊天频道。",
+          t("wizard.setup.quickstartGatewayPort", { port: quickstartGateway.port }),
+          t("wizard.setup.quickstartGatewayBind", { bind: t("wizard.gateway.bindLoopback") }),
+          t("wizard.setup.quickstartGatewayAuth", {
+            auth: t("wizard.setup.quickstartAuthTokenDefault"),
+          }),
+          t("wizard.setup.quickstartTailscaleExposure", {
+            exposure: t("wizard.gatewayTailscale.off"),
+          }),
+          t("wizard.setup.quickstartDirectChannels"),
         ];
-    await prompter.note(quickstartLines.join("\n"), "快速开始");
+    await prompter.note(quickstartLines.join("\n"), "QuickStart");
   }
 
   const localPort = resolveGatewayPort(baseConfig);
@@ -445,8 +463,11 @@ export async function runSetupWizard(
     }
   } catch (error) {
     await prompter.note(
-      ["无法解析探测所需的 gateway.auth.token SecretRef。", formatErrorMessage(error)].join("\n"),
-      "Gateway 认证",
+      [
+        t("wizard.setup.secretRefProbeFailed", { field: "gateway.auth.token" }),
+        formatErrorMessage(error),
+      ].join("\n"),
+      t("wizard.gateway.auth"),
     );
   }
   let localGatewayPassword = process.env.OPENCLAW_GATEWAY_PASSWORD;
@@ -462,10 +483,11 @@ export async function runSetupWizard(
     }
   } catch (error) {
     await prompter.note(
-      ["无法解析探测所需的 gateway.auth.password SecretRef。", formatErrorMessage(error)].join(
-        "\n",
-      ),
-      "网关认证",
+      [
+        t("wizard.setup.secretRefProbeFailed", { field: "gateway.auth.password" }),
+        formatErrorMessage(error),
+      ].join("\n"),
+      t("wizard.gateway.auth"),
     );
   }
 
@@ -507,21 +529,23 @@ export async function runSetupWizard(
     (flow === "quickstart"
       ? "local"
       : ((await prompter.select({
-          message: "您想设置什么？",
+          message: t("wizard.setup.whatSetup"),
           options: [
             {
               value: "local",
-              label: "本地网关（本机）",
-              hint: localProbe.ok ? `网关可访问（${localUrl}）` : `未检测到网关（${localUrl}）`,
+              label: t("wizard.setup.localGateway"),
+              hint: localProbe.ok
+                ? t("wizard.setup.localGatewayReachable", { url: localUrl })
+                : t("wizard.setup.localGatewayMissing", { url: localUrl }),
             },
             {
               value: "remote",
-              label: "远程网关（仅信息）",
+              label: t("wizard.setup.remoteGateway"),
               hint: !remoteUrl
-                ? "尚未配置远程 URL"
+                ? t("wizard.setup.remoteGatewayMissing")
                 : remoteProbe?.ok
-                  ? `网关可访问（${remoteUrl}）`
-                  : `已配置但不可访问（${remoteUrl}）`,
+                  ? t("wizard.setup.remoteGatewayReachable", { url: remoteUrl })
+                  : t("wizard.setup.remoteGatewayUnreachable", { url: remoteUrl }),
             },
           ],
         })) as OnboardMode));
@@ -539,7 +563,7 @@ export async function runSetupWizard(
     nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, { command: "onboard", mode });
     nextConfig = await writeWizardConfigFile(nextConfig);
     logConfigUpdated(runtime);
-    await prompter.outro("远程网关已配置。");
+    await prompter.outro(t("wizard.setup.remoteConfigured"));
     return;
   }
 
@@ -548,7 +572,7 @@ export async function runSetupWizard(
     (flow === "quickstart"
       ? (baseConfig.agents?.defaults?.workspace ?? onboardHelpers.DEFAULT_WORKSPACE)
       : await prompter.text({
-          message: "工作空间目录",
+          message: t("wizard.setup.workspaceDirectory"),
           initialValue: baseConfig.agents?.defaults?.workspace ?? onboardHelpers.DEFAULT_WORKSPACE,
         }));
 
@@ -587,7 +611,7 @@ export async function runSetupWizard(
       });
     }
     if (authChoice === undefined) {
-      throw new WizardCancelledError("auth choice is required");
+      throw new WizardCancelledError(t("wizard.setup.authChoiceRequired"));
     }
 
     if (authChoice === "custom-api-key") {
@@ -640,7 +664,7 @@ export async function runSetupWizard(
       runtime,
       setDefaultModel: true,
       opts: {
-        tokenProvider: opts.tokenProvider,
+        ...opts,
         token: opts.authChoice === "apiKey" && opts.token ? opts.token : undefined,
       },
     });
@@ -702,7 +726,7 @@ export async function runSetupWizard(
   const settings = gateway.settings;
 
   if (opts.skipChannels ?? opts.skipProviders) {
-    await prompter.note("跳过频道设置。", "频道");
+    await prompter.note(t("wizard.setup.skipChannels"), t("wizard.setup.channelsTitle"));
   } else {
     const { listChannelPlugins } = await import("../channels/plugins/index.js");
     const { setupChannels } = await import("../commands/onboard-channels.js");
@@ -732,7 +756,7 @@ export async function runSetupWizard(
   });
 
   if (opts.skipSearch) {
-    await prompter.note("跳过搜索安装", "Search");
+    await prompter.note(t("wizard.setup.skipSearch"), t("wizard.setup.searchTitle"));
   } else {
     const { setupSearch } = await import("../commands/onboard-search.js");
     nextConfig = await setupSearch(nextConfig, runtime, prompter, {
@@ -742,7 +766,7 @@ export async function runSetupWizard(
   }
 
   if (opts.skipSkills) {
-    await prompter.note("跳过技能设置。", "技能");
+    await prompter.note(t("wizard.setup.skipSkills"), t("wizard.setup.skillsTitle"));
   } else {
     const { setupSkills } = await import("../commands/onboard-skills.js");
     nextConfig = await setupSkills(nextConfig, workspaceDir, runtime, prompter);
@@ -765,9 +789,11 @@ export async function runSetupWizard(
     });
   }
 
-  // Setup hooks (session memory on /new)
-  const { setupInternalHooks } = await import("../commands/onboard-hooks.js");
-  nextConfig = await setupInternalHooks(nextConfig, runtime, prompter);
+  if (!opts.skipHooks) {
+    // Setup hooks (session memory on /new)
+    const { setupInternalHooks } = await import("../commands/onboard-hooks.js");
+    nextConfig = await setupInternalHooks(nextConfig, runtime, prompter);
+  }
 
   nextConfig = onboardHelpers.applyWizardMetadata(nextConfig, { command: "onboard", mode });
   nextConfig = await writeWizardConfigFile(nextConfig);
