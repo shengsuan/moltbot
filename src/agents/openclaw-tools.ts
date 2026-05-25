@@ -21,7 +21,7 @@ import {
 import { applyNodesToolWorkspaceGuard } from "./openclaw-tools.nodes-workspace-guard.js";
 import {
   collectPresentOpenClawTools,
-  isUpdatePlanToolEnabledForOpenClawTools,
+  shouldIncludeUpdatePlanToolForOpenClawTools,
 } from "./openclaw-tools.registration.js";
 import {
   type HookContext,
@@ -236,6 +236,7 @@ export function createOpenClawTools(
         workspaceDir,
         sandbox,
         fsPolicy: options?.fsPolicy,
+        onAsyncTaskStarted: options?.onYield,
       })
     : null;
   options?.recordToolPrepStage?.("openclaw-tools:image-generate-tool");
@@ -249,6 +250,7 @@ export function createOpenClawTools(
         workspaceDir,
         sandbox,
         fsPolicy: options?.fsPolicy,
+        onAsyncTaskStarted: options?.onYield,
       })
     : null;
   options?.recordToolPrepStage?.("openclaw-tools:video-generate-tool");
@@ -262,6 +264,7 @@ export function createOpenClawTools(
         workspaceDir,
         sandbox,
         fsPolicy: options?.fsPolicy,
+        onAsyncTaskStarted: options?.onYield,
       })
     : null;
   options?.recordToolPrepStage?.("openclaw-tools:music-generate-tool");
@@ -280,6 +283,7 @@ export function createOpenClawTools(
   options?.recordToolPrepStage?.("openclaw-tools:pdf-tool");
   const webSearchTool = createWebSearchTool({
     config: options?.config,
+    agentDir: options?.agentDir,
     sandboxed: options?.sandboxed,
     runtimeWebSearch: runtimeWebTools?.search,
     lateBindRuntimeConfig: true,
@@ -358,19 +362,15 @@ export function createOpenClawTools(
   const effectiveCallGateway = embedded
     ? createEmbeddedCallGateway()
     : openClawToolsDeps.callGateway;
-  const includeUpdatePlanTool =
-    isToolExplicitlyAllowedByFactoryPolicy({
-      toolName: "update_plan",
-      allowlist: explicitFactoryAllowlist,
-      denylist: explicitFactoryDenylist,
-    }) ||
-    isUpdatePlanToolEnabledForOpenClawTools({
-      config: resolvedConfig,
-      agentSessionKey: options?.agentSessionKey,
-      agentId: options?.requesterAgentIdOverride,
-      modelProvider: options?.modelProvider,
-      modelId: options?.modelId,
-    });
+  const includeUpdatePlanTool = shouldIncludeUpdatePlanToolForOpenClawTools({
+    config: resolvedConfig,
+    agentSessionKey: options?.agentSessionKey,
+    agentId: options?.requesterAgentIdOverride,
+    modelProvider: options?.modelProvider,
+    modelId: options?.modelId,
+    pluginToolAllowlist: options?.pluginToolAllowlist,
+    pluginToolDenylist: options?.pluginToolDenylist,
+  });
   const tools: AnyAgentTool[] = [
     ...(embedded
       ? []
