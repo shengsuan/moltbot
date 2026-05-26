@@ -1,5 +1,6 @@
 import { defineSingleProviderPluginEntry } from "openclaw/plugin-sdk/provider-entry";
 import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/text-runtime";
+import { buildShengSuanYunImageGenerationProvider } from "./image-generation-provider.js";
 import { applyShengSuanYunConfig, SHENGSUANYUN_DEFAULT_MODEL_REF } from "./onboard.ts";
 import { buildShengSuanYunProvider } from "./provider-catalog.js";
 const PROVIDER_ID = "shengsuanyun";
@@ -48,5 +49,8 @@ export default defineSingleProviderPluginEntry({
         };
       },
     },
+  },
+  register(api) {
+    api.registerImageGenerationProvider(buildShengSuanYunImageGenerationProvider());
   },
 });

@@ -153,6 +153,15 @@
         "shengsuanyun/xiaomi/mimo-v2.5": {},
         "shengsuanyun/xiaomi/mimo-v2.5-pro": {}
       },
+      "imageGenerationModel": {
+        "primary": "shengsuanyun/openai/gpt-image-2",
+        "fallbacks": [
+          "shengsuanyun/google/gemini-3.1-flash-image-preview",
+          "shengsuanyun/google/gemini-3-pro-image-preview",
+          "shengsuanyun/openai/gpt-image-1.5"
+        ],
+        "timeoutMs": 800000
+      },
       "workspace": "${OPENCLAW_HOME}/.openclaw/workspace",
       "model": {
         "primary": "shengsuanyun/anthropic/claude-haiku-4.5"

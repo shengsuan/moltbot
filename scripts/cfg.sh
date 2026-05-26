@@ -51,7 +51,7 @@ if [ ! -f "$INITIALIZED_FLAG" ]; then
     # chown -R node:node "${OPENCLAW_HOME:-/home/node}"
     echo "0" > "$INITIALIZED_FLAG"
     echo "[INFO] 初始化完成，已创建标记文件。"
-    npx -y @tencent-weixin/openclaw-weixin-cli install
+    # npx -y @tencent-weixin/openclaw-weixin-cli install > "${CFG_DIR}/weixin-cli-install.log" 2>&1 &
 fi
 
 RESTART_COUNT=$(cat "$INITIALIZED_FLAG" 2>/dev/null || echo "0")

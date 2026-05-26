@@ -389,7 +389,7 @@ async function fetchWithSsrFGuardInternal(
   }
   const isUsingMockedFetch = isMockedFetch(defaultFetch);
 
-  console.error("[FETCH-DEBUG] fetchWithSsrFGuard:", { url: params.url });
+  // console.error("[FETCH-DEBUG] fetchWithSsrFGuard:", { url: params.url });
 
   const maxRedirects =
     typeof params.maxRedirects === "number" && Number.isFinite(params.maxRedirects)
@@ -587,13 +587,13 @@ async function fetchWithSsrFGuardInternal(
         continue;
       }
       const responseText = response.status === 405 ? await response.clone().text() : "";
-      console.error("[FETCH-DEBUG] response:", {
-        url: currentUrl,
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries()),
-        responsePreview: responseText.substring(0, 500),
-      });
+      // console.error("[FETCH-DEBUG] response:", {
+      //   url: currentUrl,
+      //   status: response.status,
+      //   statusText: response.statusText,
+      //   headers: Object.fromEntries(response.headers.entries()),
+      //   responsePreview: responseText.substring(0, 500),
+      // });
 
       return {
         response,

@@ -20,6 +20,9 @@
       "cliDescription": "胜算云 API key"
     }
   ],
+  "contracts": {
+    "imageGenerationProviders": ["shengsuanyun"]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

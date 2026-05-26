@@ -6,6 +6,8 @@ services:
       OPENCLAW_TIMEZONE: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
       OPENCLAW_HOME: ${OPENCLAW_HOME:-/home/node}
       TERM: xterm-256color
+      OPENCLAW_SESSION_WRITE_LOCK_ACQUIRE_TIMEOUT_MS: "120000"
+      OPENCLAW_SESSION_WRITE_LOCK_MAX_HOLD_MS: "180000"
       # 网关核心配置
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
       OPENCLAW_GATEWAY_BIND: ${OPENCLAW_GATEWAY_BIND:-lan}
@@ -32,6 +34,9 @@ services:
       - "${OPENCLAW_GATEWAY_PORT:-10789}:18789"
       - "${OPENCLAW_BRIDGE_PORT:-10790}:18790"
       - "${SSH_EXPOSE_PORT:-10722}:22"
+    command: >
+      sh -c "find /root/.openclaw/agents /home/node/.openclaw/agents
+      -name '*.lock' -delete 2>/dev/null || true && openclaw gateway"
     init: true
     restart: unless-stopped
     user: "0:0"  # root：允许 SSH 服务访问宿主密钥
