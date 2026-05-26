@@ -223,7 +223,10 @@ export function createOpenClawTools(
       })
     : null;
 
-  const ShengSuanYunTools: AnyAgentTool[] = []; //createGenerateTools({ config: options?.config, workspaceDir });
+  const ShengSuanYunTools: AnyAgentTool[] = createGenerateTools({
+    config: options?.config,
+    workspaceDir,
+  });
 
   options?.recordToolPrepStage?.("openclaw-tools:image-tool");
   const imageGenerateTool = optionalMediaTools.imageGenerate
