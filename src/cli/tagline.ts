@@ -1,4 +1,11 @@
+<<<<<<< HEAD
 const DEFAULT_TAGLINE = "所有聊天，一个 OpenClaw。";
+=======
+// CLI tagline selection helpers, including deterministic random/default/holiday modes.
+import { parseStrictNonNegativeInteger } from "../infra/parse-finite-number.js";
+
+const DEFAULT_TAGLINE = "All your chats, one OpenClaw.";
+>>>>>>> fd7e1815006a67575bd749309c1377ff3bff5d15
 export type TaglineMode = "random" | "default" | "off";
 
 const HOLIDAY_TAGLINES = {
@@ -177,6 +184,9 @@ const HOLIDAY_RULES = new Map<string, HolidayRule>([
         [2025, 0, 29],
         [2026, 1, 17],
         [2027, 1, 6],
+        [2028, 0, 26],
+        [2029, 1, 13],
+        [2030, 1, 3],
       ],
       1,
     ),
@@ -189,6 +199,9 @@ const HOLIDAY_RULES = new Map<string, HolidayRule>([
         [2025, 2, 31],
         [2026, 2, 20],
         [2027, 2, 10],
+        [2028, 1, 27],
+        [2029, 1, 15],
+        [2030, 1, 5],
       ],
       1,
     ),
@@ -200,6 +213,9 @@ const HOLIDAY_RULES = new Map<string, HolidayRule>([
         [2025, 9, 20],
         [2026, 10, 8],
         [2027, 9, 28],
+        [2028, 9, 17],
+        [2029, 10, 5],
+        [2030, 9, 25],
       ],
       1,
     ),
@@ -211,6 +227,9 @@ const HOLIDAY_RULES = new Map<string, HolidayRule>([
         [2025, 3, 20],
         [2026, 3, 5],
         [2027, 2, 28],
+        [2028, 3, 16],
+        [2029, 3, 1],
+        [2030, 3, 21],
       ],
       1,
     ),
@@ -221,6 +240,9 @@ const HOLIDAY_RULES = new Map<string, HolidayRule>([
       { year: 2025, month: 11, day: 15, duration: 8 },
       { year: 2026, month: 11, day: 5, duration: 8 },
       { year: 2027, month: 11, day: 25, duration: 8 },
+      { year: 2028, month: 11, day: 13, duration: 8 },
+      { year: 2029, month: 11, day: 2, duration: 8 },
+      { year: 2030, month: 11, day: 21, duration: 8 },
     ]),
   ],
   [HOLIDAY_TAGLINES.halloween, onMonthDay(9, 31)],
@@ -263,8 +285,8 @@ export function pickTagline(options: TaglineOptions = {}): string {
   const env = options.env ?? process.env;
   const override = env?.OPENCLAW_TAGLINE_INDEX;
   if (override !== undefined) {
-    const parsed = Number.parseInt(override, 10);
-    if (!Number.isNaN(parsed) && parsed >= 0) {
+    const parsed = parseStrictNonNegativeInteger(override);
+    if (parsed !== undefined) {
       const pool = TAGLINES.length > 0 ? TAGLINES : [DEFAULT_TAGLINE];
       return pool[parsed % pool.length];
     }

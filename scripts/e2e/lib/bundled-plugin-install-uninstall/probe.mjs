@@ -1,8 +1,64 @@
+// Probe script for bundled plugin install/uninstall E2E scenarios.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { readPluginInstallRecords } from "../plugin-index-sqlite.mjs";
 
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
+const normalizePathForProbe = (value) => String(value ?? "").replace(/\\/g, "/");
+const bundledRuntimeFragments = (pluginDir) => [
+  `/dist/extensions/${pluginDir}`,
+  `/dist-runtime/extensions/${pluginDir}`,
+];
+const bundledRuntimeRootFragments = ["/dist/extensions/", "/dist-runtime/extensions/"];
+const DEFAULT_PLUGIN_LIST_TIMEOUT_MS = 30_000;
+const DEFAULT_PLUGIN_LIST_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
+
+function readIntegerEnv(name, fallback, minimum) {
+  const raw = process.env[name];
+  if (raw == null || raw === "") {
+    return fallback;
+  }
+  const text = raw.trim();
+  if (!/^\d+$/u.test(text)) {
+    throw new Error(`invalid ${name}: ${text}`);
+  }
+  const value = Number(text);
+  if (!Number.isSafeInteger(value) || value < minimum) {
+    throw new Error(`invalid ${name}: ${text}`);
+  }
+  return value;
+}
+
+function readPositiveIntEnv(name, fallback) {
+  return readIntegerEnv(name, fallback, 1);
+}
+
+function readNonNegativeIntEnv(name, fallback) {
+  return readIntegerEnv(name, fallback, 0);
+}
+
+function resolveStateDir() {
+  if (process.env.OPENCLAW_STATE_DIR) {
+    return process.env.OPENCLAW_STATE_DIR;
+  }
+  return path.join(process.env.HOME || os.homedir(), ".openclaw");
+}
+
+function pathReferencesBundledRuntime(value, pluginDir) {
+  const normalized = normalizePathForProbe(value);
+  return bundledRuntimeFragments(pluginDir).some((fragment) => normalized.includes(fragment));
+}
+
+function pathReferencesPackagedBundledRoot(value) {
+  const normalized = normalizePathForProbe(value);
+  return bundledRuntimeRootFragments.some((fragment) => normalized.includes(fragment));
+}
+
+function pathsEqualForProbe(actual, expected) {
+  return normalizePathForProbe(actual) === normalizePathForProbe(expected);
+}
 
 function resolveOpenClawEntry() {
   if (process.env.OPENCLAW_ENTRY) {
@@ -18,11 +74,29 @@ function resolveOpenClawEntry() {
 
 function readPluginsList() {
   const entry = resolveOpenClawEntry();
+  const timeoutMs = readPositiveIntEnv(
+    "OPENCLAW_BUNDLED_PLUGIN_LIST_TIMEOUT_MS",
+    DEFAULT_PLUGIN_LIST_TIMEOUT_MS,
+  );
   const result = spawnSync(process.execPath, [entry, "plugins", "list", "--json"], {
     cwd: process.cwd(),
     encoding: "utf8",
     env: process.env,
+    maxBuffer: readPositiveIntEnv(
+      "OPENCLAW_BUNDLED_PLUGIN_LIST_MAX_BUFFER_BYTES",
+      DEFAULT_PLUGIN_LIST_MAX_BUFFER_BYTES,
+    ),
+    killSignal: "SIGKILL",
+    timeout: timeoutMs,
   });
+  if (result.error) {
+    const timedOut = result.error.code === "ETIMEDOUT";
+    throw new Error(
+      timedOut
+        ? `Timed out listing packaged bundled plugins after ${timeoutMs}ms`
+        : `Unable to list packaged bundled plugins: ${result.error.message}`,
+    );
+  }
   if (result.status !== 0) {
     throw new Error(
       `Unable to list packaged bundled plugins: ${result.stderr || result.stdout || `exit ${result.status}`}`,
@@ -50,7 +124,7 @@ async function loadPackagedBundledEntries() {
       const rootDir = typeof plugin.rootDir === "string" ? plugin.rootDir.trim() : "";
       const source = typeof plugin.source === "string" ? plugin.source.trim() : "";
       const pluginDir = rootDir || (source ? path.dirname(source) : "");
-      if (!id || !pluginDir) {
+      if (!id || !pluginDir || !pathReferencesPackagedBundledRoot(pluginDir)) {
         return null;
       }
       return {
@@ -88,14 +162,9 @@ async function loadManifestEntries() {
 
 async function selectedManifestEntries() {
   const allEntries = await loadManifestEntries();
-  const total = Number.parseInt(process.env.OPENCLAW_BUNDLED_PLUGIN_SWEEP_TOTAL || "1", 10);
-  const index = Number.parseInt(process.env.OPENCLAW_BUNDLED_PLUGIN_SWEEP_INDEX || "0", 10);
-  if (!Number.isInteger(total) || total < 1) {
-    throw new Error(
-      `OPENCLAW_BUNDLED_PLUGIN_SWEEP_TOTAL must be >= 1, got ${process.env.OPENCLAW_BUNDLED_PLUGIN_SWEEP_TOTAL}`,
-    );
-  }
-  if (!Number.isInteger(index) || index < 0 || index >= total) {
+  const total = readPositiveIntEnv("OPENCLAW_BUNDLED_PLUGIN_SWEEP_TOTAL", 1);
+  const index = readNonNegativeIntEnv("OPENCLAW_BUNDLED_PLUGIN_SWEEP_INDEX", 0);
+  if (index >= total) {
     throw new Error(
       `OPENCLAW_BUNDLED_PLUGIN_SWEEP_INDEX must be in [0, ${total - 1}], got ${process.env.OPENCLAW_BUNDLED_PLUGIN_SWEEP_INDEX}`,
     );
@@ -108,12 +177,11 @@ async function selectedManifestEntries() {
   return selected;
 }
 
-function assertInstalled(pluginId, pluginDir, requiresConfig) {
-  const configPath = path.join(process.env.HOME, ".openclaw", "openclaw.json");
-  const indexPath = path.join(process.env.HOME, ".openclaw", "plugins", "installs.json");
+function assertInstalled(pluginId, pluginDir, requiresConfig, selectedPluginRoot = "") {
+  const stateDir = resolveStateDir();
+  const configPath = path.join(stateDir, "openclaw.json");
   const config = readJson(configPath);
-  const index = readJson(indexPath);
-  const records = index.installRecords ?? index.records ?? {};
+  const records = readPluginInstallRecords({ stateDir, configPath });
   const record = records[pluginId];
   if (!record) {
     throw new Error(`missing install record for ${pluginId}`);
@@ -123,25 +191,26 @@ function assertInstalled(pluginId, pluginDir, requiresConfig) {
       `expected bundled install record source=path for ${pluginId}, got ${record.source}`,
     );
   }
-  if (
-    typeof record.sourcePath !== "string" ||
-    ![`/dist/extensions/${pluginDir}`, `/dist-runtime/extensions/${pluginDir}`].some((fragment) =>
-      record.sourcePath.includes(fragment),
-    )
-  ) {
+  const sourcePath = typeof record.sourcePath === "string" ? record.sourcePath : "";
+  if (!sourcePath) {
     throw new Error(`unexpected bundled source path for ${pluginId}: ${record.sourcePath}`);
   }
-  if (record.installPath !== record.sourcePath) {
+  if (selectedPluginRoot && !pathsEqualForProbe(sourcePath, selectedPluginRoot)) {
+    throw new Error(
+      `bundled source path for ${pluginId} did not match selected root: expected ${selectedPluginRoot}, got ${record.sourcePath}`,
+    );
+  }
+  if (!selectedPluginRoot && !pathReferencesBundledRuntime(sourcePath, pluginDir)) {
+    throw new Error(`unexpected bundled source path for ${pluginId}: ${record.sourcePath}`);
+  }
+  if (selectedPluginRoot && !fs.existsSync(sourcePath)) {
+    throw new Error(`bundled source path for ${pluginId} does not exist: ${record.sourcePath}`);
+  }
+  if (!pathsEqualForProbe(record.installPath, record.sourcePath)) {
     throw new Error(`bundled install path should equal source path for ${pluginId}`);
   }
   const paths = config.plugins?.load?.paths || [];
-  if (
-    paths.some((entry) =>
-      [`/dist/extensions/${pluginDir}`, `/dist-runtime/extensions/${pluginDir}`].some((fragment) =>
-        String(entry).includes(fragment),
-      ),
-    )
-  ) {
+  if (paths.some((entry) => pathReferencesBundledRuntime(entry, pluginDir))) {
     throw new Error(`config load paths should not include bundled install path for ${pluginId}`);
   }
   if (requiresConfig && config.plugins?.entries?.[pluginId]?.enabled === true) {
@@ -162,22 +231,15 @@ function assertInstalled(pluginId, pluginDir, requiresConfig) {
 }
 
 function assertUninstalled(pluginId, pluginDir) {
-  const configPath = path.join(process.env.HOME, ".openclaw", "openclaw.json");
-  const indexPath = path.join(process.env.HOME, ".openclaw", "plugins", "installs.json");
+  const stateDir = resolveStateDir();
+  const configPath = path.join(stateDir, "openclaw.json");
   const config = fs.existsSync(configPath) ? readJson(configPath) : {};
-  const index = fs.existsSync(indexPath) ? readJson(indexPath) : {};
-  const records = index.installRecords ?? index.records ?? {};
+  const records = readPluginInstallRecords({ stateDir, configPath });
   if (records[pluginId]) {
     throw new Error(`install record still present after uninstall for ${pluginId}`);
   }
   const paths = config.plugins?.load?.paths || [];
-  if (
-    paths.some((entry) =>
-      [`/dist/extensions/${pluginDir}`, `/dist-runtime/extensions/${pluginDir}`].some((fragment) =>
-        String(entry).includes(fragment),
-      ),
-    )
-  ) {
+  if (paths.some((entry) => pathReferencesBundledRuntime(entry, pluginDir))) {
     throw new Error(`load path still present after uninstall for ${pluginId}`);
   }
   if (config.plugins?.entries?.[pluginId]) {
@@ -189,7 +251,7 @@ function assertUninstalled(pluginId, pluginDir) {
   if ((config.plugins?.deny || []).includes(pluginId)) {
     throw new Error(`denylist still contains ${pluginId} after uninstall`);
   }
-  const managedPath = path.join(process.env.HOME, ".openclaw", "extensions", pluginId);
+  const managedPath = path.join(stateDir, "extensions", pluginId);
   if (fs.existsSync(managedPath)) {
     throw new Error(
       `managed install directory unexpectedly exists for bundled plugin ${pluginId}: ${managedPath}`,
@@ -197,13 +259,13 @@ function assertUninstalled(pluginId, pluginDir) {
   }
 }
 
-const [command, pluginId, pluginDir, requiresConfig] = process.argv.slice(2);
+const [command, pluginId, pluginDir, requiresConfig, selectedPluginRoot] = process.argv.slice(2);
 if (command === "select") {
   for (const entry of await selectedManifestEntries()) {
     console.log(`${entry.id}\t${entry.dir}\t${entry.requiresConfig ? "1" : "0"}\t${entry.rootDir}`);
   }
 } else if (command === "assert-installed") {
-  assertInstalled(pluginId, pluginDir, requiresConfig === "1");
+  assertInstalled(pluginId, pluginDir, requiresConfig === "1", selectedPluginRoot);
 } else if (command === "assert-uninstalled") {
   assertUninstalled(pluginId, pluginDir);
 } else {

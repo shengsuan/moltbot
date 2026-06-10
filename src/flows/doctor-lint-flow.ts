@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+// Doctor lint flow runs lint-like doctor checks and formats findings.
+>>>>>>> fd7e1815006a67575bd749309c1377ff3bff5d15
 import { scrubDoctorErrorMessage } from "./doctor-error-message.js";
 import { listHealthChecks } from "./health-check-registry.js";
 import {
@@ -9,6 +13,7 @@ import {
   type HealthFindingSeverity,
 } from "./health-checks.js";
 
+// Non-mutating health-check runner used by `openclaw doctor --lint`.
 export interface DoctorLintRunOptions {
   readonly checks?: readonly HealthCheck[];
   readonly skipIds?: ReadonlySet<string> | readonly string[];
@@ -21,6 +26,7 @@ export interface DoctorLintRunResult {
   readonly checksSkipped: number;
 }
 
+/** Runs selected health checks in lint mode and returns sorted findings. */
 export async function runDoctorLintChecks(
   ctx: HealthCheckContext,
   opts: DoctorLintRunOptions = {},
@@ -75,6 +81,7 @@ export async function runDoctorLintChecks(
   };
 }
 
+// Stable ordering keeps CLI output and tests deterministic across registry order changes.
 function compareFindings(a: HealthFinding, b: HealthFinding): number {
   const sevDelta =
     HEALTH_FINDING_SEVERITY_RANK[b.severity] - HEALTH_FINDING_SEVERITY_RANK[a.severity];
@@ -88,6 +95,7 @@ function compareFindings(a: HealthFinding, b: HealthFinding): number {
   return (a.path ?? "").localeCompare(b.path ?? "");
 }
 
+/** Converts findings to a process exit code using the requested minimum severity. */
 export function exitCodeFromFindings(
   findings: readonly HealthFinding[],
   severityMin: HealthFindingSeverity = "warning",
