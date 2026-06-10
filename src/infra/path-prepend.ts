@@ -62,11 +62,7 @@ export function removePathPrepend(
     return existing;
   }
 
-<<<<<<< HEAD
-  const prependEntries = new Set<string>(prepend.map((part) => part.trim()).filter(Boolean));
-=======
   const prependEntries = new Set<string>(normalizeStringEntries(prepend));
->>>>>>> fd7e1815006a67575bd749309c1377ff3bff5d15
 
   const remaining = normalizeStringEntries((existing ?? "").split(path.delimiter)).filter(
     (part) => !prependEntries.has(part),
