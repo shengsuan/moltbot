@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-=======
 // Doctor lint flow runs lint-like doctor checks and formats findings.
->>>>>>> fd7e1815006a67575bd749309c1377ff3bff5d15
 import { scrubDoctorErrorMessage } from "./doctor-error-message.js";
 import { listHealthChecks } from "./health-check-registry.js";
 import {
