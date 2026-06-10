@@ -1,4 +1,4 @@
-import type { TextContent, ImageContent } from "@earendil-works/pi-ai";
+import type { TextContent, ImageContent } from "../../../llm/types.js";
 import {
   getShengSuanYunModalityModels,
   SHENGSUANYUN_BASE_URL,
