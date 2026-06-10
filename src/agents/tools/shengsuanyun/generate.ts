@@ -3,7 +3,6 @@ import {
   getShengSuanYunModalityModels,
   SHENGSUANYUN_BASE_URL,
 } from "@openclaw/shengsuanyun/provider-catalog.ts";
-import { createSubsystemLogger } from "openclaw/plugin-sdk/logging-core";
 import { Type, type TSchema } from "typebox";
 import type { OpenClawConfig } from "../../../config/config.ts";
 import { loadConfig } from "../../../config/config.ts";
@@ -12,6 +11,7 @@ import type { AnyAgentTool } from "../common.ts";
 import { readStringParam, readStringArrayParam, readNumberParam } from "../common.ts";
 import { toolDescriptionMap } from "./meta.ts";
 import { saveMediaToWorkspace } from "./save-media.ts";
+import { createSubsystemLogger } from "../../../logging/subsystem.ts";
 const log = createSubsystemLogger("shengsuanyun-generate-tools");
 export const APP_HEADERS: Record<string, string> = {
   "HTTP-Referer": "https://openclaw.ai",

@@ -435,15 +435,6 @@ export function removeConfigFormValue(state: ConfigState, path: Array<string | n
   mutateConfigForm(state, (draft) => removePathValue(draft, path));
 }
 
-<<<<<<< HEAD
-export function dismissUpdate(state: AppViewState) {
-  if (state.updateAvailable) {
-    state.updateAvailable = {
-      ...state.updateAvailable,
-      latestVersion: state.updateAvailable.currentVersion,
-    };
-  }
-=======
 export function updateMcpServerEnabled(state: ConfigState, name: string, enabled: boolean) {
   mutateConfigForm(state, (draft) => {
     const serverPath = ["mcp", "servers", name];
@@ -460,7 +451,6 @@ export function updateMcpServerEnabled(state: ConfigState, name: string, enabled
       removePathValue(draft, serverPath);
     }
   });
->>>>>>> fd7e1815006a67575bd749309c1377ff3bff5d15
 }
 
 export function findAgentConfigEntryIndex(
