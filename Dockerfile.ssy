@@ -1,20 +1,13 @@
-# ============================================================================
-# Stage 1: Base image with system dependencies
-# ============================================================================
-FROM node:22-bookworm AS base
+FROM node:22-bookworm
 
-# Install Bun globally (required for some build scripts)
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL https://bun.sh/install | bash \
-    && mv /root/.bun/bin/bun /usr/local/bin/bun \
-    && ln -s /usr/local/bin/bun /usr/local/bin/bunx \
-    && rm -rf /root/.bun
+# Install Bun (required for build scripts)
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
 
-# Enable corepack for pnpm
 RUN corepack enable
 
-# Optional extra apt packages (e.g. ffmpeg, git, build tools for native modules)
+WORKDIR /app
+
 ARG OPENCLAW_DOCKER_APT_PACKAGES=""
 RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get update && \
@@ -22,147 +15,43 @@ RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
       apt-get clean && \
       rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
     fi
-
-# ============================================================================
-# Stage 2: Install dependencies
-# 只复制 package 元数据，lockfile 不变时此层永远命中缓存
-# ============================================================================
-FROM base AS dependencies
-
-WORKDIR /app
-
-# 1) 只复制依赖声明文件 —— 这一组文件变动概率最低，独立成层最大化缓存命中
+RUN --mount=type=secret,id=ssh_key \
+  if [ -f /run/secrets/ssh_key ]; then \
+    cat /run/secrets/ssh_key > /root/.ssh/authorized_keys && \
+    chmod 600 /root/.ssh/authorized_keys; \
+  fi
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+  sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+  sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+  
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY ui/package.json ./ui/package.json
 COPY patches ./patches
-
-# 2) 复制 workspace 成员的 package.json（pnpm 识别 workspace 需要）
-#    skills/packages/extensions 的源码不在此阶段复制，避免源码变化破坏依赖缓存
-COPY skills ./skills
-COPY packages ./packages
-COPY extensions ./extensions
-
-# 3) 安装所有依赖（含 ui）—— lockfile 不变时整层缓存命中
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
-
-# ============================================================================
-# Stage 3: Build application
-# 从 base 而非 dependencies 继承，避免把 node_modules 带入 builder 层快照
-# 再通过 COPY --from=dependencies 显式引入，让 Docker 正确追踪依赖
-# ============================================================================
-FROM base AS builder
-
-WORKDIR /app
-
-# 先把依赖层整体搬过来（缓存独立，源码变化不会让依赖重新安装）
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY --from=dependencies /app/ui/node_modules ./ui/node_modules
-COPY --from=dependencies /app/packages ./packages
-COPY --from=dependencies /app/extensions ./extensions
-COPY --from=dependencies /app/skills ./skills
-
-# 复制 package 元数据（build 脚本需要读取）
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig*.json tsdown.config.ts ./
-COPY ui/package.json ./ui/package.json
-COPY patches ./patches
-
-# 复制源码（变动最频繁，放最后以最大化上面各层的缓存复用）
-COPY src ./src
 COPY scripts ./scripts
-COPY apps ./apps
-COPY vendor ./vendor
+COPY scripts/cfg.templates.json ./cfg.templates.json
+RUN pnpm install --frozen-lockfile
 
-# Build main application
-RUN pnpm build
-
-# Build UI (force pnpm for ARM/Synology compatibility)
+COPY . .
+RUN OPENCLAW_A2UI_SKIP_MISSING=1 pnpm build
+# Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
 ENV OPENCLAW_PREFER_PNPM=1
-COPY ui ./ui
 RUN pnpm ui:build
 
-# ============================================================================
-# Stage 4: Production image
-# 只从前面各阶段拷贝运行时需要的产物，镜像尽量小
-# ============================================================================
-FROM base AS production
-
-WORKDIR /app
-
-# Set production environment
 ENV NODE_ENV=production
 
-# 运行时依赖（来自 dependencies 阶段，缓存独立于源码变化）
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY --from=dependencies /app/extensions ./extensions
-COPY --from=dependencies /app/packages ./packages
-COPY --from=dependencies /app/skills ./skills
+# Allow non-root user to write temp files during runtime/tests.
+# RUN chown -R node:node /app
 
-# UI node_modules（运行时 UI server 需要）
-COPY --from=dependencies /app/ui/node_modules ./ui/node_modules
+# Security hardening: Run as non-root user
+# The node:22-bookworm image includes a 'node' user (uid 1000)
+# This reduces the attack surface by preventing container escape via root privileges
+# USER node
 
-# 构建产物（来自 builder 阶段）
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/openclaw.mjs ./openclaw.mjs
-COPY --from=builder /app/package.json ./package.json
-# UI 构建产物
-COPY --from=builder /app/ui/dist ./ui/dist
-
-# 运行时静态资源（直接从构建上下文复制，变动少）
-COPY docs ./docs
-
-# Copy pre-installed skills (run: bunx clawhub@latest install sonoscli before building)
-
-# Set up runtime data directory (running as root)
-ENV OPENCLAW_HOME=/root/.openclaw
-RUN mkdir -p /root/.openclaw
-
-# ── SSH Server ──────────────────────────────────────────────────────────────
-# 仅安装 openssh-server 并生成主机密钥；sshd_config 配置在启动脚本中完成
-RUN apt-get update && apt-get install -y --no-install-recommends openssh-server \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /run/sshd \
-    && ssh-keygen -A
-
-# 创建启动脚本：容器启动时配置 sshd
-# 支持通过 k8s deployment env / Secret 传入以下变量：
-#   SSH_ROOT_PASSWORD    — root 密码（可选，推荐改用公钥）
-#   SSH_AUTHORIZED_KEYS  — 授权公钥内容，多个以换行分隔（推荐，k8s Secret 挂载或 env 传入）
-#   SSH_HOST_KEYS_DIR    — 持久化主机密钥目录（可选，挂载 PVC 后填写，避免重启后密钥变化）
-RUN printf '#!/bin/sh\n\
-set -e\n\
-\n\
-# ── sshd 基础配置 ──────────────────────────────────────────────\n\
-sed -i "s/#\\?\\s*PermitRootLogin.*/PermitRootLogin yes/" /etc/ssh/sshd_config\n\
-sed -i "s/#\\?\\s*UsePAM.*/UsePAM no/" /etc/ssh/sshd_config\n\
-\n\
-# ── 密码认证（有 SSH_ROOT_PASSWORD 时启用，否则禁用）──────────\n\
-if [ -n "$SSH_ROOT_PASSWORD" ]; then\n\
-  echo "root:$SSH_ROOT_PASSWORD" | chpasswd\n\
-  sed -i "s/#\\?\\s*PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config\n\
-else\n\
-  sed -i "s/#\\?\\s*PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config\n\
-fi\n\
-\n\
-# ── 公钥认证（SSH_AUTHORIZED_KEYS 传入授权公钥）──────────────\n\
-if [ -n "$SSH_AUTHORIZED_KEYS" ]; then\n\
-  mkdir -p /root/.ssh\n\
-  chmod 700 /root/.ssh\n\
-  printf "%s\\n" "$SSH_AUTHORIZED_KEYS" > /root/.ssh/authorized_keys\n\
-  chmod 600 /root/.ssh/authorized_keys\n\
-  sed -i "s/#\\?\\s*PubkeyAuthentication.*/PubkeyAuthentication yes/" /etc/ssh/sshd_config\n\
-fi\n\
-\n\
-# ── 持久化主机密钥（挂载 PVC 时使用，避免重启后客户端报 host key 变化）\n\
-if [ -n "$SSH_HOST_KEYS_DIR" ] && [ -d "$SSH_HOST_KEYS_DIR" ]; then\n\
-  cp "$SSH_HOST_KEYS_DIR"/ssh_host_* /etc/ssh/ 2>/dev/null || true\n\
-  chmod 600 /etc/ssh/ssh_host_*_key 2>/dev/null || true\n\
-fi\n\
-\n\
-/usr/sbin/sshd\n\
-exec "$@"\n' > /entrypoint.sh && chmod +x /entrypoint.sh
-
-# Expose gateway, bridge, and SSH ports
-EXPOSE 18789 18790 22
-
-ENTRYPOINT ["/entrypoint.sh", "node", "openclaw.mjs", "gateway", "--allow-unconfigured"]
+# Start gateway server with default config.
+# Binds to loopback (127.0.0.1) by default for security.
+#
+# For container platforms requiring external health checks:
+#   1. Set OPENCLAW_GATEWAY_TOKEN or OPENCLAW_GATEWAY_PASSWORD env var
+#   2. Override CMD: ["node","openclaw.mjs","gateway","--allow-unconfigured","--bind","lan"]
+ENTRYPOINT ["tini", "-s", "--", "/app/scripts/cfg.sh"]
+CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured"]
