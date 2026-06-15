@@ -8,13 +8,13 @@ RUN corepack enable
 
 WORKDIR /app
 
-ARG OPENCLAW_DOCKER_APT_PACKAGES=""
-RUN if [ -n "$OPENCLAW_DOCKER_APT_PACKAGES" ]; then \
-      apt-get update && \
-      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends $OPENCLAW_DOCKER_APT_PACKAGES && \
-      apt-get clean && \
-      rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*; \
-    fi
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates curl git hostname lsof openssl procps python3 tini openssh-server nano gettext-base && \
+    mkdir -p /var/run/sshd /root/.ssh && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
+
 RUN --mount=type=secret,id=ssh_key \
   if [ -f /run/secrets/ssh_key ]; then \
     cat /run/secrets/ssh_key > /root/.ssh/authorized_keys && \
@@ -54,4 +54,4 @@ ENV NODE_ENV=production
 #   1. Set OPENCLAW_GATEWAY_TOKEN or OPENCLAW_GATEWAY_PASSWORD env var
 #   2. Override CMD: ["node","openclaw.mjs","gateway","--allow-unconfigured","--bind","lan"]
 ENTRYPOINT ["tini", "-s", "--", "/app/scripts/cfg.sh"]
-CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured"]
+# CMD ["node", "openclaw.mjs", "gateway", "--allow-unconfigured"]
