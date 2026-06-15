@@ -2,6 +2,7 @@ services:
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw:latest}
     container_name: openclaw-gateway
+    dockerfile: Dockerfile.ssy
     environment:
       OPENCLAW_TIMEZONE: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
       OPENCLAW_HOME: ${OPENCLAW_HOME:-/home/node}
