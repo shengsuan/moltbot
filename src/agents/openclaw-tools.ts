@@ -112,6 +112,8 @@ export function createOpenClawTools(
     pluginToolDenylist?: string[];
     /** Current channel ID for auto-threading. */
     currentChannelId?: string;
+    /** Routable target for the current conversation when it differs from the native channel ID. */
+    currentMessagingTarget?: string;
     /** Current thread timestamp for auto-threading. */
     currentThreadTs?: string;
     /** Current inbound message id for action fallbacks. */
@@ -165,6 +167,11 @@ export function createOpenClawTools(
     authProfileStore?: AuthProfileStore;
     /** Ephemeral session UUID — regenerated on /new and /reset. */
     sessionId?: string;
+    /**
+     * Explicit one-shot local CLI runs should not keep plugin-owned process
+     * resources alive after emitting their result.
+     */
+    oneShotCliRun?: boolean;
     /**
      * Workspace directory to pass to spawned subagents for inheritance.
      * Defaults to workspaceDir. Use this to pass the actual agent workspace when the
@@ -345,6 +352,7 @@ export function createOpenClawTools(
         sessionId: options?.sessionId,
         config: options?.config,
         currentChannelId: options?.currentChannelId,
+        currentMessagingTarget: options?.currentMessagingTarget,
         currentChannelProvider: options?.agentChannel,
         currentThreadTs: options?.currentThreadTs,
         currentInboundAudio: options?.currentInboundAudio,
