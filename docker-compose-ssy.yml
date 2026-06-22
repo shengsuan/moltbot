@@ -22,7 +22,10 @@ services:
         - SSH_AUTHORIZED_KEYS=${SSH_AUTHORIZED_KEYS:-}
       dockerfile: Dockerfile.ssy
 
-    image: ${OPENCLAW_IMAGE:-openclaw:latest}
+      platforms:
+        - "linux/amd64"
+    # image: ${OPENCLAW_IMAGE:-openclaw:latest}
+    image: registry-ali.shengsuanyun.com/system/openclaw:v2026.6.2
     container_name: openclaw-gateway
     environment:
       OPENCLAW_TIMEZONE: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
