@@ -236,6 +236,8 @@ describe("install.ps1 failure handling", () => {
   it("persists user-local portable Git for future git-backed updates", () => {
     const portableGitRootBody = extractFunctionBody(source, "Get-PortableGitRoot");
     const portableGitBody = extractFunctionBody(source, "Install-PortableGit");
+    const portableArchitectureBody = extractFunctionBody(source, "Get-WindowsPortableArchitecture");
+    const portableGitDownloadBody = extractFunctionBody(source, "Resolve-PortableGitDownload");
     const portableGitPathEntriesBody = extractFunctionBody(source, "Get-PortableGitPathEntries");
     const portableGitPathBody = extractFunctionBody(source, "Ensure-PortableGitOnUserPath");
     const usePortableGitBody = extractFunctionBody(source, "Use-PortableGitIfPresent");
@@ -250,6 +252,53 @@ describe("install.ps1 failure handling", () => {
     expect(ensureGitBody).toContain("Ensure-PortableGitOnUserPath");
     expect(portableGitPathBody).toContain("Add-ToUserPath $pathEntry");
     expect(portableGitPathBody).toContain("git-backed updates");
+    expect(portableArchitectureBody).toContain("PROCESSOR_ARCHITEW6432");
+    expect(portableArchitectureBody).toContain("PROCESSOR_ARCHITECTURE");
+    expect(portableGitDownloadBody).toContain("Get-WindowsPortableArchitecture");
+    expect(portableGitDownloadBody).toContain("'^MinGit-.*-arm64\\.zip$'");
+    expect(portableGitDownloadBody).toContain("'^MinGit-.*-64-bit\\.zip$'");
+  });
+
+  runIfPowerShell("selects native ARM64 MinGit when the release publishes it", () => {
+    const tempDir = harness.createTempDir("openclaw-install-ps1-");
+    const scriptPath = join(tempDir, "install.ps1");
+    const scriptWithoutEntryPoint = source.replace(ENTRYPOINT_RE, "");
+    writeFileSync(
+      scriptPath,
+      [
+        scriptWithoutEntryPoint,
+        "",
+        "$env:PROCESSOR_ARCHITEW6432 = $null",
+        "$env:PROCESSOR_ARCHITECTURE = 'ARM64'",
+        "function Invoke-RestMethod {",
+        "  [pscustomobject]@{",
+        "    tag_name = 'v2.54.0.windows.1'",
+        "    assets = @(",
+        "      [pscustomobject]@{ name = 'MinGit-2.54.0-64-bit.zip'; browser_download_url = 'https://example.test/x64.zip' },",
+        "      [pscustomobject]@{ name = 'MinGit-2.54.0-arm64.zip'; browser_download_url = 'https://example.test/arm64.zip' },",
+        "      [pscustomobject]@{ name = 'MinGit-2.54.0-busybox-64-bit.zip'; browser_download_url = 'https://example.test/busybox.zip' }",
+        "    )",
+        "  }",
+        "}",
+        "$download = Resolve-PortableGitDownload",
+        "if ($download.Name -ne 'MinGit-2.54.0-arm64.zip') { throw \"Name=$($download.Name)\" }",
+        "if ($download.Url -ne 'https://example.test/arm64.zip') { throw \"Url=$($download.Url)\" }",
+        "",
+      ].join("\n"),
+    );
+    chmodSync(scriptPath, 0o755);
+
+    const result = runPowerShell([
+      "-NoLogo",
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      scriptPath,
+    ]);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
   });
 
   it("activates the repo-pinned pnpm version for git installs", () => {
@@ -293,11 +342,6 @@ describe("install.ps1 failure handling", () => {
     expect(mainBody).toContain("$npmInstallResults = @(Install-OpenClaw)");
     expect(mainBody).toContain("Test-BooleanSuccessResult -Results $npmInstallResults");
     expect(gitInstallBody).toContain("Push-Location -LiteralPath $RepoDir");
-<<<<<<< HEAD
-    expect(gitInstallBody).toContain("& $pnpmCommand install");
-    expect(gitInstallBody).toContain('Write-Host "[!] pnpm install failed for the Git checkout"');
-    expect(gitInstallBody).toContain("& $pnpmCommand build");
-=======
     expect(gitInstallBody).toContain("$sourceInstallArgs = @(");
     expect(gitInstallBody).toContain('"--config.node-linker=hoisted"');
     expect(gitInstallBody).toContain('"--config.enable-pre-post-scripts=true"');
@@ -339,7 +383,6 @@ describe("install.ps1 failure handling", () => {
       "$env:PNPM_CONFIG_WORKSPACE_CONCURRENCY = $prevPnpmWorkspaceConcurrency",
     );
     expect(gitInstallBody).toContain("Add-ToUserPath $binDir");
->>>>>>> fd7e1815006a67575bd749309c1377ff3bff5d15
     expect(gitInstallBody).toContain('Write-Host "[!] pnpm build failed for the Git checkout"');
     expect(gitInstallBody).toContain('$entryPath = Join-Path $RepoDir "dist\\\\entry.js"');
     expect(gitInstallBody).toContain("Test-Path $entryPath");
@@ -490,8 +533,6 @@ describe("install.ps1 failure handling", () => {
       "-Command",
       `. ${toPowerShellSingleQuotedLiteral(scriptPath)}`,
     ]);
-<<<<<<< HEAD
-=======
 
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
@@ -527,7 +568,6 @@ describe("install.ps1 failure handling", () => {
       "-Command",
       `. ${toPowerShellSingleQuotedLiteral(scriptPath)}`,
     ]);
->>>>>>> fd7e1815006a67575bd749309c1377ff3bff5d15
 
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
