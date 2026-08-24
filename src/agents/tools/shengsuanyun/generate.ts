@@ -1,4 +1,3 @@
-import type { TextContent, ImageContent } from "../../../llm/types.js";
 import {
   getShengSuanYunModalityModels,
   SHENGSUANYUN_BASE_URL,
@@ -6,12 +5,13 @@ import {
 import { Type, type TSchema } from "typebox";
 import type { OpenClawConfig } from "../../../config/config.ts";
 import { loadConfig } from "../../../config/config.ts";
-import { resolveApiKeyForProvider } from "../../model-auth.ts";
+import type { TextContent, ImageContent } from "../../../llm/types.js";
+import { createSubsystemLogger } from "../../../logging/subsystem.ts";
+import { resolveApiKeyForProviderCore } from "../../model-auth.ts";
 import type { AnyAgentTool } from "../common.ts";
-import { readStringParam, readStringArrayParam, readNumberParam } from "../common.ts";
+import { readToolStringParam, readStringArrayParam, readNumberParam } from "../common.ts";
 import { toolDescriptionMap } from "./meta.ts";
 import { saveMediaToWorkspace } from "./save-media.ts";
-import { createSubsystemLogger } from "../../../logging/subsystem.ts";
 const log = createSubsystemLogger("shengsuanyun-generate-tools");
 export const APP_HEADERS: Record<string, string> = {
   "HTTP-Referer": "https://openclaw.ai",
@@ -58,7 +58,7 @@ async function generate(
 
     if (!res.ok) {
       try {
-        const errorData = await res.json();
+        const errorData = (await res.json()) as { message?: string };
         return { success: false, error: errorData.message || `Error ${res.status}` };
       } catch {
         return { success: false, error: `API Error: ${res.status} ${res.statusText}` };
@@ -180,7 +180,7 @@ async function loadShengSuanYunTools(opts?: {
         ];
         const resolved = await Promise.any(
           providers.map(async (p) => {
-            const res = await resolveApiKeyForProvider({ provider: p, cfg });
+            const res = await resolveApiKeyForProviderCore({ provider: p, cfg });
             if (res?.apiKey) {
               return res;
             }
@@ -213,7 +213,7 @@ async function loadShengSuanYunTools(opts?: {
                 apiParams[key] = value;
               }
             } else {
-              const value = readStringParam(params, key, { required: isRequired });
+              const value = readToolStringParam(params, key, { required: isRequired });
               if (value !== undefined) {
                 apiParams[key] = value;
               }
