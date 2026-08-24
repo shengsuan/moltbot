@@ -1,14 +1,21 @@
 // Shared session-store helpers for command handlers that mutate sessions.
-import { resolveSessionStoreEntry, type SessionEntry } from "../../config/sessions.js";
-import { patchSessionEntry } from "../../config/sessions/session-accessor.js";
+import { resolveSessionStoreEntryCore, type SessionEntry } from "../../config/sessions.js";
+import { patchSessionEntryCore } from "../../config/sessions/session-accessor.js";
+import { sessionSnapshotChangesApplied } from "../../config/sessions/session-snapshot-merge.js";
 import { applyAbortCutoffToSessionEntry, type AbortCutoff } from "./abort-cutoff.js";
-import type { CommandHandler } from "./commands-types.js";
+import type { CommandHandler, CommandHandlerResult } from "./commands-types.js";
+import { persistReplySessionEntry } from "./session-entry-persistence.js";
 
 type CommandParams = Parameters<CommandHandler>[0];
 type PersistSessionEntryParams = Pick<
   CommandParams,
-  "sessionEntry" | "sessionStore" | "sessionKey" | "storePath"
->;
+  | "allowCreateSessionEntry"
+  | "initialSessionEntry"
+  | "sessionEntry"
+  | "sessionKey"
+  | "sessionStore"
+  | "storePath"
+> & { touchedFields?: ReadonlyArray<keyof SessionEntry> };
 
 /** Resolves a command target entry through canonical and legacy session keys. */
 export function resolveCommandSessionEntryForKey(
@@ -18,7 +25,7 @@ export function resolveCommandSessionEntryForKey(
   if (!store || !sessionKey) {
     return {};
   }
-  const resolved = resolveSessionStoreEntry({ store, sessionKey });
+  const resolved = resolveSessionStoreEntryCore({ store, sessionKey });
   if (!resolved.existing) {
     return {};
   }
@@ -28,28 +35,50 @@ export function resolveCommandSessionEntryForKey(
   };
 }
 
-export async function persistSessionEntry(params: PersistSessionEntryParams): Promise<boolean> {
+export async function persistCommandSession(params: PersistSessionEntryParams): Promise<boolean> {
   if (!params.sessionEntry || !params.sessionStore || !params.sessionKey) {
     return false;
   }
   const sessionEntry = params.sessionEntry;
+  const creatingSession = params.allowCreateSessionEntry === true;
+  const initialEntry = params.initialSessionEntry ?? { ...sessionEntry };
   sessionEntry.updatedAt = Date.now();
   params.sessionStore[params.sessionKey] = sessionEntry;
   if (params.storePath) {
     // Slash commands mutate one known session entry; skipping global session
     // maintenance avoids scanning the whole sessions directory for simple
     // command-only writes.
-    await patchSessionEntry(
-      { storePath: params.storePath, sessionKey: params.sessionKey },
-      () => sessionEntry,
-      {
-        fallbackEntry: sessionEntry,
-        replaceEntry: true,
-        skipMaintenance: true,
-      },
-    );
+    const persistence = await persistReplySessionEntry({
+      storePath: params.storePath,
+      sessionKey: params.sessionKey,
+      allowCreate: creatingSession,
+      initialEntry,
+      entry: sessionEntry,
+      skipMaintenance: true,
+      touchedFields: params.touchedFields,
+    });
+    if (persistence.status === "lifecycle-invalidated") {
+      if (persistence.entry) {
+        params.sessionStore[params.sessionKey] = persistence.entry;
+      }
+      return false;
+    }
+    params.sessionStore[params.sessionKey] = persistence.entry;
+    return sessionSnapshotChangesApplied({
+      initial: initialEntry,
+      next: sessionEntry,
+      current: persistence.entry,
+      touchedFields: params.touchedFields,
+    });
   }
   return true;
+}
+
+export function sessionEntryPersistenceConflictReply(): CommandHandlerResult {
+  return {
+    shouldContinue: false,
+    reply: { text: "⚠️ Session changed before this setting could be saved. Retry the command." },
+  };
 }
 
 export async function persistAbortTargetEntry(params: {
@@ -70,7 +99,7 @@ export async function persistAbortTargetEntry(params: {
   sessionStore[key] = entry;
 
   if (storePath) {
-    await patchSessionEntry(
+    await patchSessionEntryCore(
       { storePath, sessionKey: key },
       (nextEntry) => {
         nextEntry.abortedLastRun = true;

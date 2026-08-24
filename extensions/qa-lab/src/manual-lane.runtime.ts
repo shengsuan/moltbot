@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { formatErrorMessage } from "openclaw/plugin-sdk/error-runtime";
+import { toQaError } from "./errors.js";
 import { startQaGatewayChild } from "./gateway-child.js";
 import { startQaLabServer } from "./lab-server.js";
 import { resolveQaLiveTurnTimeoutMs } from "./live-timeout.js";
@@ -31,21 +32,30 @@ type ManualLaneResult = {
   watchUrl: string;
 };
 
-function normalizeManualLaneCleanupError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(formatErrorMessage(error));
+async function stopManualLaneResource(
+  resource: { stop: () => Promise<void> | void } | null | undefined,
+): Promise<Error | undefined> {
+  if (!resource) {
+    return undefined;
+  }
+  try {
+    await resource.stop();
+    return undefined;
+  } catch (error) {
+    return toQaError(error);
+  }
 }
 
-async function stopManualLaneResources(resources: {
-  gateway?: { stop: () => Promise<void> | void };
+async function stopManualLaneAuxiliaryResources(resources: {
   lab?: { stop: () => Promise<void> | void };
   mock?: { stop: () => Promise<void> | void } | null;
 }): Promise<Error | undefined> {
-  const stopTasks = [resources.gateway, resources.mock, resources.lab]
+  const stopTasks = [resources.mock, resources.lab]
     .filter((resource): resource is { stop: () => Promise<void> | void } => Boolean(resource))
     .map((resource) => Promise.resolve().then(() => resource.stop()));
   const results = await Promise.allSettled(stopTasks);
   const failed = results.find((result) => result.status === "rejected");
-  return failed ? normalizeManualLaneCleanupError(failed.reason) : undefined;
+  return failed ? toQaError(failed.reason) : undefined;
 }
 
 function resolveManualLaneTimeoutMs(params: {
@@ -77,6 +87,8 @@ export async function runQaManualLane(params: QaManualLaneParams) {
   let gateway: Awaited<ReturnType<typeof startQaGatewayChild>> | undefined;
   let lab: Awaited<ReturnType<typeof startQaLabServer>> | undefined;
   let mock: Awaited<ReturnType<typeof startQaProviderServer>> | undefined;
+  let transportCleanupBeforeGatewayStop: (() => Promise<void>) | undefined;
+  let transportCleanupAfterGatewayStop: (() => Promise<void>) | undefined;
   let result: ManualLaneResult | undefined;
   let cleanupError: Error | undefined;
   let runError: unknown;
@@ -86,11 +98,18 @@ export async function runQaManualLane(params: QaManualLaneParams) {
       repoRoot: params.repoRoot,
       embeddedGateway: "disabled",
     });
-    const transport = createQaTransportAdapter({
-      id: params.transportId ?? "qa-channel",
+    const transportFactoryResult = await createQaTransportAdapter({
+      channelId: params.transportId ?? "qa-channel",
+      driver: params.transportId ?? "qa-channel",
+      outputDir: params.repoRoot,
       state: lab.state,
     });
-    mock = await startQaProviderServer(params.providerMode);
+    const transport = transportFactoryResult.adapter;
+    transportCleanupBeforeGatewayStop = transportFactoryResult.cleanupBeforeGatewayStop;
+    transportCleanupAfterGatewayStop = transportFactoryResult.cleanupAfterGatewayStop;
+    mock = await startQaProviderServer(params.providerMode, {
+      modelRefs: [params.primaryModel, params.alternateModel],
+    });
     gateway = await startQaGatewayChild({
       repoRoot: params.repoRoot,
       providerBaseUrl: mock ? `${mock.baseUrl}/v1` : undefined,
@@ -164,7 +183,23 @@ export async function runQaManualLane(params: QaManualLaneParams) {
   } catch (error) {
     runError = error;
   } finally {
-    cleanupError = await stopManualLaneResources({ gateway, lab, mock });
+    let transportCleanupBeforeError: Error | undefined;
+    await transportCleanupBeforeGatewayStop?.().catch((error: unknown) => {
+      transportCleanupBeforeError = toQaError(error);
+    });
+    const gatewayCleanupError = await stopManualLaneResource(gateway);
+    let transportCleanupAfterError: Error | undefined;
+    if (!gatewayCleanupError) {
+      await transportCleanupAfterGatewayStop?.().catch((error: unknown) => {
+        transportCleanupAfterError = toQaError(error);
+      });
+    }
+    const auxiliaryCleanupError = await stopManualLaneAuxiliaryResources({ lab, mock });
+    cleanupError =
+      transportCleanupBeforeError ??
+      gatewayCleanupError ??
+      transportCleanupAfterError ??
+      auxiliaryCleanupError;
   }
   if (runError) {
     throw new Error(formatErrorMessage(runError), { cause: runError });

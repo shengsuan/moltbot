@@ -1,21 +1,6 @@
-#!/usr/bin/env node
-// Normalizes package-acceptance inputs into the tarball shape consumed by Docker E2E.
-import { spawn, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { lookup as dnsLookupCb } from "node:dns";
-import { lookup as dnsLookup } from "node:dns/promises";
-import { once } from "node:events";
-import { createWriteStream } from "node:fs";
-import fs from "node:fs/promises";
-import { request as httpsRequest } from "node:https";
-import { isIP } from "node:net";
-import os from "node:os";
-import path from "node:path";
-import { pipeline } from "node:stream/promises";
-import { fileURLToPath } from "node:url";
-import { resolveWindowsTaskkillPath } from "./lib/windows-taskkill.mjs";
-import { resolveNpmRunner } from "./npm-runner.mjs";
+import { runTsxCliShim } from "./lib/tsx-cli-shim.mjs";
 
+<<<<<<< HEAD
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_OUTPUT_NAME = "openclaw-current.tgz";
 const PACKAGE_URL_DOWNLOAD_TIMEOUT_MS = 60_000;
@@ -1640,3 +1625,8 @@ function toLintErrorObject(value, fallbackMessage) {
   }
   return error;
 }
+=======
+await runTsxCliShim(import.meta.url, {
+  implementation: "./resolve-openclaw-package-candidate.mts",
+});
+>>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb

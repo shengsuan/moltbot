@@ -3,10 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/memory-core-host-engine-foundation";
+import { resetPluginStateStoreForTests } from "openclaw/plugin-sdk/plugin-state-test-runtime";
 import { resolveOpenClawAgentSqlitePath } from "openclaw/plugin-sdk/sqlite-runtime";
+import { closeOpenClawAgentDatabasesForTest } from "openclaw/plugin-sdk/sqlite-runtime-testing";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { closeAllMemorySearchManagers, getMemorySearchManager } from "./index.js";
 import type { MemoryIndexManager } from "./manager.js";
+import { isolateMemoryManagerTestConfig } from "./test-config-helpers.js";
 import "./test-runtime-mocks.js";
 
 const createEmbeddingProviderMock = vi.hoisted(() =>
@@ -44,7 +47,7 @@ describe("memory manager self-heal missing identity with FTS-only chunks", () =>
   let caseId = 0;
   let workspaceDir = "";
   let indexPath = "";
-  let manager: MemoryIndexManager | null = null;
+  let managers: MemoryIndexManager[] = [];
 
   function indexIdentityStatus(memoryManager: MemoryIndexManager): string | undefined {
     const identity = memoryManager.status().custom?.indexIdentity as
@@ -67,50 +70,65 @@ describe("memory manager self-heal missing identity with FTS-only chunks", () =>
   });
 
   afterEach(async () => {
-    if (manager) {
-      await manager.close();
-      manager = null;
+    for (const activeManager of managers.toReversed()) {
+      await activeManager.close();
     }
+    managers = [];
     await closeAllMemorySearchManagers();
     restoreSelfHealStateDir();
   });
 
   afterAll(async () => {
     await closeAllMemorySearchManagers();
+    // The agent close releases its leases through shared state and reopens it, so the
+    // shared handle is released second; otherwise Windows fails the removal with EBUSY.
+    closeOpenClawAgentDatabasesForTest();
+    resetPluginStateStoreForTests();
     if (fixtureRoot) {
       await fs.rm(fixtureRoot, { recursive: true, force: true });
     }
   });
 
   async function createManager(
-    params: { provider?: string; vectorEnabled?: boolean } = {},
+    params: {
+      provider?: string;
+      vectorEnabled?: boolean;
+      purpose?: "default" | "status" | "cli";
+    } = {},
   ): Promise<MemoryIndexManager> {
     const store =
       params.vectorEnabled === undefined
         ? undefined
         : { vector: { enabled: params.vectorEnabled } };
-    const cfg = {
-      memory: { backend: "builtin" },
+    const cfg = isolateMemoryManagerTestConfig({
+      memory: {
+        backend: "builtin",
+        search: {
+          provider: params.provider ?? "auto",
+          model: "",
+          store,
+          cache: { enabled: false },
+          sync: { watch: false, onSessionStart: false, onSearch: false },
+        },
+      },
       agents: {
         defaults: {
           workspace: workspaceDir,
-          memorySearch: {
-            provider: params.provider ?? "auto",
-            model: "",
-            store,
-            cache: { enabled: false },
-            sync: { watch: false, onSessionStart: false, onSearch: false },
-          },
         },
         list: [{ id: "main", default: true }],
       },
-    } as OpenClawConfig;
-    const result = await getMemorySearchManager({ cfg, agentId: "main" });
+    } as OpenClawConfig);
+    const result = await getMemorySearchManager({
+      cfg,
+      agentId: "main",
+      purpose: params.purpose,
+    });
     if (!result.manager) {
       throw new Error(result.error ?? "manager missing");
     }
-    manager = result.manager as unknown as MemoryIndexManager;
-    return manager;
+    const activeManager = result.manager as unknown as MemoryIndexManager;
+    managers.push(activeManager);
+    return activeManager;
   }
 
   async function seedChunksWithNoMeta(model = "fts-only"): Promise<void> {
@@ -171,5 +189,31 @@ describe("memory manager self-heal missing identity with FTS-only chunks", () =>
     expect(indexIdentityStatus(memoryManager)).toBe("missing");
     expect(statusAfter.chunks).toBe(1);
     expect(statusAfter.dirty).toBe(true);
+  });
+
+  it("observes a separate CLI reindex without reopening the live gateway manager", async () => {
+    const liveManager = await createManager({ provider: "none", vectorEnabled: false });
+    await liveManager.sync({ reason: "test", force: true });
+    (
+      liveManager as unknown as {
+        db: { exec: (sql: string) => void };
+      }
+    ).db.exec(`DELETE FROM memory_index_meta WHERE key = 'memory_index_meta_v1'`);
+    expect(indexIdentityStatus(liveManager)).toBe("missing");
+
+    await fs.writeFile(
+      path.join(workspaceDir, "MEMORY.md"),
+      "Beta topic\n\nKeep this repaired note.",
+    );
+    const cliManager = await createManager({
+      provider: "none",
+      vectorEnabled: false,
+      purpose: "cli",
+    });
+    await cliManager.sync({ reason: "cli", force: true });
+
+    expect(indexIdentityStatus(liveManager)).toBe("valid");
+    const results = await liveManager.search("beta repaired");
+    expect(results.some((result) => result.snippet.includes("Beta topic"))).toBe(true);
   });
 });

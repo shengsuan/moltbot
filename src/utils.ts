@@ -5,12 +5,16 @@ import path from "node:path";
 import { pathExists as fsSafePathExists } from "./infra/fs-safe.js";
 import {
   resolveEffectiveHomeDir,
-  resolveHomeRelativePath,
   resolveRequiredHomeDir,
+  resolveUserPath,
 } from "./infra/home-dir.js";
+import { shortenPathWithHome } from "./infra/home-display.js";
 import { isPlainObject } from "./infra/plain-object.js";
-import { resolveTimerTimeoutMs } from "./shared/number-coercion.js";
+import { escapeRegExp as escapeRegExpValue } from "./shared/regexp.js";
 export { escapeRegExp } from "./shared/regexp.js";
+export { sleep } from "./utils/sleep.js";
+export { isRecord } from "@openclaw/normalization-core/record-coerce";
+export { resolveUserPath };
 
 /** Creates a directory tree if it does not already exist. */
 export async function ensureDir(dir: string) {
@@ -34,7 +38,7 @@ export const clamp = clampNumber;
  * Safely parse JSON, returning null on error instead of throwing.
  */
 // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- JSON parsing helper lets callers ascribe the expected payload type.
-export function safeParseJson<T>(raw: string): T | null {
+export function tryParseJson<T>(raw: string): T | null {
   try {
     return JSON.parse(raw) as T;
   } catch {
@@ -44,47 +48,17 @@ export function safeParseJson<T>(raw: string): T | null {
 
 export { isPlainObject };
 
-/**
- * Type guard for Record<string, unknown> (less strict than isPlainObject).
- * Accepts any non-null object that isn't an array.
- */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 /** Normalizes phone-like input into the loose E.164 shape used by channel helpers. */
 export function normalizeE164(number: string): string {
   const withoutPrefix = number.replace(/^[a-z][a-z0-9-]*:/i, "").trim();
-  const digits = withoutPrefix.replace(/[^\d+]/g, "");
-  if (digits.startsWith("+")) {
-    return `+${digits.slice(1)}`;
-  }
-  return `+${digits}`;
-}
-
-/** Promise-based sleep that clamps timer inputs through the shared timeout resolver. */
-export function sleep(ms: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, resolveTimerTimeoutMs(ms, 0, 0));
-  });
+  const digits = withoutPrefix.replace(/\D/g, "");
+  return digits ? `+${digits}` : "";
 }
 
 // Surrogate-safe slicing helpers live in a node-free leaf module so browser/UI
 // bundles can import them without pulling in filesystem code. Re-exported here
 // to preserve the historical `utils.ts` import surface.
-export { sliceUtf16Safe, truncateUtf16Safe } from "./shared/utf16-slice.js";
-
-/** Resolves `~` and OpenClaw home-relative paths with injectable env/home sources. */
-export function resolveUserPath(
-  input: string,
-  env: NodeJS.ProcessEnv = process.env,
-  homedir: () => string = os.homedir,
-): string {
-  if (!input) {
-    return "";
-  }
-  return resolveHomeRelativePath(input, { env, homedir });
-}
+export { sliceUtf16Safe, truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
 
 /** Resolves the OpenClaw config directory from state/config env overrides or home. */
 export function resolveConfigDir(
@@ -130,21 +104,11 @@ function resolveHomeDisplayPrefix(): { home: string; prefix: string } | undefine
 
 /** Replaces the leading home directory in a path with `~` or `$OPENCLAW_HOME`. */
 export function shortenHomePath(input: string): string {
-  if (!input) {
-    return input;
-  }
   const display = resolveHomeDisplayPrefix();
   if (!display) {
     return input;
   }
-  const { home, prefix } = display;
-  if (input === home) {
-    return prefix;
-  }
-  if (input.startsWith(`${home}/`) || input.startsWith(`${home}\\`)) {
-    return `${prefix}${input.slice(home.length)}`;
-  }
-  return input;
+  return shortenPathWithHome(input, display);
 }
 
 /** Replaces all effective-home occurrences inside a diagnostic string. */
@@ -155,6 +119,9 @@ export function shortenHomeInString(input: string): string {
   const display = resolveHomeDisplayPrefix();
   if (!display) {
     return input;
+  }
+  if (process.platform === "win32") {
+    return input.replace(new RegExp(escapeRegExpValue(display.home), "giu"), display.prefix);
   }
   return input.split(display.home).join(display.prefix);
 }

@@ -1,3 +1,4 @@
+import { expectDefined } from "@openclaw/normalization-core";
 import { hasNonzeroUsage, type NormalizedUsage } from "../../agents/usage.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { PluginHookReplyUsageState } from "../../plugins/hook-types.js";
@@ -15,7 +16,7 @@ import { buildUsageContract } from "../usage-bar/contract.js";
 import { loadUsageBarTemplate } from "../usage-bar/template.js";
 import { renderUsageBar } from "../usage-bar/translator.js";
 
-export const formatResponseUsageLine = (params: {
+const formatResponseUsageLine = (params: {
   usage?: {
     input?: number;
     output?: number;
@@ -62,6 +63,7 @@ export const formatResponseUsageLine = (params: {
 
 export const resolveResponseUsageLine = (params: {
   config: OpenClawConfig;
+  agentDir: string;
   sessionRaw?: string | null;
   channel?: string;
   usage?: NormalizedUsage;
@@ -87,6 +89,7 @@ export const resolveResponseUsageLine = (params: {
     provider: params.provider,
     model: params.model,
     config: params.config,
+    agentDir: params.agentDir,
     allowPluginNormalization: false,
   });
   const showCost = responseUsageMode === "full" && costConfig !== undefined;
@@ -119,9 +122,9 @@ export const appendUsageLine = (payloads: ReplyPayload[], line: string): ReplyPa
     }
   }
   if (index === -1) {
-    return [...payloads, { text: line }];
+    return [...payloads, { text: line, isStatusNotice: true }];
   }
-  const existing = payloads[index];
+  const existing = expectDefined(payloads[index], "payloads entry at index");
   const existingText = existing.text ?? "";
   const separator = existingText.endsWith("\n") ? "" : "\n";
   const next = {

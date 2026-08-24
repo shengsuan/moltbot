@@ -1,6 +1,9 @@
 // Web search runtime types describe search provider factories and dependencies.
 import type { OpenClawConfig } from "../config/types.openclaw.js";
+<<<<<<< HEAD
 import type { PluginWebSearchProviderEntry } from "../plugins/web-provider-types.js";
+=======
+>>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import type { RuntimeWebSearchMetadata } from "../secrets/runtime-web-tools.types.js";
 
 // Shared web_search runtime contracts. Keep these in a types-only module so
@@ -33,11 +36,4 @@ export type RunWebSearchResult = {
   provider: string;
   result: Record<string, unknown>;
 };
-
-/** List-provider query parameters. */
-export type ListWebSearchProvidersParams = {
-  config?: OpenClawConfig;
-};
-
-export type RuntimeWebSearchProviderEntry = PluginWebSearchProviderEntry;
 export type RuntimeWebSearchConfig = WebSearchConfig;

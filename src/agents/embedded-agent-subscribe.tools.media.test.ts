@@ -1,11 +1,11 @@
 // Tool media extraction tests cover structured media payloads, image fallbacks,
 // trust decisions, and filtering of local/remote media URLs.
 import { describe, expect, it } from "vitest";
+import { isToolResultMediaTrusted } from "./embedded-agent-subscribe.tools.test-support.js";
 import {
   extractToolResultMediaArtifact,
   filterToolResultMediaUrls,
-  isToolResultMediaTrusted,
-} from "./embedded-agent-subscribe.tools.js";
+} from "./embedded-agent-tool-media.js";
 
 describe("extractToolResultMediaArtifact", () => {
   it("returns undefined for null/undefined", () => {
@@ -30,6 +30,18 @@ describe("extractToolResultMediaArtifact", () => {
     ).toEqual({
       mediaUrls: ["/tmp/img.png", "/tmp/img-2.png"],
     });
+  });
+
+  it("does not deliver explicitly private image results", () => {
+    expect(
+      extractToolResultMediaArtifact({
+        content: [{ type: "image", data: "base64data", mimeType: "image/png" }],
+        details: {
+          path: "/tmp/browser-screenshot.png",
+          media: { outbound: false },
+        },
+      }),
+    ).toBeUndefined();
   });
 
   it("extracts structured details.media top-level aliases", () => {

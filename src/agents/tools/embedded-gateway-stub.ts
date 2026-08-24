@@ -4,6 +4,7 @@ import { normalizeFastMode, type FastMode } from "@openclaw/normalization-core/s
  *
  * Implements only the Gateway calls needed by session tools and rejects unsupported methods.
  */
+import { asPositiveSafeInteger } from "@openclaw/normalization-core/number-coercion";
 import { normalizeFastMode, type FastMode } from "@openclaw/normalization-core/string-coerce";
 import type {
   SessionsListParams,
@@ -18,9 +19,11 @@ import type {
 import type { SessionsListResult } from "../../gateway/session-utils.types.js";
 import type { SessionsResolveResult } from "../../gateway/sessions-resolve.js";
 import { parseAgentSessionKey } from "../../routing/session-key.js";
-import { readNumberParam, readPositiveIntegerParam } from "./common.js";
+import { readNonNegativeIntegerParam, readPositiveIntegerParam } from "./common.js";
 
 type EmbeddedCallGateway = <T = Record<string, unknown>>(opts: CallGatewayOptions) => Promise<T>;
+
+const SESSIONS_SEARCH_MAX_QUERY_CHARS = 4096;
 
 interface EmbeddedGatewayRuntime {
   resolveSessionAgentId: (opts: {
@@ -29,6 +32,23 @@ interface EmbeddedGatewayRuntime {
     agentId?: string;
   }) => string;
   getRuntimeConfig: () => OpenClawConfig;
+  resolveDefaultAgentId: (config: OpenClawConfig) => string;
+  resolveSessionStoreKey: (params: { cfg: OpenClawConfig; sessionKey: string }) => string;
+  resolveStoredSessionKeyForAgentStore: (params: {
+    cfg: OpenClawConfig;
+    agentId: string;
+    sessionKey: string;
+  }) => string;
+  searchSessionTranscripts: (params: {
+    agentId: string;
+    limit?: number;
+    query: string;
+    sessionKeys?: string[];
+  }) => {
+    hits: unknown[];
+    indexing: boolean;
+    truncated: boolean;
+  };
   augmentChatHistoryWithCliSessionImports: (opts: {
     entry: unknown;
     provider: string | undefined;
@@ -37,9 +57,6 @@ interface EmbeddedGatewayRuntime {
   getMaxChatHistoryMessagesBytes: () => number;
   augmentChatHistoryWithCanvasBlocks: (msgs: unknown[]) => unknown[];
   CHAT_HISTORY_MAX_SINGLE_MESSAGE_BYTES: number;
-  enforceChatHistoryFinalBudget: (opts: { messages: unknown[]; maxBytes: number }) => {
-    messages: unknown[];
-  };
   replaceOversizedChatHistoryMessages: (opts: {
     messages: unknown[];
     maxSingleMessageBytes: number;
@@ -61,15 +78,16 @@ interface EmbeddedGatewayRuntime {
     store: unknown;
     opts: SessionsListParams;
   }) => Promise<SessionsListResult>;
-  loadCombinedSessionStoreForGateway: (
+  loadCombinedSessionStoreForGatewayCore: (
     cfg: OpenClawConfig,
-    opts?: { agentId?: string },
+    opts?: { agentId?: string; projection?: "full" | "list" },
   ) => {
     storePath: string;
     store: unknown;
   };
   resolveSessionKeyFromResolveParams: (opts: {
     cfg: OpenClawConfig;
+    client: null;
     p: SessionsResolveParams;
   }) => Promise<SessionsResolveResult>;
   loadSessionEntry: (
@@ -110,10 +128,7 @@ async function getRuntime(): Promise<EmbeddedGatewayRuntime> {
 }
 
 function readOffsetParam(params: Record<string, unknown>): number | undefined {
-  const offset = readNumberParam(params, "offset", {
-    integer: true,
-    nonNegativeInteger: true,
-  });
+  const offset = readNonNegativeIntegerParam(params, "offset");
   if (params.offset !== undefined && offset === undefined) {
     throw new Error("offset must be a non-negative integer");
   }
@@ -129,7 +144,7 @@ function readChatHistoryMessageSeq(message: unknown): number | undefined {
     return undefined;
   }
   const seq = (metadata as Record<string, unknown>).seq;
-  return typeof seq === "number" && Number.isSafeInteger(seq) && seq > 0 ? seq : undefined;
+  return asPositiveSafeInteger(seq);
 }
 
 function resolveChatHistoryNextOffset(params: {
@@ -183,8 +198,9 @@ async function handleSessionsList(params: Record<string, unknown>) {
   const rt = await getRuntime();
   const cfg = rt.getRuntimeConfig();
   const opts = params as SessionsListParams;
-  const { storePath, store } = rt.loadCombinedSessionStoreForGateway(cfg, {
+  const { storePath, store } = rt.loadCombinedSessionStoreForGatewayCore(cfg, {
     agentId: opts.agentId,
+    projection: "list",
   });
   return rt.listSessionsFromStoreAsync({
     cfg,
@@ -199,6 +215,7 @@ async function handleSessionsResolve(params: Record<string, unknown>) {
   const cfg = rt.getRuntimeConfig();
   const resolved = await rt.resolveSessionKeyFromResolveParams({
     cfg,
+    client: null,
     p: params as SessionsResolveParams,
   });
   if (!resolved.ok) {
@@ -207,7 +224,70 @@ async function handleSessionsResolve(params: Record<string, unknown>) {
   if ("missing" in resolved) {
     return { ok: false };
   }
-  return { ok: true, key: resolved.key };
+  if ("ambiguous" in resolved) {
+    return { ok: false, candidates: resolved.candidates };
+  }
+  return { ok: true, key: resolved.key, agentId: resolved.agentId };
+}
+
+async function handleSessionsSearch(params: Record<string, unknown>) {
+  const rt = await getRuntime();
+  const cfg = rt.getRuntimeConfig();
+  const query = typeof params.query === "string" ? params.query.trim() : "";
+  if (!query) {
+    throw new Error("query must not be empty");
+  }
+  if (query.length > SESSIONS_SEARCH_MAX_QUERY_CHARS) {
+    throw new Error(`query must not exceed ${SESSIONS_SEARCH_MAX_QUERY_CHARS} characters`);
+  }
+  if (params.agentId !== undefined && params.sessionKeys === undefined) {
+    throw new Error("agentId requires sessionKeys");
+  }
+  const requestedSessionKeys = Array.isArray(params.sessionKeys)
+    ? params.sessionKeys.filter(
+        (sessionKey): sessionKey is string => typeof sessionKey === "string",
+      )
+    : undefined;
+  // Mirror the gateway protocol validator: an explicit sessionKeys filter must
+  // stay non-empty, or an empty array would silently widen to an unfiltered
+  // agent-wide search.
+  if (params.sessionKeys !== undefined && (requestedSessionKeys?.length ?? 0) === 0) {
+    throw new Error("sessionKeys must be a non-empty array of session keys");
+  }
+  const requestedAgentId = typeof params.agentId === "string" ? params.agentId.trim() : undefined;
+  const sessionKeys = requestedSessionKeys?.map((sessionKey) =>
+    requestedAgentId
+      ? rt.resolveStoredSessionKeyForAgentStore({ cfg, agentId: requestedAgentId, sessionKey })
+      : rt.resolveSessionStoreKey({ cfg, sessionKey }),
+  );
+  const agentIds = new Set(
+    sessionKeys?.map((sessionKey) =>
+      rt.resolveSessionAgentId({
+        sessionKey,
+        config: cfg,
+        ...(requestedAgentId ? { agentId: requestedAgentId } : {}),
+      }),
+    ),
+  );
+  if (
+    agentIds.size > 1 ||
+    (requestedAgentId && [...agentIds].some((agentId) => agentId !== requestedAgentId))
+  ) {
+    throw new Error("sessions.search supports one agent per call");
+  }
+  const agentId =
+    requestedAgentId ?? agentIds.values().next().value ?? rt.resolveDefaultAgentId(cfg);
+  const result = rt.searchSessionTranscripts({
+    agentId,
+    query,
+    limit: readPositiveIntegerParam(params, "limit"),
+    ...(sessionKeys ? { sessionKeys } : {}),
+  });
+  return {
+    results: result.hits,
+    ...(result.indexing ? { indexing: true } : {}),
+    ...(result.truncated ? { truncated: true } : {}),
+  };
 }
 
 async function handleChatHistory(params: Record<string, unknown>): Promise<{
@@ -370,11 +450,10 @@ async function handleChatHistory(params: Record<string, unknown>): Promise<{
     maxSingleMessageBytes: perMessageHardCap,
   });
   const capped = rt.capArrayByJsonBytes(replaced.messages, maxHistoryBytes).items;
-  const bounded = rt.enforceChatHistoryFinalBudget({ messages: capped, maxBytes: maxHistoryBytes });
   const nextOffset =
     offsetPage !== undefined
       ? resolveChatHistoryNextOffset({
-          messages: bounded.messages,
+          messages: capped,
           totalMessages: offsetPage.totalMessages,
           offset,
           rawPageMessages:
@@ -388,7 +467,7 @@ async function handleChatHistory(params: Record<string, unknown>): Promise<{
   return {
     sessionKey,
     sessionId,
-    messages: bounded.messages,
+    messages: capped,
     ...(params.offset !== undefined
       ? { offset, hasMore, totalMessages: offsetPage?.totalMessages ?? projected.length }
       : {}),
@@ -410,6 +489,8 @@ export function createEmbeddedCallGateway(): EmbeddedCallGateway {
         return (await handleSessionsList(params)) as T;
       case "sessions.resolve":
         return (await handleSessionsResolve(params)) as T;
+      case "sessions.search":
+        return (await handleSessionsSearch(params)) as T;
       case "chat.history":
         return (await handleChatHistory(params)) as T;
       default:

@@ -5,7 +5,12 @@ import {
   resolveSendableOutboundReplyParts,
 } from "openclaw/plugin-sdk/reply-payload";
 import { logVerbose } from "../../globals.js";
-import { getReplyPayloadMetadata, isReplyPayloadStatusNotice } from "../reply-payload.js";
+import { runAbortableTimeout } from "../../node-host/with-timeout.js";
+import {
+  getReplyPayloadMetadata,
+  isReplyPayloadStatusNotice,
+  isReplyPayloadTerminalContent,
+} from "../reply-payload.js";
 import type { ReplyPayload } from "../types.js";
 import { createBlockReplyCoalescer } from "./block-reply-coalescer.js";
 import type { BlockStreamingCoalescing } from "./block-streaming.js";
@@ -17,6 +22,8 @@ export type BlockReplyPipeline = {
   stop: () => void;
   hasBuffered: () => boolean;
   didStream: () => boolean;
+  /** True only after a final-answer lane payload is sent. */
+  didStreamTerminalReply?: () => boolean;
   isAborted: () => boolean;
   hasSentPayload: (payload: ReplyPayload) => boolean;
   hasSentExactPayload?: (payload: ReplyPayload) => boolean;
@@ -47,13 +54,14 @@ export function createAudioAsVoiceBuffer(params: {
 }
 
 /** Creates a stable duplicate key for a complete outbound payload. */
-export function createBlockReplyPayloadKey(payload: ReplyPayload): string {
+function createBlockReplyPayloadKey(payload: ReplyPayload): string {
   const reply = resolveSendableOutboundReplyParts(payload);
   return JSON.stringify({
     statusNotice: isReplyPayloadStatusNotice(payload),
     text: reply.trimmedText,
     mediaList: reply.mediaUrls,
     presentation: payload.presentation ?? null,
+    presentationTextMode: payload.presentationTextMode ?? null,
     interactive: payload.interactive ?? null,
     channelData: payload.channelData ?? null,
     replyToId: payload.replyToId ?? null,
@@ -70,31 +78,11 @@ export function createBlockReplyContentKey(payload: ReplyPayload): string {
     text: reply.trimmedText,
     mediaList: reply.mediaUrls,
     presentation: payload.presentation ?? null,
+    presentationTextMode: payload.presentationTextMode ?? null,
     interactive: payload.interactive ?? null,
     channelData: payload.channelData ?? null,
   });
 }
-
-const withTimeout = async <T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  timeoutError: Error,
-): Promise<T> => {
-  if (!timeoutMs || timeoutMs <= 0) {
-    return promise;
-  }
-  let timer: NodeJS.Timeout | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(timeoutError), timeoutMs);
-  });
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timer) {
-      clearTimeout(timer);
-    }
-  }
-};
 
 function resolveBlockReplyTimeoutMs(timeoutMs: number): number {
   return clampPositiveTimerTimeoutMs(timeoutMs) ?? 0;
@@ -125,6 +113,7 @@ export function createBlockReplyPipeline(params: {
   let sendChain: Promise<void> = Promise.resolve();
   let aborted = false;
   let didStream = false;
+  let didStreamTerminalReply = false;
   let didLogTimeout = false;
 
   const hasSeenOrQueuedPayloadKey = (payloadKey: string) =>
@@ -153,22 +142,23 @@ export function createBlockReplyPipeline(params: {
     pendingKeys.add(payloadKey);
 
     // Preserve outbound order by chaining sends; abort after timeout to avoid stale blocks.
-    const timeoutError = new Error(`block reply delivery timed out after ${timeoutMs}ms`);
-    const abortController = new AbortController();
+    const fallbackAbortController = new AbortController();
+    let timeoutSignal: AbortSignal | undefined;
     sendChain = sendChain
       .then(async () => {
         if (aborted) {
           return false;
         }
-        await withTimeout(
-          Promise.resolve(
-            onBlockReply(payload, {
-              abortSignal: abortController.signal,
+        await runAbortableTimeout(
+          async (signal) => {
+            timeoutSignal = signal;
+            await onBlockReply(payload, {
+              abortSignal: signal ?? fallbackAbortController.signal,
               timeoutMs,
-            }),
-          ),
-          timeoutMs,
-          timeoutError,
+            });
+          },
+          timeoutMs || undefined,
+          "block reply delivery",
         );
         return true;
       })
@@ -193,11 +183,16 @@ export function createBlockReplyPipeline(params: {
         }
         if (!isStatusNotice) {
           didStream = true;
+          if (
+            isReplyPayloadTerminalContent(payload) &&
+            hasOutboundReplyContent(payload, { trimText: true })
+          ) {
+            didStreamTerminalReply = true;
+          }
         }
       })
       .catch((err: unknown) => {
-        if (err === timeoutError) {
-          abortController.abort();
+        if (timeoutSignal?.aborted) {
           aborted = true;
           if (!didLogTimeout) {
             didLogTimeout = true;
@@ -284,8 +279,11 @@ export function createBlockReplyPipeline(params: {
       return;
     }
     if (bufferPayload(payload)) {
+      flushBufferedAssistantBlock();
       return;
     }
+    // Buffered audio is an ordering boundary, even when voice metadata arrives later.
+    flushBuffered();
     const reply = resolveSendableOutboundReplyParts(payload);
     const hasNonTextContent = hasOutboundReplyContent(
       { ...payload, text: undefined, mediaUrl: undefined, mediaUrls: undefined },
@@ -324,6 +322,7 @@ export function createBlockReplyPipeline(params: {
     stop,
     hasBuffered: () => coalescer?.hasBuffered() || bufferedPayloads.length > 0,
     didStream: () => didStream,
+    didStreamTerminalReply: () => didStreamTerminalReply,
     isAborted: () => aborted,
     hasSentExactPayload: (payload) => sentContentKeys.has(createBlockReplyContentKey(payload)),
     hasSentPayload: (payload) => {

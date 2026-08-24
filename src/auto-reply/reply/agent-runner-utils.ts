@@ -6,14 +6,13 @@ import {
 import { resolveFastModeState } from "../../agents/fast-mode.js";
 import { normalizeChatType } from "../../channels/chat-type.js";
 import { getChannelPlugin } from "../../channels/plugins/index.js";
-import type {
-  ChannelId,
-  ChannelThreadingToolContext,
-} from "../../channels/plugins/types.public.js";
-import { normalizeAnyChannelId, normalizeChannelId } from "../../channels/registry.js";
+import type { ChannelId } from "../../channels/plugins/types.public.js";
+import { normalizeAnyChannelId, normalizeChatChannelId } from "../../channels/registry.js";
+import type { InternalChannelThreadingToolContext } from "../../channels/threading-tool-context-internal.js";
 import { resolveCommandSecretRefsViaGateway } from "../../cli/command-secret-gateway.js";
 import {
   getAgentRuntimeCommandSecretTargetIds,
+  getAgentRuntimeOptionalCommandSecretPaths,
   getScopedChannelsCommandSecretTargets,
 } from "../../cli/command-secret-targets.js";
 import { resolveMessageSecretScope } from "../../cli/message-secret-scope.js";
@@ -26,16 +25,13 @@ import {
 import type { SessionEntry } from "../../config/sessions.js";
 import { isReasoningTagProvider } from "../../utils/provider-utils.js";
 import type { TemplateContext } from "../templating.js";
-import {
-  resolveProviderScopedAuthProfile,
-  resolveRunAuthProfile,
-} from "./agent-runner-auth-profile.js";
-export { resolveProviderScopedAuthProfile, resolveRunAuthProfile };
+import { resolveRunAuthProfile } from "./agent-runner-auth-profile.js";
 import { buildEmbeddedRunBaseParams as buildEmbeddedRunBaseParamsCore } from "./agent-runner-run-params.js";
-export { resolveModelFallbackOptions } from "./agent-runner-run-params.js";
 import { hasInboundAudio } from "./inbound-media.js";
 import { resolveOriginMessageProvider, resolveOriginMessageTo } from "./origin-routing.js";
 import type { FollowupRun } from "./queue.js";
+import { readChannelSourceTurnId } from "./source-turn-id.js";
+export { resolveModelFallbackOptions } from "./agent-runner-run-params.js";
 
 const BUN_FETCH_SOCKET_ERROR_RE = /socket connection was closed unexpectedly/i;
 type EmbeddedReplyRoute = Pick<
@@ -46,6 +42,7 @@ type EmbeddedReplyRoute = Pick<
   | "originatingChatType"
   | "originatingThreadId"
   | "originatingReplyToId"
+  | "originatingReplyToMode"
 >;
 
 /** Selects the freshest runtime config usable by queued reply execution. */
@@ -78,6 +75,7 @@ export async function resolveQueuedReplyExecutionConfig(
     config: runtimeConfig,
     commandName: "reply",
     targetIds: getAgentRuntimeCommandSecretTargetIds(),
+    optionalActivePaths: getAgentRuntimeOptionalCommandSecretPaths(runtimeConfig),
   });
   const baseResolvedConfig = resolvedConfig ?? runtimeConfig;
 
@@ -117,7 +115,7 @@ export function buildThreadingToolContext(params: {
   sessionCtx: TemplateContext;
   config: OpenClawConfig | undefined;
   hasRepliedRef: { value: boolean } | undefined;
-}): ChannelThreadingToolContext {
+}): InternalChannelThreadingToolContext {
   const { sessionCtx, config, hasRepliedRef } = params;
   const isRestartSentinelContinuation =
     sessionCtx.InputProvenance?.kind === "internal_system" &&
@@ -125,6 +123,7 @@ export function buildThreadingToolContext(params: {
   const currentMessageId = isRestartSentinelContinuation
     ? sessionCtx.ReplyToId
     : (sessionCtx.MessageSidFull ?? sessionCtx.MessageSid);
+  const currentSourceTurnId = readChannelSourceTurnId(sessionCtx);
   const originProvider = resolveOriginMessageProvider({
     originatingChannel: sessionCtx.OriginatingChannel,
     provider: sessionCtx.Provider,
@@ -136,15 +135,19 @@ export function buildThreadingToolContext(params: {
   if (!config) {
     return {
       currentMessageId,
+      currentSourceTurnId,
+      replyToMode: sessionCtx.ReplyToMode,
     };
   }
   const rawProvider = normalizeOptionalLowercaseString(originProvider);
   if (!rawProvider) {
     return {
       currentMessageId,
+      currentSourceTurnId,
+      replyToMode: sessionCtx.ReplyToMode,
     };
   }
-  const provider = normalizeChannelId(rawProvider) ?? normalizeAnyChannelId(rawProvider);
+  const provider = normalizeChatChannelId(rawProvider) ?? normalizeAnyChannelId(rawProvider);
   // Fallback for unrecognized/plugin channels (e.g., iMessage before plugin registry init)
   const threading = provider ? getChannelPlugin(provider)?.threading : undefined;
   if (!threading?.buildToolContext) {
@@ -152,6 +155,8 @@ export function buildThreadingToolContext(params: {
       currentChannelId: normalizeOptionalString(originTo),
       currentChannelProvider: provider ?? (rawProvider as ChannelId),
       currentMessageId,
+      currentSourceTurnId,
+      replyToMode: sessionCtx.ReplyToMode,
       hasRepliedRef,
     };
   }
@@ -165,6 +170,7 @@ export function buildThreadingToolContext(params: {
         To: originTo,
         ChatType: sessionCtx.ChatType,
         CurrentMessageId: currentMessageId,
+        ReplyToMode: sessionCtx.ReplyToMode,
         ReplyToId: sessionCtx.ReplyToId,
         ReplyToIdFull: sessionCtx.ReplyToIdFull,
         ThreadLabel: sessionCtx.ThreadLabel,
@@ -181,6 +187,8 @@ export function buildThreadingToolContext(params: {
     // Some providers expose only thread resources as reply targets; explicit
     // `undefined` means the adapter rejected the generic message-id fallback.
     currentMessageId: hasAdapterCurrentMessageId ? context.currentMessageId : currentMessageId,
+    currentSourceTurnId,
+    replyToMode: context.replyToMode ?? sessionCtx.ReplyToMode,
   };
 }
 
@@ -230,9 +238,7 @@ export function resolveRunFastModeForFallbackCandidate(params: {
   };
 }
 /** Builds base embedded run params with auth and provider runtime hints. */
-export function buildEmbeddedRunBaseParams(
-  params: Parameters<typeof buildEmbeddedRunBaseParamsCore>[0],
-) {
+function buildEmbeddedRunBaseParams(params: Parameters<typeof buildEmbeddedRunBaseParamsCore>[0]) {
   return buildEmbeddedRunBaseParamsCore({
     ...params,
     isReasoningTagProvider,
@@ -261,6 +267,7 @@ function buildEmbeddedContextFromTemplate(params: {
       params.run.chatType,
     MessageThreadId: params.replyRoute?.originatingThreadId ?? params.sessionCtx.MessageThreadId,
     ReplyToId: params.replyRoute?.originatingReplyToId ?? params.sessionCtx.ReplyToId,
+    ReplyToMode: params.replyRoute?.originatingReplyToMode ?? params.sessionCtx.ReplyToMode,
   };
   return {
     sessionId: params.run.sessionId,

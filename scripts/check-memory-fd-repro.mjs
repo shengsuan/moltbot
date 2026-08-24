@@ -1,5 +1,6 @@
-#!/usr/bin/env node
+import { runTsxCliShim } from "./lib/tsx-cli-shim.mjs";
 
+<<<<<<< HEAD
 // Reproduces memory-search file descriptor retention with a synthetic workspace.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -904,3 +905,8 @@ if (isMainModule()) {
     },
   );
 }
+=======
+await runTsxCliShim(import.meta.url, {
+  implementation: "./check-memory-fd-repro.mts",
+});
+>>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb

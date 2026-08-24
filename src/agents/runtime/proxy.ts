@@ -3,8 +3,16 @@
  * The server manages auth and proxies requests to LLM providers.
  */
 
-import { readResponseWithLimit } from "@openclaw/media-core/read-response-with-limit";
+import {
+  createToolArgumentPreviewSchedule,
+  createSseByteGuard,
+  parseStreamingJson,
+  parseTerminalToolCallArguments,
+  type SseByteGuard,
+  type ToolArgumentPreviewSchedule,
+} from "@openclaw/ai/internal/runtime";
 import { resolvePositiveTimerTimeoutMs } from "@openclaw/normalization-core/number-coercion";
+import { readResponseWithLimit } from "../../infra/http-body.js";
 // Internal import for JSON parsing utility
 import type {
   AssistantMessage,
@@ -16,15 +24,15 @@ import type {
   ToolCall,
 } from "../../llm/types.js";
 import { EventStream } from "../../llm/utils/event-stream.js";
-import { parseStreamingJson } from "../../llm/utils/json-parse.js";
-import { createSseByteGuard, type SseByteGuard } from "../streaming-byte-guard.js";
 
 const PROXY_ERROR_BODY_MAX_BYTES = 16 * 1024 * 1024;
 const PROXY_SSE_STREAM_MAX_BYTES = 16 * 1024 * 1024;
 const PROXY_SSE_PENDING_BUFFER_MAX_BYTES = PROXY_SSE_STREAM_MAX_BYTES;
 const PROXY_SSE_READ_IDLE_TIMEOUT_MS = 120_000;
 
-type StreamingToolCall = ToolCall & { partialJson?: string };
+type StreamingToolCall = ToolCall & {
+  partialJson: string;
+};
 
 // Create stream class matching ProxyMessageEventStream
 class ProxyMessageEventStream extends EventStream<AssistantMessageEvent, AssistantMessage> {
@@ -49,7 +57,7 @@ class ProxyMessageEventStream extends EventStream<AssistantMessageEvent, Assista
  */
 export type ProxyAssistantMessageEvent =
   | { type: "start" }
-  | { type: "text_start"; contentIndex: number }
+  | { type: "text_start"; contentIndex: number; contentSignature?: string }
   | { type: "text_delta"; contentIndex: number; delta: string }
   | { type: "text_end"; contentIndex: number; contentSignature?: string }
   | { type: "thinking_start"; contentIndex: number }
@@ -195,7 +203,7 @@ async function readProxyErrorData(
     onIdleTimeout: ({ chunkTimeoutMs }) =>
       new Error(`Proxy error body stalled: no data received for ${chunkTimeoutMs}ms`),
   });
-  return JSON.parse(new TextDecoder().decode(bytes)) as { error?: string };
+  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as { error?: string };
 }
 
 async function readProxySseChunk(
@@ -345,6 +353,7 @@ export function streamProxy(
       const decoder = new TextDecoder();
       let buffer = "";
       let terminalEventSeen = false;
+      const toolArgumentPreviewSchedules = new Map<number, ToolArgumentPreviewSchedule>();
 
       const processSseLine = (line: string) => {
         if (!line.startsWith("data: ")) {
@@ -355,7 +364,7 @@ export function streamProxy(
           return;
         }
         const proxyEvent = JSON.parse(data) as ProxyAssistantMessageEvent;
-        const event = processProxyEvent(proxyEvent, partial);
+        const event = processProxyEvent(proxyEvent, partial, toolArgumentPreviewSchedules);
         if (!event) {
           return;
         }
@@ -428,13 +437,20 @@ export function streamProxy(
 function processProxyEvent(
   proxyEvent: ProxyAssistantMessageEvent,
   partial: AssistantMessage,
+  toolArgumentPreviewSchedules: Map<number, ToolArgumentPreviewSchedule>,
 ): AssistantMessageEvent | undefined {
   switch (proxyEvent.type) {
     case "start":
       return { type: "start", partial };
 
     case "text_start":
-      partial.content[proxyEvent.contentIndex] = { type: "text", text: "" };
+      partial.content[proxyEvent.contentIndex] = {
+        type: "text",
+        text: "",
+        ...(proxyEvent.contentSignature !== undefined
+          ? { textSignature: proxyEvent.contentSignature }
+          : {}),
+      };
       return { type: "text_start", contentIndex: proxyEvent.contentIndex, partial };
 
     case "text_delta": {
@@ -454,7 +470,9 @@ function processProxyEvent(
     case "text_end": {
       const content = partial.content[proxyEvent.contentIndex];
       if (content?.type === "text") {
-        content.textSignature = proxyEvent.contentSignature;
+        if (proxyEvent.contentSignature !== undefined) {
+          content.textSignature = proxyEvent.contentSignature;
+        }
         return {
           type: "text_end",
           contentIndex: proxyEvent.contentIndex,
@@ -497,22 +515,34 @@ function processProxyEvent(
       throw new Error("Received thinking_end for non-thinking content");
     }
 
-    case "toolcall_start":
-      partial.content[proxyEvent.contentIndex] = {
+    case "toolcall_start": {
+      const content = {
         type: "toolCall",
         id: proxyEvent.id,
         name: proxyEvent.toolName,
         arguments: {},
         partialJson: "",
-      } satisfies ToolCall & { partialJson: string } as ToolCall;
+      } satisfies StreamingToolCall;
+      partial.content[proxyEvent.contentIndex] = content;
+      toolArgumentPreviewSchedules.set(
+        proxyEvent.contentIndex,
+        createToolArgumentPreviewSchedule(),
+      );
       return { type: "toolcall_start", contentIndex: proxyEvent.contentIndex, partial };
+    }
 
     case "toolcall_delta": {
       const content = partial.content[proxyEvent.contentIndex];
       if (content?.type === "toolCall") {
         const streamingContent = content as StreamingToolCall;
-        streamingContent.partialJson = `${streamingContent.partialJson ?? ""}${proxyEvent.delta}`;
-        content.arguments = parseStreamingJson(streamingContent.partialJson) || {};
+        streamingContent.partialJson += proxyEvent.delta;
+        const previewSchedule = toolArgumentPreviewSchedules.get(proxyEvent.contentIndex);
+        if (!previewSchedule) {
+          throw new Error("Received toolcall_delta without a preview schedule");
+        }
+        if (previewSchedule(streamingContent.partialJson.length)) {
+          content.arguments = parseStreamingJson(streamingContent.partialJson);
+        }
         partial.content[proxyEvent.contentIndex] = { ...content }; // Trigger reactivity
         return {
           type: "toolcall_delta",
@@ -527,7 +557,12 @@ function processProxyEvent(
     case "toolcall_end": {
       const content = partial.content[proxyEvent.contentIndex];
       if (content?.type === "toolCall") {
-        delete (content as StreamingToolCall).partialJson;
+        const streamingContent = content as StreamingToolCall;
+        content.arguments = streamingContent.partialJson
+          ? parseTerminalToolCallArguments(streamingContent.partialJson)
+          : {};
+        toolArgumentPreviewSchedules.delete(proxyEvent.contentIndex);
+        delete (content as Partial<StreamingToolCall>).partialJson;
         return {
           type: "toolcall_end",
           contentIndex: proxyEvent.contentIndex,

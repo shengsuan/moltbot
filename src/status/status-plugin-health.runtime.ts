@@ -6,7 +6,7 @@ import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { listContextEngineQuarantines } from "../context-engine/registry.js";
 import {
   getActiveRuntimePluginRegistry,
-  listLoadedRuntimePluginIdsAcrossSurfaces,
+  listLoadedRuntimePluginIds,
 } from "../plugins/active-runtime-registry.js";
 import {
   dedupeChannelPluginFailures,
@@ -160,11 +160,7 @@ export function collectRuntimePluginHealthSnapshot(): StatusPluginHealthSnapshot
   const registry = getActiveRuntimePluginRegistry();
   const diagnostics = (registry?.diagnostics ?? []).map(normalizeDiagnostic);
   const plugins = (registry?.plugins ?? []).map(normalizeSnapshotPlugin);
-  // Confirmed runtime-loaded ids across all live registry surfaces (so a plugin
-  // still live via a pinned channel/http-route registry counts) let detailed
-  // status separate actually-loaded plugins from disk-scan inventory the merged
-  // snapshot also marks "loaded".
-  const runtimeLoadedPluginIds = listLoadedRuntimePluginIdsAcrossSurfaces();
+  const runtimeLoadedPluginIds = listLoadedRuntimePluginIds();
   return {
     plugins,
     diagnostics,
@@ -222,17 +218,51 @@ export async function collectInstalledPluginHealthSnapshot(params: {
     },
     { ...runtime, compatibilityNotices: runtimeCompatibilityNotices },
   );
-  const shouldRunPluginIds = await resolveEagerShouldRunPluginIds(params);
-  return shouldRunPluginIds ? { ...merged, shouldRunPluginIds } : merged;
+  const shouldRunPluginIds = await resolveShouldRunPluginIds(params);
+  const unregisteredMemoryEmbeddingProviders = await resolveUnregisteredMemoryEmbeddingProviders({
+    config: params.config,
+    registry: runtimeRegistry,
+  });
+  return {
+    ...merged,
+    ...(shouldRunPluginIds ? { shouldRunPluginIds } : {}),
+    ...(unregisteredMemoryEmbeddingProviders ? { unregisteredMemoryEmbeddingProviders } : {}),
+  };
 }
 
-// Eager should-run plugin ids from the gateway startup plan, with deferred channel
-// plugins removed: their full load completes only after the gateway starts listening,
-// so they would be benign mid-startup false positives in the runtime-loaded drift
-// comparison. Detailed-status only and resolved lazily so the compact path never pulls
-// the startup-plan module. Observer-only: any resolution failure (or absent config)
-// degrades to no should-run set rather than breaking /status.
-async function resolveEagerShouldRunPluginIds(params: {
+// Configured memory embedding providers that no loaded plugin registers, surfaced on the
+// detailed /status path only. Needs the live runtime registry to know what a loaded plugin
+// actually serves; without config or an active registry we cannot tell "configured but
+// unavailable" from "not yet loaded", so degrade to no signal (no line). Resolved lazily so
+// the compact path never pulls the startup-plan module. Observer-only: any resolution failure
+// degrades to no set rather than breaking /status.
+async function resolveUnregisteredMemoryEmbeddingProviders(params: {
+  config?: OpenClawConfig;
+  registry: ReturnType<typeof getActiveRuntimePluginRegistry>;
+}): Promise<Array<{ configuredId: string; source: "provider" | "fallback" }> | undefined> {
+  if (!params.config || !params.registry) {
+    return undefined;
+  }
+  try {
+    const {
+      collectRegisteredEmbeddingProviderIds,
+      collectUnregisteredConfiguredMemoryEmbeddingProviders,
+    } = await import("../plugins/gateway-startup-plugin-ids.js");
+    const unregistered = collectUnregisteredConfiguredMemoryEmbeddingProviders({
+      config: params.config,
+      registeredProviderIds: collectRegisteredEmbeddingProviderIds(params.registry),
+    });
+    return unregistered.length > 0 ? unregistered : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Should-run plugin ids from the gateway startup plan. Detailed-status only and resolved
+// lazily so the compact path never pulls the startup-plan module. Observer-only: any
+// resolution failure (or absent config) degrades to no should-run set rather than breaking
+// /status.
+async function resolveShouldRunPluginIds(params: {
   config?: OpenClawConfig;
   workspaceDir?: string;
 }): Promise<string[] | undefined> {
@@ -264,8 +294,7 @@ async function resolveEagerShouldRunPluginIds(params: {
       env: process.env,
       ...(params.workspaceDir !== undefined ? { workspaceDir: params.workspaceDir } : {}),
     });
-    const deferred = new Set(plan.configuredDeferredChannelPluginIds);
-    return plan.pluginIds.filter((id) => !deferred.has(id));
+    return [...plan.pluginIds];
   } catch {
     return undefined;
   }

@@ -19,8 +19,12 @@ describe("splitTelegramReasoningText", () => {
 
   it("formats tagged text when the payload is explicitly reasoning", () => {
     expect(splitTelegramReasoningText("<think>example</think>Done", true)).toEqual({
-      reasoningText: "Thinking\n\n_example_",
+      reasoningText: "🧠 _example_",
     });
+  });
+
+  it("suppresses internal reflection from explicitly typed reasoning", () => {
+    expect(splitTelegramReasoningText("<internal>private reflection</internal>", true)).toEqual({});
   });
 
   it("ignores literal think tags inside inline code", () => {
@@ -39,6 +43,7 @@ describe("splitTelegramReasoningText", () => {
 
   it("does not emit partial reasoning tag prefixes", () => {
     expect(splitTelegramReasoningText("  <thi", true)).toStrictEqual({});
+    expect(splitTelegramReasoningText("  <int", true)).toStrictEqual({});
   });
 
   it("keeps visible Thinking-prefixed answers in the answer lane", () => {

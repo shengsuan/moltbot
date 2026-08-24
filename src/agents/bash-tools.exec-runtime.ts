@@ -1,11 +1,8 @@
-/**
- * Bash exec runtime.
- * Spawns host/sandbox processes, manages session updates/backgrounding,
- * approval messaging constants, environment safety, and exit outcome shaping.
- */
 import path from "node:path";
 import { normalizeStringEntries } from "@openclaw/normalization-core/string-normalization";
-import { emitDiagnosticEvent } from "../infra/diagnostic-events.js";
+import { truncateUtf16Safe } from "@openclaw/normalization-core/utf16-slice";
+import { emitDiagnosticEventWithTrustedTraceContext } from "../infra/diagnostic-events.js";
+import { formatErrorMessage } from "../infra/errors.js";
 import {
   type EventSessionRoutingPolicy,
   resolveEventSessionKeyForPolicy,
@@ -20,36 +17,41 @@ import {
 } from "../infra/exec-approvals.js";
 import { requestHeartbeat } from "../infra/heartbeat-wake.js";
 import { findPathKey, mergePathPrepend, removePathPrepend } from "../infra/path-prepend.js";
-import { enqueueSystemEvent } from "../infra/system-events.js";
-import { isSubagentSessionKey } from "../sessions/session-key-utils.js";
-import type { ProcessSession } from "./bash-process-registry.js";
-import type { ExecToolDetails } from "./bash-tools.exec-types.js";
-import type { BashSandboxConfig } from "./bash-tools.shared.js";
-import type { AgentToolResult } from "./runtime/index.js";
-export { applyPathPrepend, findPathKey, normalizePathPrepend } from "../infra/path-prepend.js";
-export {
-  normalizeExecAsk,
-  normalizeExecHost,
-  normalizeExecSecurity,
-  normalizeExecTarget,
-} from "../infra/exec-approvals.js";
+import { withSystemEventOwner } from "../infra/system-event-ownership.js";
+import { enqueueSystemEventWithReceipt } from "../infra/system-events.js";
 import { logWarn } from "../logger.js";
+import { redactToolPayloadText } from "../logging/redact.js";
 import type { ManagedRun } from "../process/supervisor/index.js";
 import { getProcessSupervisor } from "../process/supervisor/index.js";
 import type { RunExit, TerminationReason } from "../process/supervisor/types.js";
+import { isSubagentSessionKey } from "../sessions/session-key-utils.js";
+/**
+ * Bash exec runtime.
+ * Spawns host/sandbox processes, manages session updates/backgrounding,
+ * approval messaging constants, environment safety, and exit outcome shaping.
+ */
+import { formatFencedCodeBlock } from "../shared/markdown-code.js";
 import {
   normalizeDeliveryContext,
   type DeliveryContext,
 } from "../utils/delivery-context.shared.js";
 import { resolveSafeTimeoutDelayMs } from "../utils/timer-delay.js";
+import type { ProcessSession } from "./bash-process-registry.js";
 import {
   addSession,
   appendOutput,
-  createSessionSlug,
+  isProcessSessionIdTaken,
   markExited,
+  recordNotifyOnExitRemoval,
   tail,
 } from "./bash-process-registry.js";
-import { renderExecUpdateText } from "./bash-tools.exec-output.js";
+import {
+  appendExecTimeoutRetryGuidance,
+  renderExecExitLabel,
+  renderExecUpdateText,
+} from "./bash-tools.exec-output.js";
+import type { ExecToolDetails } from "./bash-tools.exec-types.js";
+import type { BashSandboxConfig } from "./bash-tools.shared.js";
 import {
   buildDockerExecArgs,
   chunkString,
@@ -57,8 +59,11 @@ import {
   readEnvInt,
 } from "./bash-tools.shared.js";
 import { buildCursorPositionResponse, stripDsrRequests } from "./pty-dsr.js";
+import type { AgentToolResult } from "./runtime/index.js";
+import { createSessionSlug } from "./session-slug.js";
 import { maybeWrapCommandWithShellSnapshot } from "./shell-snapshot.js";
-import { getShellConfig, sanitizeBinaryOutput } from "./shell-utils.js";
+import { createStreamingBinaryOutputSanitizer, getShellConfig } from "./shell-utils.js";
+export { applyPathPrepend, normalizePathPrepend } from "../infra/path-prepend.js";
 
 export { execSchema } from "./bash-tools.schemas.js";
 
@@ -78,7 +83,7 @@ function resolveExecTimeoutMs(timeoutSec: number | null | undefined): number | u
  * Returns "application" if smkx is the last toggle, "normal" if rmkx is last,
  * or null if no toggle is found.
  */
-export function detectCursorKeyMode(raw: string): "application" | "normal" | null {
+function detectCursorKeyMode(raw: string): "application" | "normal" | null {
   const lastSmkx = raw.lastIndexOf(SMKX);
   const lastRmkx = raw.lastIndexOf(RMKX);
   if (lastSmkx === -1 && lastRmkx === -1) {
@@ -106,7 +111,7 @@ export const DEFAULT_PENDING_MAX_OUTPUT = clampWithDefault(
 export const DEFAULT_PATH =
   process.env.PATH ?? "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 /** Tail length used in background completion notifications. */
-export const DEFAULT_NOTIFY_TAIL_CHARS = 400;
+const DEFAULT_NOTIFY_TAIL_CHARS = 400;
 const DEFAULT_NOTIFY_SNIPPET_CHARS = 180;
 /** Default time an approval can remain pending. */
 export const DEFAULT_APPROVAL_TIMEOUT_MS = DEFAULT_EXEC_APPROVAL_TIMEOUT_MS;
@@ -116,7 +121,7 @@ const DEFAULT_APPROVAL_RUNNING_NOTICE_MS = 10_000;
 const APPROVAL_SLUG_LENGTH = 8;
 
 /** Failure categories used to explain exec process exits. */
-export type ExecProcessFailureKind =
+type ExecProcessFailureKind =
   | "shell-command-not-found"
   | "shell-not-executable"
   | "overall-timeout"
@@ -149,6 +154,7 @@ export type ExecProcessOutcome =
       timedOut: boolean;
       noOutputTimedOut?: boolean;
       failureKind: ExecProcessFailureKind;
+      oomScoreWrapperSelected?: boolean;
       reason: string;
     };
 
@@ -178,7 +184,9 @@ function emitExecProcessCompleted(params: {
   target: "host" | "sandbox";
 }): void {
   const exitSignal = normalizeExecExitSignal(params.outcome.exitSignal);
-  emitDiagnosticEvent({
+  // Payload stays untrusted, but the ambient trace context is the OpenClaw run
+  // scope, so exporters may use it to nest the exec span under its run.
+  emitDiagnosticEventWithTrustedTraceContext({
     type: "exec.process.completed",
     target: params.target,
     mode: params.mode,
@@ -198,7 +206,7 @@ function emitExecProcessCompleted(params: {
 }
 
 /** Renders a host label for user-facing exec policy messages. */
-export function renderExecHostLabel(host: ExecHost) {
+function renderExecHostLabel(host: ExecHost) {
   return host === "sandbox" ? "sandbox" : host === "gateway" ? "gateway" : "node";
 }
 
@@ -292,7 +300,7 @@ function compactNotifyOutput(value: string, maxChars = DEFAULT_NOTIFY_SNIPPET_CH
     return normalized;
   }
   const safe = Math.max(1, maxChars - 1);
-  return `${normalized.slice(0, safe)}…`;
+  return `${truncateUtf16Safe(normalized, safe)}…`;
 }
 
 /** Merges shell-discovered PATH entries into an exec environment. */
@@ -312,7 +320,12 @@ export function applyShellPath(env: Record<string, string>, shellPath?: string |
 }
 
 function maybeNotifyOnExit(session: ProcessSession, status: "completed" | "failed") {
-  if (!session.backgrounded || !session.notifyOnExit || session.exitNotified) {
+  if (
+    !session.backgrounded ||
+    !session.notifyOnExit ||
+    session.exitNotified ||
+    session.terminalPollObserved
+  ) {
     return;
   }
   const sessionKey = session.sessionKey?.trim();
@@ -320,43 +333,62 @@ function maybeNotifyOnExit(session: ProcessSession, status: "completed" | "faile
     return;
   }
   session.exitNotified = true;
-  const exitLabel = session.exitSignal
-    ? `signal ${session.exitSignal}`
-    : `code ${session.exitCode ?? 0}`;
+  const exitLabel = renderExecExitLabel(session);
   const output = compactNotifyOutput(
     tail(session.tail || session.aggregated || "", DEFAULT_NOTIFY_TAIL_CHARS),
   );
   if (status === "failed" && session.exitReason === "manual-cancel" && !output) {
     return;
   }
-  if (status === "completed" && !output && session.notifyOnExitEmptySuccess !== true) {
+  if (
+    status === "completed" &&
+    session.exitCode === 0 &&
+    !output &&
+    session.notifyOnExitEmptySuccess !== true
+  ) {
     return;
   }
   const summary = output
     ? `Exec ${status} (${session.id.slice(0, 8)}, ${exitLabel}) :: ${output}`
     : `Exec ${status} (${session.id.slice(0, 8)}, ${exitLabel})`;
+  const eventText = appendExecTimeoutRetryGuidance(summary, session.exitReason);
   const eventRouting = session.eventRouting ?? {
     mainKey: session.mainKey,
     sessionScope: session.sessionScope,
   };
-  enqueueSystemEvent(summary, {
-    sessionKey: resolveEventSessionKeyForPolicy(sessionKey, eventRouting),
+  const eventSessionKey = resolveEventSessionKeyForPolicy(sessionKey, eventRouting);
+  const eventOptions = {
+    sessionKey: eventSessionKey,
+    contextKey: `exec:${session.id}`,
     deliveryContext: session.notifyDeliveryContext,
-  });
+  };
+  const remove = enqueueSystemEventWithReceipt(
+    eventText,
+    eventSessionKey === "global" && session.agentId
+      ? withSystemEventOwner(eventOptions, session.agentId)
+      : eventOptions,
+    { allowDuplicate: true },
+  );
+  if (remove) {
+    recordNotifyOnExitRemoval(session, remove);
+  }
   // Subagent sessions receive exec results via process poll and announce flow;
   // the heartbeat would fall back to the main session and cause spurious wakes.
   if (!isSubagentSessionKey(sessionKey)) {
+    const wakeOptions = scopedHeartbeatWakeOptionsForPolicy(
+      sessionKey,
+      {
+        source: "exec-event" as const,
+        intent: "event" as const,
+        reason: "exec-event",
+        coalesceMs: 0,
+      },
+      eventRouting,
+    );
     requestHeartbeat(
-      scopedHeartbeatWakeOptionsForPolicy(
-        sessionKey,
-        {
-          source: "exec-event",
-          intent: "event",
-          reason: "exec-event",
-          coalesceMs: 0,
-        },
-        eventRouting,
-      ),
+      sessionKey === "global" && session.agentId
+        ? { ...wakeOptions, agentId: session.agentId }
+        : wakeOptions,
     );
   }
 }
@@ -376,12 +408,9 @@ export function buildApprovalPendingMessage(params: {
   cwd: string | undefined;
   host: "gateway" | "node";
   nodeId?: string;
+  processContinuationAvailable?: boolean;
 }) {
-  let fence = "```";
-  while (params.command.includes(fence)) {
-    fence += "`";
-  }
-  const commandBlock = `${fence}sh\n${params.command}\n${fence}`;
+  const commandBlock = formatFencedCodeBlock(params.command, "sh");
   const lines: string[] = [];
   const allowedDecisions = params.allowedDecisions ?? resolveExecApprovalAllowedDecisions();
   const decisionText = allowedDecisions.join("|");
@@ -398,16 +427,16 @@ export function buildApprovalPendingMessage(params: {
   lines.push("Command:");
   lines.push(commandBlock);
   lines.push("Mode: foreground (interactive approvals available).");
-  lines.push(
-    allowedDecisions.includes("allow-always")
-      ? "Background mode requires pre-approved policy (allow-always or ask=off)."
-      : "Background mode requires an effective policy that allows pre-approval (for example ask=off).",
-  );
+  if (params.processContinuationAvailable !== false) {
+    lines.push(
+      allowedDecisions.includes("allow-always")
+        ? "Background mode requires pre-approved policy (allow-always or ask=off)."
+        : "Background mode requires an effective policy that allows pre-approval (for example ask=off).",
+    );
+  }
   lines.push(`Reply with: /approve ${params.approvalSlug} ${decisionText}`);
   if (!allowedDecisions.includes("allow-always")) {
-    lines.push(
-      "The effective approval policy requires approval every time, so Allow Always is unavailable.",
-    );
+    lines.push("Allow Always is unavailable for this command.");
   }
   lines.push("If the short code is ambiguous, use the full id in /approve.");
   return lines.join("\n");
@@ -423,8 +452,6 @@ export function resolveApprovalRunningNoticeMs(value?: number) {
   }
   return Math.floor(value);
 }
-
-export { renderExecUpdateText } from "./bash-tools.exec-output.js";
 
 function joinExecFailureOutput(aggregated: string, reason: string) {
   return aggregated ? `${aggregated}\n\n${reason}` : reason;
@@ -452,22 +479,32 @@ function classifyExecFailureKind(params: {
 }
 
 /** Formats a user-facing reason for a failed exec process exit. */
-export function formatExecFailureReason(params: {
+function formatExecFailureReason(params: {
   failureKind: ExecExitFailureKind;
   exitSignal: NodeJS.Signals | number | null;
   timeoutSec: number | null | undefined;
+  processContinuationAvailable: boolean;
 }): string {
   switch (params.failureKind) {
     case "shell-command-not-found":
       return "Command not found";
     case "shell-not-executable":
       return "Command not executable (permission denied)";
-    case "overall-timeout":
-      return typeof params.timeoutSec === "number" && params.timeoutSec > 0
-        ? `Command timed out after ${params.timeoutSec} seconds. If this command is expected to take longer, re-run with a higher timeout (e.g., exec timeout=300). If it should keep running, start it with exec background=true or yieldMs so OpenClaw can register a pollable process session. Do not rely on shell backgrounding with a trailing &.`
-        : "Command timed out. If this command is expected to take longer, re-run with a higher timeout (e.g., exec timeout=300). If it should keep running, start it with exec background=true or yieldMs so OpenClaw can register a pollable process session. Do not rely on shell backgrounding with a trailing &.";
+    case "overall-timeout": {
+      const timeoutText =
+        typeof params.timeoutSec === "number" && params.timeoutSec > 0
+          ? `Command timed out after ${params.timeoutSec} seconds.`
+          : "Command timed out.";
+      const retryGuidance = appendExecTimeoutRetryGuidance(timeoutText, params.failureKind);
+      return params.processContinuationAvailable
+        ? `${retryGuidance}\n\nIf it should keep running, start it with exec background=true or yieldMs so OpenClaw can register a pollable process session. Do not rely on shell backgrounding with a trailing &.`
+        : retryGuidance;
+    }
     case "no-output-timeout":
-      return "Command timed out waiting for output";
+      return appendExecTimeoutRetryGuidance(
+        "Command timed out waiting for output.",
+        params.failureKind,
+      );
     case "signal":
       return `Command aborted by signal ${params.exitSignal}`;
     case "aborted":
@@ -477,11 +514,12 @@ export function formatExecFailureReason(params: {
 }
 
 /** Converts a supervisor exit record into a normalized exec process outcome. */
-export function buildExecExitOutcome(params: {
+function buildExecExitOutcome(params: {
   exit: RunExit;
   aggregated: string;
   durationMs: number;
   timeoutSec: number | null | undefined;
+  processContinuationAvailable: boolean;
 }): ExecProcessOutcome {
   const exitCode = params.exit.exitCode ?? 0;
   const isNormalExit = params.exit.reason === "exit";
@@ -511,6 +549,7 @@ export function buildExecExitOutcome(params: {
     failureKind,
     exitSignal: params.exit.exitSignal,
     timeoutSec: params.timeoutSec,
+    processContinuationAvailable: params.processContinuationAvailable,
   });
   return {
     status: "failed",
@@ -522,6 +561,7 @@ export function buildExecExitOutcome(params: {
     timedOut: params.exit.timedOut,
     noOutputTimedOut: params.exit.noOutputTimedOut,
     failureKind,
+    oomScoreWrapperSelected: params.exit.oomScoreWrapperSelected,
     reason: joinExecFailureOutput(params.aggregated, reason),
   };
 }
@@ -598,6 +638,7 @@ export async function runExecProcess(opts: {
   notifyOnExitEmptySuccess?: boolean;
   scopeKey?: string;
   sessionKey?: string;
+  agentId?: string;
   /** `session.mainKey` from the runtime config; snapshotted onto the
    *  ProcessSession so background-exit notifications can remap cron-run
    *  keys without an ambient config load. Long-running background exits use
@@ -611,10 +652,14 @@ export async function runExecProcess(opts: {
   eventRouting?: EventSessionRoutingPolicy;
   notifyDeliveryContext?: DeliveryContext;
   timeoutSec: number | null;
+  /** Whether exec may return a supervised session for later continuation. */
+  processContinuationAvailable?: boolean;
   onUpdate?: (partialResult: AgentToolResult<ExecToolDetails>) => void;
+  /** Runs after process finalization and before the exit wake is queued. */
+  onSettledBeforeNotify?: (outcome: ExecProcessOutcome) => void;
 }): Promise<ExecProcessHandle> {
   const startedAt = Date.now();
-  const sessionId = createSessionSlug();
+  const sessionId = createSessionSlug(isProcessSessionIdTaken);
   const execCommand = opts.execCommand ?? opts.command;
   const diagnosticTarget = opts.sandbox ? "sandbox" : "host";
   const supervisor = getProcessSupervisor();
@@ -628,6 +673,7 @@ export async function runExecProcess(opts: {
     command: opts.command,
     scopeKey: opts.scopeKey,
     sessionKey: opts.sessionKey,
+    agentId: opts.agentId,
     mainKey: opts.mainKey,
     sessionScope: opts.sessionScope,
     eventRouting: opts.eventRouting,
@@ -635,7 +681,6 @@ export async function runExecProcess(opts: {
     notifyOnExit: opts.notifyOnExit,
     notifyOnExitEmptySuccess: opts.notifyOnExitEmptySuccess === true,
     exitNotified: false,
-    child: undefined,
     stdin: undefined,
     pid: undefined,
     startedAt,
@@ -643,10 +688,10 @@ export async function runExecProcess(opts: {
     maxOutputChars: opts.maxOutput,
     pendingMaxOutputChars: opts.pendingMaxOutput,
     totalOutputChars: 0,
-    pendingStdout: [],
-    pendingStderr: [],
+    pendingOutput: [],
     pendingStdoutChars: 0,
     pendingStderrChars: 0,
+    pendingOutputDropped: false,
     aggregated: "",
     tail: "",
     exited: false,
@@ -697,16 +742,20 @@ export async function runExecProcess(opts: {
     });
   };
 
+  // One parser per stream so ESC sequences split across chunks are not mangled.
+  const sanitizeStdout = createStreamingBinaryOutputSanitizer();
+  const sanitizeStderr = createStreamingBinaryOutputSanitizer();
+
   const handleStdout = (data: string) => {
     const raw = data;
-    // Detect smkx/rmkx BEFORE sanitizeBinaryOutput strips ESC sequences.
+    // Detect smkx/rmkx BEFORE the sanitizer strips ESC sequences.
     // Note: PTY chunking is arbitrary, but smkx/rmkx sequences are typically short (4-5 bytes)
     // and sent atomically by terminals. Split across chunks is rare in practice.
     const mode = detectCursorKeyMode(raw);
     if (mode) {
       session.cursorKeyMode = mode;
     }
-    const str = sanitizeBinaryOutput(raw);
+    const str = sanitizeStdout(raw);
     for (const chunk of chunkString(str)) {
       appendOutput(session, "stdout", chunk);
       emitUpdate();
@@ -714,7 +763,7 @@ export async function runExecProcess(opts: {
   };
 
   const handleStderr = (data: string) => {
-    const str = sanitizeBinaryOutput(data);
+    const str = sanitizeStderr(data);
     for (const chunk of chunkString(str)) {
       appendOutput(session, "stderr", chunk);
       emitUpdate();
@@ -723,13 +772,14 @@ export async function runExecProcess(opts: {
 
   const timeoutMs = resolveExecTimeoutMs(opts.timeoutSec);
   let sandboxFinalizeToken: unknown;
+  let sandboxPrepared = false;
   let sandboxFinalized = false;
   const finalizeSandboxExec = async (params: {
     status: "completed" | "failed";
     exitCode: number | null;
     timedOut: boolean;
   }) => {
-    if (sandboxFinalized || !opts.sandbox?.finalizeExec) {
+    if (!sandboxPrepared || sandboxFinalized || !opts.sandbox?.finalizeExec) {
       return;
     }
     sandboxFinalized = true;
@@ -738,21 +788,53 @@ export async function runExecProcess(opts: {
       token: sandboxFinalizeToken,
     });
   };
-
-  const spawnSpec:
-    | {
-        mode: "child";
-        argv: string[];
-        env: NodeJS.ProcessEnv;
-        stdinMode: "pipe-open" | "pipe-closed";
+  const finalizeAndSettleSession = async (
+    outcome: ExecProcessOutcome,
+  ): Promise<ExecProcessOutcome> => {
+    let finalOutcome = outcome;
+    session.finalizing = true;
+    try {
+      await finalizeSandboxExec({
+        status: outcome.status,
+        exitCode: outcome.exitCode,
+        timedOut: outcome.timedOut,
+      });
+    } catch (error) {
+      if (outcome.status === "completed") {
+        finalOutcome = buildExecRuntimeErrorOutcome({
+          error,
+          aggregated: session.aggregated.trim(),
+          durationMs: Date.now() - startedAt,
+        });
+        // Background observers need the finalizer failure in the same bounded, redacted output.
+        appendOutput(session, "stderr", `\n${redactToolPayloadText(formatErrorMessage(error))}\n`);
+      } else {
+        logWarn(`exec: sandbox finalize after process failure failed (${String(error)}).`);
       }
-    | {
-        mode: "pty";
-        ptyCommand: string;
-        childFallbackArgv: string[];
-        env: NodeJS.ProcessEnv;
-        stdinMode: "pipe-open";
-      } = await (async () => {
+    } finally {
+      // Finalization can release remote process/session resources. Keep the
+      // background-work blocker until that owner transition has settled.
+      session.finalizing = false;
+      const shouldNotify = !session.exited;
+      if (shouldNotify) {
+        markExited(
+          session,
+          finalOutcome.exitCode,
+          finalOutcome.exitSignal,
+          finalOutcome.status,
+          finalOutcome.exitReason,
+          finalOutcome.noOutputTimedOut,
+        );
+      }
+      opts.onSettledBeforeNotify?.(finalOutcome);
+      if (shouldNotify) {
+        maybeNotifyOnExit(session, finalOutcome.status);
+      }
+    }
+    return finalOutcome;
+  };
+
+  const prepareSpawnSpec = async () => {
     if (opts.sandbox) {
       const backendExecSpec = await opts.sandbox.buildExecSpec?.({
         command: execCommand,
@@ -761,6 +843,9 @@ export async function runExecProcess(opts: {
         usePty: opts.usePty,
       });
       sandboxFinalizeToken = backendExecSpec?.finalizeToken;
+      // Cleanup ownership transfers only after buildExecSpec resolves: moving this earlier can
+      // double-finalize backend failures, while removing it leaks the registered exec session.
+      sandboxPrepared = true;
       return {
         mode: "child" as const,
         argv: backendExecSpec?.argv ?? [
@@ -811,10 +896,10 @@ export async function runExecProcess(opts: {
       env: shellRuntimeEnv,
       stdinMode: "pipe-closed" as const,
     };
-  })();
+  };
 
   let managedRun: ManagedRun | null = null;
-  let usingPty = spawnSpec.mode === "pty";
+  let usingPty = opts.usePty && !opts.sandbox;
   const cursorResponse = buildCursorPositionResponse();
 
   const onSupervisorStdout = (chunk: string) => {
@@ -832,6 +917,8 @@ export async function runExecProcess(opts: {
   };
 
   try {
+    const spawnSpec = await prepareSpawnSpec();
+    usingPty = spawnSpec.mode === "pty";
     const spawnBase = {
       runId: sessionId,
       sessionId: opts.sessionKey?.trim() || sessionId,
@@ -844,89 +931,52 @@ export async function runExecProcess(opts: {
       onStdout: onSupervisorStdout,
       onStderr: handleStderr,
     };
-    managedRun =
-      spawnSpec.mode === "pty"
-        ? await supervisor.spawn({
-            ...spawnBase,
-            mode: "pty",
-            ptyCommand: spawnSpec.ptyCommand,
-          })
-        : await supervisor.spawn({
-            ...spawnBase,
-            mode: "child",
-            argv: spawnSpec.argv,
-            stdinMode: spawnSpec.stdinMode,
-          });
-  } catch (err) {
     if (spawnSpec.mode === "pty") {
-      const warning = `Warning: PTY spawn failed (${String(err)}); retrying without PTY for \`${opts.command}\`.`;
-      logWarn(
-        `exec: PTY spawn failed (${String(err)}); retrying without PTY for "${opts.command}".`,
-      );
-      opts.warnings.push(warning);
-      usingPty = false;
       try {
         managedRun = await supervisor.spawn({
-          runId: sessionId,
-          sessionId: opts.sessionKey?.trim() || sessionId,
-          backendId: "exec-host",
-          scopeKey: opts.scopeKey,
+          ...spawnBase,
+          mode: "pty",
+          ptyCommand: spawnSpec.ptyCommand,
+        });
+      } catch (err) {
+        const warning = `Warning: PTY spawn failed (${String(err)}); retrying without PTY for \`${opts.command}\`.`;
+        logWarn(
+          `exec: PTY spawn failed (${String(err)}); retrying without PTY for "${opts.command}".`,
+        );
+        opts.warnings.push(warning);
+        usingPty = false;
+        managedRun = await supervisor.spawn({
+          ...spawnBase,
           mode: "child",
           argv: spawnSpec.childFallbackArgv,
-          cwd: opts.workdir,
-          env: spawnSpec.env,
           stdinMode: "pipe-open",
-          timeoutMs,
-          captureOutput: false,
           onStdout: handleStdout,
-          onStderr: handleStderr,
         });
-      } catch (retryErr) {
-        markExited(session, null, null, "failed");
-        maybeNotifyOnExit(session, "failed");
-        await finalizeSandboxExec({
-          status: "failed",
-          exitCode: null,
-          timedOut: false,
-        }).catch((finalizeErr: unknown) => {
-          logWarn(`exec: sandbox finalize after spawn failure failed (${String(finalizeErr)}).`);
-        });
-        emitExecProcessCompleted({
-          command: opts.command,
-          mode: "child",
-          outcome: buildExecRuntimeErrorOutcome({
-            error: retryErr,
-            aggregated: session.aggregated.trim(),
-            durationMs: Date.now() - startedAt,
-          }),
-          sessionKey: opts.sessionKey,
-          target: diagnosticTarget,
-        });
-        throw retryErr;
       }
     } else {
-      markExited(session, null, null, "failed");
-      maybeNotifyOnExit(session, "failed");
-      await finalizeSandboxExec({
-        status: "failed",
-        exitCode: null,
-        timedOut: false,
-      }).catch((finalizeErr: unknown) => {
-        logWarn(`exec: sandbox finalize after spawn failure failed (${String(finalizeErr)}).`);
+      managedRun = await supervisor.spawn({
+        ...spawnBase,
+        mode: "child",
+        argv: spawnSpec.argv,
+        stdinMode: spawnSpec.stdinMode,
       });
-      emitExecProcessCompleted({
-        command: opts.command,
-        mode: spawnSpec.mode,
-        outcome: buildExecRuntimeErrorOutcome({
-          error: err,
-          aggregated: session.aggregated.trim(),
-          durationMs: Date.now() - startedAt,
-        }),
-        sessionKey: opts.sessionKey,
-        target: diagnosticTarget,
-      });
-      throw err;
     }
+  } catch (error) {
+    const outcome = await finalizeAndSettleSession(
+      buildExecRuntimeErrorOutcome({
+        error,
+        aggregated: session.aggregated.trim(),
+        durationMs: Date.now() - startedAt,
+      }),
+    );
+    emitExecProcessCompleted({
+      command: opts.command,
+      mode: usingPty ? "pty" : "child",
+      outcome,
+      sessionKey: opts.sessionKey,
+      target: diagnosticTarget,
+    });
+    throw error;
   }
   session.stdin = managedRun.stdin;
   session.pid = managedRun.pid;
@@ -945,51 +995,35 @@ export async function runExecProcess(opts: {
         aggregated: session.aggregated.trim(),
         durationMs,
         timeoutSec: opts.timeoutSec,
+        processContinuationAvailable: opts.processContinuationAvailable !== false,
       });
 
-      markExited(
-        session,
-        exit.exitCode,
-        exit.exitSignal,
-        outcome.status,
-        exit.reason,
-        exit.noOutputTimedOut,
-      );
-      maybeNotifyOnExit(session, outcome.status);
-      if (!session.child && session.stdin) {
-        session.stdin.destroyed = true;
-      }
-      await finalizeSandboxExec({
-        status: outcome.status,
-        exitCode: exit.exitCode ?? null,
-        timedOut: exit.timedOut,
-      });
+      const finalOutcome = await finalizeAndSettleSession(outcome);
       emitExecProcessCompleted({
         command: opts.command,
         mode: usingPty ? "pty" : "child",
-        outcome,
+        outcome: finalOutcome,
         sessionKey: opts.sessionKey,
         target: diagnosticTarget,
       });
-      return outcome;
+      return finalOutcome;
     })
-    .catch((err: unknown): ExecProcessOutcome => {
+    .catch(async (err: unknown): Promise<ExecProcessOutcome> => {
       updatesDisabled = true;
-      markExited(session, null, null, "failed");
-      maybeNotifyOnExit(session, "failed");
       const outcome = buildExecRuntimeErrorOutcome({
         error: err,
         aggregated: session.aggregated.trim(),
         durationMs: Date.now() - startedAt,
       });
+      const finalOutcome = await finalizeAndSettleSession(outcome);
       emitExecProcessCompleted({
         command: opts.command,
         mode: usingPty ? "pty" : "child",
-        outcome,
+        outcome: finalOutcome,
         sessionKey: opts.sessionKey,
         target: diagnosticTarget,
       });
-      return outcome;
+      return finalOutcome;
     });
 
   return {
@@ -1005,3 +1039,4 @@ export async function runExecProcess(opts: {
     },
   };
 }
+/* oxlint-disable max-lines -- TODO: split this grandfathered oversized file. */

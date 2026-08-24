@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseReportCliArgs } from "../../scripts/lib/report-cli-helpers.mjs";
+import { parseReportCliArgs } from "../../scripts/lib/report-cli-helpers.mts";
 
 describe("report-cli-helpers", () => {
   it("parses report artifact paths", () => {
@@ -40,8 +40,8 @@ describe("report-cli-helpers", () => {
     expect(() => parseReportCliArgs(["--json", "first.json", "--json", "second.json"])).toThrow(
       "--json was provided more than once.",
     );
-    expect(() =>
-      parseReportCliArgs(["--markdown", "first.md", "--markdown", "second.md"]),
-    ).toThrow("--markdown was provided more than once.");
+    expect(() => parseReportCliArgs(["--markdown", "first.md", "--markdown", "second.md"])).toThrow(
+      "--markdown was provided more than once.",
+    );
   });
 });

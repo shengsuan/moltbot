@@ -9,7 +9,7 @@ import {
   resolveTrustedSourceLinkedOfficialNpmSpec,
 } from "./official-external-install-records.js";
 
-export type PluginVersionDriftEntry = {
+type PluginVersionDriftEntry = {
   pluginId: string;
   installedVersion: string;
   gatewayVersion: string;
@@ -38,7 +38,7 @@ function resolveExactNpmPinPackageName(entry: PluginVersionDriftEntry): string |
 export function resolvePluginVersionDriftUpdateCommand(entry: PluginVersionDriftEntry): string {
   const exactNpmPackageName = resolveExactNpmPinPackageName(entry);
   if (exactNpmPackageName) {
-    const exactNpmTarget = `${exactNpmPackageName}@${entry.gatewayVersion}`;
+    const exactNpmTarget = `${exactNpmPackageName}@${normalizeVersion(entry.gatewayVersion)}`;
     if (parseRegistryNpmSpec(exactNpmTarget)?.selectorKind === "exact-version") {
       return `openclaw plugins update ${exactNpmTarget}`;
     }

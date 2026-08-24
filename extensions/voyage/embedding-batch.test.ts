@@ -1,34 +1,19 @@
 // Voyage batch tests cover bounded status/error response reads.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { runVoyageEmbeddingBatches } from "./embedding-batch.js";
 import type { VoyageEmbeddingClient } from "./embedding-provider.js";
-import { testing } from "./embedding-batch.js";
 
-const { fetchVoyageBatchStatus, readVoyageBatchError, VOYAGE_BATCH_RESPONSE_MAX_BYTES } = testing;
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    headers: { "content-type": "application/json" },
+  });
+}
 
 function buildClient(): VoyageEmbeddingClient {
   return {
     baseUrl: "https://api.voyageai.test/v1",
     headers: { authorization: "Bearer test" },
     model: "voyage-3",
-  };
-}
-
-/**
- * Build deps whose withRemoteHttpResponse drives the real onResponse against a
- * caller-provided Response, so the bounded readers run exactly as in production.
- */
-function buildDeps(response: Response): Parameters<typeof fetchVoyageBatchStatus>[0]["deps"] {
-  return {
-    now: () => 0,
-    sleep: async () => {},
-    postJsonWithRetry: (async () => {
-      throw new Error("postJsonWithRetry should not be called in these tests");
-    }) as never,
-    uploadBatchJsonlFile: (async () => {
-      throw new Error("uploadBatchJsonlFile should not be called in these tests");
-    }) as never,
-    withRemoteHttpResponse: (async (params: { onResponse: (res: Response) => Promise<unknown> }) =>
-      await params.onResponse(response)) as never,
   };
 }
 
@@ -44,7 +29,6 @@ function streamingResponse(params: { chunkCount: number; chunkSize: number; stat
 } {
   let reads = 0;
   let canceled = false;
-  const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     pull(controller) {
       if (reads >= params.chunkCount) {
@@ -52,7 +36,7 @@ function streamingResponse(params: { chunkCount: number; chunkSize: number; stat
         return;
       }
       reads += 1;
-      controller.enqueue(encoder.encode("a".repeat(params.chunkSize)));
+      controller.enqueue(new Uint8Array(params.chunkSize));
     },
     cancel() {
       canceled = true;
@@ -69,149 +53,255 @@ function streamingResponse(params: { chunkCount: number; chunkSize: number; stat
 }
 
 describe("voyage batch bounded reads", () => {
-  it("uses a 16 MiB cap for batch status/error responses", () => {
-    expect(VOYAGE_BATCH_RESPONSE_MAX_BYTES).toBe(16 * 1024 * 1024);
-  });
-
-  it("parses a well-formed batch status response under the byte cap", async () => {
-    const response = new Response(JSON.stringify({ id: "batch_1", status: "completed" }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-
-    const status = await fetchVoyageBatchStatus({
-      client: buildClient(),
-      batchId: "batch_1",
-      deps: buildDeps(response),
-    });
-
-    expect(status).toEqual({ id: "batch_1", status: "completed" });
-  });
-
-  it("caps an oversized batch status stream instead of buffering the whole body", async () => {
-    const streamed = streamingResponse({ chunkCount: 64, chunkSize: 1024 });
+  it("clamps polling to the remaining batch timeout", async () => {
+    const sleeps: number[] = [];
 
     await expect(
-      fetchVoyageBatchStatus({
+      runVoyageEmbeddingBatches({
         client: buildClient(),
-        batchId: "batch_1",
-        deps: buildDeps(streamed.response),
-        maxResponseBytes: 4096,
+        agentId: "main",
+        requests: [{ custom_id: "req-0", body: { input: "hello" } }],
+        wait: true,
+        pollIntervalMs: 2_000,
+        timeoutMs: 1_000,
+        concurrency: 1,
+        deps: {
+          now: (() => {
+            const times = [0, 500];
+            return () => times.shift() ?? 500;
+          })(),
+          sleep: async (ms) => {
+            sleeps.push(ms);
+            throw new Error("stop after first wait");
+          },
+          uploadBatchJsonlFile: async () => "input-0",
+          postJsonWithRetry: async () => ({ id: "batch-0", status: "in_progress" }),
+        },
       }),
-    ).rejects.toThrow(/voyage-batch-status: JSON response exceeds 4096 bytes/);
+    ).rejects.toThrow("stop after first wait");
 
-    // Stream was cancelled mid-flight: fewer chunks read than the full payload.
-    expect(streamed.getReadCount()).toBeLessThan(64);
+    expect(sleeps).toEqual([500]);
+  });
+
+  it("does not poll status after the batch timeout expires", async () => {
+    let now = 0;
+    const statusFetch = vi.fn();
+
+    await expect(
+      runVoyageEmbeddingBatches({
+        client: buildClient(),
+        agentId: "main",
+        requests: [{ custom_id: "req-0", body: { input: "hello" } }],
+        wait: true,
+        pollIntervalMs: 1_000,
+        timeoutMs: 1_000,
+        concurrency: 1,
+        deps: {
+          now: () => now,
+          sleep: async (ms) => {
+            now += ms;
+          },
+          uploadBatchJsonlFile: async () => "input-0",
+          postJsonWithRetry: async () => ({ id: "batch-0", status: "in_progress" }),
+          withRemoteHttpResponse: statusFetch as never,
+        },
+      }),
+    ).rejects.toThrow("voyage batch batch-0 timed out after 1000ms");
+
+    expect(statusFetch).not.toHaveBeenCalled();
+  });
+
+  it("caps an oversized batch status stream through the public runner", async () => {
+    const streamed = streamingResponse({ chunkCount: 20, chunkSize: 1024 * 1024 });
+
+    await expect(
+      runVoyageEmbeddingBatches({
+        client: buildClient(),
+        agentId: "main",
+        requests: [{ custom_id: "req-0", body: { input: "hello" } }],
+        wait: true,
+        pollIntervalMs: 1,
+        timeoutMs: 60_000,
+        concurrency: 1,
+        deps: {
+          now: () => 0,
+          sleep: async () => {},
+          uploadBatchJsonlFile: async () => "input-0",
+          postJsonWithRetry: async () => ({ id: "batch-0", status: "in_progress" }),
+          withRemoteHttpResponse: (async (params: {
+            onResponse: (response: Response) => Promise<unknown>;
+          }) => await params.onResponse(streamed.response)) as never,
+        },
+      }),
+    ).rejects.toThrow(/voyage-batch-status: JSON response exceeds \d+ bytes/);
+
+    expect(streamed.getReadCount()).toBeLessThan(20);
     expect(streamed.wasCanceled()).toBe(true);
   });
 
-  it("preserves the full NDJSON parse chain for an under-cap error file", async () => {
-    // Multi-line NDJSON with a blank line proves the bounded read does not
-    // disturb the original trim/split("\n")/JSON.parse/extractBatchErrorMessage
-    // pipeline: the first useful error message is still extracted byte-for-byte
-    // identically to the pre-change `await res.text()` path.
-    const body = [
-      JSON.stringify({ custom_id: "req-0", response: { status_code: 200 } }),
-      "",
-      JSON.stringify({ custom_id: "req-1", error: { message: "voyage upstream rejected" } }),
-      JSON.stringify({ custom_id: "req-2", error: { message: "second error ignored" } }),
-      "",
-    ].join("\n");
-    const response = new Response(body, {
-      status: 200,
-      headers: { "content-type": "application/x-ndjson" },
-    });
+  it("fail-softs an oversized error file through the public runner", async () => {
+    const streamed = streamingResponse({ chunkCount: 20, chunkSize: 1024 * 1024 });
 
-    const message = await readVoyageBatchError({
-      client: buildClient(),
-      errorFileId: "file_1",
-      deps: buildDeps(response),
-    });
-
-    // extractBatchErrorMessage returns the first line carrying a message, so the
-    // success line is skipped and the second error is not surfaced.
-    expect(message).toBe("voyage upstream rejected");
-  });
-
-  it("returns undefined for an empty error file via the original empty-body branch", async () => {
-    // Whitespace-only body must still hit the `!text.trim()` short-circuit after
-    // decoding the bounded buffer, returning undefined exactly as before.
-    const response = new Response("   \n", {
-      status: 200,
-      headers: { "content-type": "application/x-ndjson" },
-    });
-
-    const message = await readVoyageBatchError({
-      client: buildClient(),
-      errorFileId: "file_1",
-      deps: buildDeps(response),
-    });
-
-    expect(message).toBeUndefined();
-  });
-
-  it("fail-softs an oversized error file into formatUnavailableBatchError by design", async () => {
-    const streamed = streamingResponse({ chunkCount: 64, chunkSize: 1024 });
-
-    // Intended behavior: an over-cap error file must NOT throw out of
-    // readVoyageBatchError. An unbounded error body would otherwise OOM the
-    // worker, so the bounded overflow error is caught and degraded into a
-    // diagnostic string via formatUnavailableBatchError. We accept the lost
-    // detail; the overflow message names the cap so the truncation is visible.
-    const readError = async () =>
-      await readVoyageBatchError({
+    await expect(
+      runVoyageEmbeddingBatches({
         client: buildClient(),
-        errorFileId: "file_1",
-        deps: buildDeps(streamed.response),
-        maxResponseBytes: 4096,
-      });
-
-    await expect(readError()).resolves.toMatch(
-      /error file unavailable: voyage batch error file content exceeds 4096 bytes/,
+        agentId: "main",
+        requests: [{ custom_id: "req-0", body: { input: "hello" } }],
+        wait: true,
+        pollIntervalMs: 1,
+        timeoutMs: 60_000,
+        concurrency: 1,
+        deps: {
+          uploadBatchJsonlFile: async () => "input-0",
+          postJsonWithRetry: async () => ({
+            id: "batch-0",
+            status: "completed",
+            output_file_id: "output-0",
+            error_file_id: "error-0",
+          }),
+          withRemoteHttpResponse: (async (params: {
+            url: string;
+            onResponse: (response: Response) => Promise<unknown>;
+          }) => {
+            expect(params.url).toContain("/files/error-0/content");
+            return await params.onResponse(streamed.response);
+          }) as never,
+        },
+      }),
+    ).rejects.toThrow(
+      /voyage batch batch-0 completed: error file unavailable: voyage batch error file content exceeds \d+ bytes/,
     );
 
-    // The bounded reader still cancels the stream mid-flight rather than
-    // buffering the whole advertised payload before failing soft.
-    expect(streamed.getReadCount()).toBeLessThan(64);
+    expect(streamed.getReadCount()).toBeLessThan(20);
     expect(streamed.wasCanceled()).toBe(true);
   });
 
-  it("caps an oversized non-OK (error) diagnostic body instead of buffering it whole", async () => {
-    // Regression for the non-OK gap: `assertVoyageResponseOk` previously read the
-    // 4xx/5xx diagnostic body with an unbounded `await res.text()`. A hostile
-    // endpoint can return a 500 with a never-ending body, so that read must be
-    // bounded too. Drive a streaming 500 through the real status path and assert
-    // the bounded overflow error fires and the stream is cancelled mid-flight.
-    const streamed = streamingResponse({ chunkCount: 64, chunkSize: 1024, status: 500 });
-
-    await expect(
-      fetchVoyageBatchStatus({
-        client: buildClient(),
-        batchId: "batch_1",
-        deps: buildDeps(streamed.response),
-        maxResponseBytes: 4096,
-      }),
-    ).rejects.toThrow(/voyage batch status failed: 500 \(error body exceeds 4096 bytes\)/);
-
-    // Stream was cancelled mid-flight rather than draining the whole body.
-    expect(streamed.getReadCount()).toBeLessThan(64);
-    expect(streamed.wasCanceled()).toBe(true);
-  });
-
-  it("preserves the diagnostic shape for a small non-OK (error) body", async () => {
-    // Under-cap non-OK body must still surface the original
-    // `${context}: ${status} ${text}` diagnostic byte-for-byte.
-    const response = new Response("voyage upstream is down", {
-      status: 503,
-      headers: { "content-type": "text/plain" },
+  it("normalizes and bounds a non-OK status diagnostic through the public runner", async () => {
+    const streamed = streamingResponse({
+      chunkCount: 20,
+      chunkSize: 1024 * 1024,
+      status: 500,
     });
 
     await expect(
-      fetchVoyageBatchStatus({
+      runVoyageEmbeddingBatches({
         client: buildClient(),
-        batchId: "batch_1",
-        deps: buildDeps(response),
+        agentId: "main",
+        requests: [{ custom_id: "req-0", body: { input: "hello" } }],
+        wait: true,
+        pollIntervalMs: 1,
+        timeoutMs: 60_000,
+        concurrency: 1,
+        deps: {
+          now: () => 0,
+          sleep: async () => {},
+          uploadBatchJsonlFile: async () => "input-0",
+          postJsonWithRetry: async () => ({ id: "batch-0", status: "in_progress" }),
+          withRemoteHttpResponse: (async (params: {
+            onResponse: (response: Response) => Promise<unknown>;
+          }) => await params.onResponse(streamed.response)) as never,
+        },
       }),
-    ).rejects.toThrow(/voyage batch status failed: 503 voyage upstream is down/);
+    ).rejects.toMatchObject({ name: "ProviderHttpError", status: 500, statusCode: 500 });
+
+    expect(streamed.getReadCount()).toBeLessThan(20);
+    expect(streamed.wasCanceled()).toBe(true);
+  });
+
+  it("uses the shared output reader and stops after the expected result", async () => {
+    let canceled = false;
+    const encoder = new TextEncoder();
+    const output = new Response(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(
+            encoder.encode(
+              `${JSON.stringify({
+                custom_id: "req-0",
+                response: { status_code: 200, body: { data: [{ embedding: [1, 2] }] } },
+              })}\n`,
+            ),
+          );
+        },
+        cancel() {
+          canceled = true;
+        },
+      }),
+    );
+
+    const result = await runVoyageEmbeddingBatches({
+      client: buildClient(),
+      agentId: "main",
+      requests: [{ custom_id: "req-0", body: { input: "hello" } }],
+      wait: true,
+      pollIntervalMs: 1,
+      timeoutMs: 1_000,
+      concurrency: 1,
+      deps: {
+        uploadBatchJsonlFile: async () => "input-0",
+        postJsonWithRetry: async () => ({
+          id: "batch-0",
+          status: "completed",
+          output_file_id: "output-0",
+        }),
+        withRemoteHttpResponse: (async (params: {
+          onResponse: (response: Response) => Promise<unknown>;
+        }) => await params.onResponse(output)) as never,
+      },
+    });
+
+    expect(result).toEqual(new Map([["req-0", [1, 2]]]));
+    expect(canceled).toBe(true);
+  });
+
+  it("reads a completed error file before downloading successful output", async () => {
+    let outputFetched = false;
+
+    await expect(
+      runVoyageEmbeddingBatches({
+        client: buildClient(),
+        agentId: "main",
+        requests: [{ custom_id: "req-0", body: { input: "hello" } }],
+        wait: true,
+        pollIntervalMs: 1,
+        timeoutMs: 1_000,
+        concurrency: 1,
+        deps: {
+          uploadBatchJsonlFile: async () => "input-0",
+          postJsonWithRetry: async () => ({
+            id: "batch-0",
+            status: "in_progress",
+          }),
+          withRemoteHttpResponse: (async (params: {
+            url: string;
+            onResponse: (response: Response) => Promise<unknown>;
+          }) => {
+            if (params.url.endsWith("/batches/batch-0")) {
+              return await params.onResponse(
+                jsonResponse({
+                  id: "batch-0",
+                  status: "completed",
+                  output_file_id: "output-0",
+                  error_file_id: "error-0",
+                }),
+              );
+            }
+            if (params.url.endsWith("/files/output-0/content")) {
+              outputFetched = true;
+            }
+            return await params.onResponse(
+              new Response(
+                JSON.stringify({
+                  custom_id: "req-0",
+                  response: { status_code: 500, message: "provider rejected request" },
+                  error: null,
+                }),
+              ),
+            );
+          }) as never,
+        },
+      }),
+    ).rejects.toThrow("voyage batch batch-0 completed: provider rejected request");
+    expect(outputFetched).toBe(false);
   });
 });

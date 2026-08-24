@@ -1,32 +1,20 @@
 // Implements `openclaw channels status` with gateway status and config-only fallback.
 import { redactSensitiveUrlLikeString } from "@openclaw/net-policy/redact-sensitive-url";
 import { normalizeOptionalLowercaseString } from "@openclaw/normalization-core/string-coerce";
-import { formatDocsLink } from "../../../packages/terminal-core/src/links.js";
-import { theme } from "../../../packages/terminal-core/src/theme.js";
-import { normalizeChannelId } from "../../channels/plugins/index.js";
-import { resolveCommandConfigWithSecrets } from "../../cli/command-config-resolution.js";
-import { formatCliCommand } from "../../cli/command-format.js";
-import { getConfiguredChannelsCommandSecretTargetIds } from "../../cli/command-secret-targets.js";
+import {
+  formatCliFailureLines,
+  isExpectedCliError,
+  isGatewayCredentialsCliError,
+} from "../../cli/failure-output.js";
 import { parseTimeoutMsWithFallback } from "../../cli/parse-timeout.js";
 import { withProgress } from "../../cli/progress.js";
-import { readConfigFileSnapshot } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
 import { isGatewaySecretRefUnavailableError } from "../../gateway/credentials.js";
-import { collectChannelStatusIssues } from "../../infra/channels-status-issues.js";
 import { formatErrorMessage } from "../../infra/errors.js";
-import { formatTimeAgo } from "../../infra/format-time/format-relative.ts";
-import { listConfiguredAnnounceChannelIdsForConfig } from "../../plugins/channel-plugin-ids.js";
 import { defaultRuntime, type RuntimeEnv, writeRuntimeJson } from "../../runtime.js";
-import {
-  appendBaseUrlBit,
-  appendEnabledConfiguredLinkedBits,
-  appendModeBit,
-  appendTokenSourceBits,
-  buildChannelAccountLine,
-  type ChatChannel,
-  requireValidConfigSnapshot,
-} from "./shared.js";
-import { formatConfigChannelsStatusLines } from "./status-config-format.js";
+import { createLazyRuntimeModule } from "../../shared/lazy-runtime.js";
+
+const loadChannelsStatusRuntime = createLazyRuntimeModule(() => import("./status.runtime.js"));
 
 export type ChannelsStatusOptions = {
   channel?: string;
@@ -45,6 +33,7 @@ function formatChannelsStatusError(err: unknown): string {
   return redactGatewayUrlSecretsInText(formatErrorMessage(err));
 }
 
+<<<<<<< HEAD
 function formatEventLoopBits(value: unknown): string | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -215,17 +204,20 @@ export function formatGatewayChannelsStatusLines(payload: Record<string, unknown
   return lines;
 }
 
+=======
+>>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 /** Query gateway channel status, falling back to config-only output when unavailable. */
 export async function channelsStatusCommand(
   opts: ChannelsStatusOptions,
   runtime: RuntimeEnv = defaultRuntime,
 ) {
+  const args =
+    normalizeOptionalLowercaseString(opts.channel) === "all"
+      ? { ...opts, channel: undefined }
+      : opts;
   const timeoutMs = parseTimeoutMsWithFallback(opts.timeout, opts.probe ? 30_000 : 10_000, {
     invalidType: "error",
   });
-  const requestedChannel = opts.channel
-    ? (normalizeChannelId(opts.channel) ?? normalizeOptionalLowercaseString(opts.channel))
-    : null;
   const statusLabel = opts.probe ? "Checking channel status (probe)…" : "Checking channel status…";
   const shouldLogStatus = opts.json !== true && !process.stderr.isTTY;
   if (shouldLogStatus) {
@@ -243,8 +235,8 @@ export async function channelsStatusCommand(
           probe: Boolean(opts.probe),
           timeoutMs,
         };
-        if (opts.channel) {
-          params.channel = opts.channel;
+        if (args.channel) {
+          params.channel = args.channel;
         }
         return await callGateway({
           method: "channels.status",
@@ -257,58 +249,23 @@ export async function channelsStatusCommand(
       writeRuntimeJson(runtime, payload);
       return;
     }
+    const { formatGatewayChannelsStatusLines } = await loadChannelsStatusRuntime();
     runtime.log(formatGatewayChannelsStatusLines(payload).join("\n"));
   } catch (err) {
     const safeError = formatChannelsStatusError(err);
-    const gatewayAuthUnavailable = isGatewaySecretRefUnavailableError(err);
-    const fallbackReason = gatewayAuthUnavailable
-      ? "Gateway auth unavailable; showing config-only status."
-      : "Gateway not reachable; showing config-only status.";
-    runtime.error(
-      `${gatewayAuthUnavailable ? "Gateway auth unavailable" : "Gateway not reachable"}: ${safeError}`,
-    );
-    const cfg = await requireValidConfigSnapshot(runtime);
-    if (!cfg) {
-      return;
-    }
-    const { resolvedConfig } = await resolveCommandConfigWithSecrets({
-      config: cfg,
-      commandName: "channels status",
-      targetIds: getConfiguredChannelsCommandSecretTargetIds(cfg),
-      mode: "read_only_status",
+    const expectedError = isExpectedCliError(err);
+    const gatewayAuthUnavailable =
+      isGatewayCredentialsCliError(err) || isGatewaySecretRefUnavailableError(err);
+    const expectedErrorOutput = expectedError
+      ? formatCliFailureLines({ title: "", error: err }).join("\n")
+      : undefined;
+    const { renderChannelsStatusFallback } = await loadChannelsStatusRuntime();
+    await renderChannelsStatusFallback({
+      opts: args,
       runtime,
+      safeError,
+      gatewayAuthUnavailable,
+      expectedErrorOutput,
     });
-    const snapshot = await readConfigFileSnapshot();
-    const mode = cfg.gateway?.mode === "remote" ? "remote" : "local";
-    if (opts.json) {
-      writeRuntimeJson(runtime, {
-        gatewayReachable: false,
-        error: safeError,
-        gatewayAuthUnavailable,
-        configOnly: true,
-        config: {
-          path: snapshot.path,
-          mode,
-        },
-        configuredChannels: listConfiguredAnnounceChannelIdsForConfig({
-          config: resolvedConfig,
-          activationSourceConfig: cfg,
-          env: process.env,
-        }).filter((channelId) => !requestedChannel || channelId === requestedChannel),
-      });
-      return;
-    }
-    runtime.log(
-      (
-        await formatConfigChannelsStatusLines(
-          resolvedConfig,
-          {
-            path: snapshot.path,
-            mode,
-          },
-          { sourceConfig: cfg, channel: opts.channel, fallbackReason },
-        )
-      ).join("\n"),
-    );
   }
 }

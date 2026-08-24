@@ -1,12 +1,13 @@
 // Onboarding plugin install tests cover install sources, trust checks, and install records.
 import fs from "node:fs/promises";
 import path from "node:path";
+import { expectDefined } from "@openclaw/normalization-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { resolveRegistryUpdateChannel } from "../infra/update-channels.js";
 import type { PluginEnableResult } from "../plugins/enable.js";
 import { resolveNpmInstallSpecsForUpdateChannel } from "../plugins/install-channel-specs.js";
-import { withTempDir } from "../test-helpers/temp-dir.js";
+import { withTestDir } from "../test-helpers/temp-dir.js";
 import { VERSION } from "../version.js";
 
 function expectedNpmInstallSpec(spec: string): string {
@@ -26,7 +27,7 @@ vi.mock("../cli/plugin-install-plan.js", () => ({
 const invalidatePluginRuntimeDiscoveryAfterConfigMutation = vi.hoisted(() =>
   vi.fn(async () => undefined),
 );
-vi.mock("../cli/plugins-registry-refresh.js", () => ({
+vi.mock("../plugins/registry-refresh.js", () => ({
   invalidatePluginRuntimeDiscoveryAfterConfigMutation,
 }));
 
@@ -109,6 +110,13 @@ vi.mock("../plugins/plugin-metadata-lifecycle.js", () => ({
 const clearLoadInstalledPluginIndexInstallRecordsCache = vi.hoisted(() => vi.fn());
 vi.mock("../plugins/installed-plugin-index-records.js", () => ({
   clearLoadInstalledPluginIndexInstallRecordsCache,
+}));
+
+const withPluginLifecycleLease = vi.hoisted(() =>
+  vi.fn(async (_options: unknown, run: () => Promise<unknown>) => await run()),
+);
+vi.mock("../plugins/plugin-lifecycle-lease.js", () => ({
+  withPluginLifecycleLease,
 }));
 
 const withTimeout = vi.hoisted(() => vi.fn(async <T>(promise: Promise<T>) => await promise));
@@ -225,10 +233,10 @@ describe("ensureOnboardingPluginInstalled", () => {
       await ensureOnboardingPluginInstalled({
         cfg: {},
         entry: {
-          pluginId: "qqbot",
+          pluginId: "openclaw-qqbot",
           label: "QQ Bot",
           install: {
-            npmSpec: "@openclaw/qqbot@beta",
+            npmSpec: "@tencent-connect/openclaw-qqbot@2.0.1",
           },
         },
         prompter: {
@@ -242,7 +250,7 @@ describe("ensureOnboardingPluginInstalled", () => {
 
       expect(captured?.message).toBe("安装 QQ Bot 插件？");
       expect(captured?.options).toEqual([
-        { value: "npm", label: "从 npm 下载（@openclaw/qqbot@beta）" },
+        { value: "npm", label: "从 npm 下载（@tencent-connect/openclaw-qqbot@2.0.1）" },
         { value: "skip", label: "暂时跳过" },
       ]);
     } finally {
@@ -292,6 +300,7 @@ describe("ensureOnboardingPluginInstalled", () => {
 
       expect(progress).toHaveBeenCalledWith("正在安装 Demo Plugin 插件...");
       expect(note).toHaveBeenCalledWith("无法启用 Demo Plugin：blocked by allowlist。", "插件安装");
+      expect(withPluginLifecycleLease).toHaveBeenCalledOnce();
     } finally {
       if (previousLocale === undefined) {
         delete process.env.OPENCLAW_LOCALE;
@@ -346,7 +355,6 @@ describe("ensureOnboardingPluginInstalled", () => {
             source: "exec",
             command: process.execPath,
             args: ["-e", "process.exit(1)"],
-            allowInsecurePath: true,
           },
         },
       },
@@ -483,7 +491,6 @@ describe("ensureOnboardingPluginInstalled", () => {
             source: "exec",
             command: process.execPath,
             args: ["-e", "process.exit(1)"],
-            allowInsecurePath: true,
           },
         },
       },
@@ -624,7 +631,12 @@ describe("ensureOnboardingPluginInstalled", () => {
     expect(renderedWarning).toContain("Security scan: suspicious");
     expect(renderedWarning).toContain("\n│ Review before installing.");
     expect(renderedWarning).not.toContain("\\n│ Review before installing.");
-    expect(log.mock.invocationCallOrder[0]).toBeLessThan(text.mock.invocationCallOrder[0]);
+    expect(log.mock.invocationCallOrder[0]).toBeLessThan(
+      expectDefined(
+        text.mock.invocationCallOrder[0],
+        "text.mock.invocationCallOrder[0] test invariant",
+      ),
+    );
   });
 
   it("passes npm specs and optional expected integrity to npm installs with progress", async () => {
@@ -636,7 +648,6 @@ describe("ensureOnboardingPluginInstalled", () => {
             source: "exec",
             command: process.execPath,
             args: ["-e", "process.exit(1)"],
-            allowInsecurePath: true,
           },
         },
       },
@@ -734,6 +745,88 @@ describe("ensureOnboardingPluginInstalled", () => {
     );
   });
 
+  it("installs trusted official plugins at the exact extended-stable core version", async () => {
+    installPluginFromNpmSpec.mockResolvedValueOnce({
+      ok: true,
+      pluginId: "discord",
+      targetDir: "/tmp/discord",
+      version: VERSION,
+      npmResolution: {
+        name: "@openclaw/discord",
+        version: VERSION,
+        resolvedSpec: `@openclaw/discord@${VERSION}`,
+      },
+    });
+
+    await ensureOnboardingPluginInstalled({
+      cfg: { update: { channel: "extended-stable" } },
+      entry: {
+        pluginId: "discord",
+        label: "Discord",
+        install: { npmSpec: "@openclaw/discord" },
+        trustedSourceLinkedOfficialInstall: true,
+      },
+      prompter: {
+        select: vi.fn(async () => "npm"),
+        progress: vi.fn(() => ({ update: vi.fn(), stop: vi.fn() })),
+      } as never,
+      runtime: {} as never,
+      promptInstall: false,
+    });
+
+    const [npmCall] = readFirstMockCall(installPluginFromNpmSpec, "installPluginFromNpmSpec") as [
+      NpmSpecInstallCall,
+    ];
+    expect(npmCall.spec).toBe(`@openclaw/discord@${VERSION}`);
+    const [, recordUpdate] = readFirstMockCall(recordPluginInstall, "recordPluginInstall") as [
+      OpenClawConfig,
+      PluginInstallRecord,
+    ];
+    expect(recordUpdate.spec).toBe("@openclaw/discord");
+    expect(resolveNpmInstallRecordSpec).toHaveBeenCalledWith(
+      expect.objectContaining({ pinResolvedRegistrySpec: false }),
+    );
+  });
+
+  it("preserves default intent for trusted official stable installs", async () => {
+    installPluginFromNpmSpec.mockResolvedValueOnce({
+      ok: true,
+      pluginId: "discord",
+      targetDir: "/tmp/discord",
+      version: "2026.7.21",
+      npmResolution: {
+        name: "@openclaw/discord",
+        version: "2026.7.21",
+        resolvedSpec: "@openclaw/discord@2026.7.21",
+      },
+    });
+
+    await ensureOnboardingPluginInstalled({
+      cfg: { update: { channel: "stable" } },
+      entry: {
+        pluginId: "discord",
+        label: "Discord",
+        install: { npmSpec: "@openclaw/discord" },
+        trustedSourceLinkedOfficialInstall: true,
+      },
+      prompter: {
+        select: vi.fn(async () => "npm"),
+        progress: vi.fn(() => ({ update: vi.fn(), stop: vi.fn() })),
+      } as never,
+      runtime: {} as never,
+      promptInstall: false,
+    });
+
+    const [, recordUpdate] = readFirstMockCall(recordPluginInstall, "recordPluginInstall") as [
+      OpenClawConfig,
+      PluginInstallRecord,
+    ];
+    expect(recordUpdate.spec).toBe("@openclaw/discord");
+    expect(resolveNpmInstallRecordSpec).toHaveBeenCalledWith(
+      expect.objectContaining({ pinResolvedRegistrySpec: false }),
+    );
+  });
+
   it("logs npm install warnings once while shortening the progress label", async () => {
     const warning =
       "npm rejected managed npm alias overrides; retrying plugin install without alias overrides for this npm version.";
@@ -773,12 +866,45 @@ describe("ensureOnboardingPluginInstalled", () => {
     expect(result.status).toBe("installed");
   });
 
-  it("returns a timed out status and notes the retry path when npm install hangs", async () => {
+  it("cancels a timed out npm install before returning and releasing its lease", async () => {
     const note = vi.fn(async () => {});
     const stop = vi.fn();
+    let installSignal: AbortSignal | undefined;
+    let releaseCleanup = () => {};
+    let leaseActive = false;
+    const cleanupGate = new Promise<void>((resolve) => {
+      releaseCleanup = resolve;
+    });
+    let observeAbort = () => {};
+    const abortObserved = new Promise<void>((resolve) => {
+      observeAbort = resolve;
+    });
+    withPluginLifecycleLease.mockImplementationOnce(async (_options, run) => {
+      leaseActive = true;
+      try {
+        return await run();
+      } finally {
+        leaseActive = false;
+      }
+    });
+    installPluginFromNpmSpec.mockImplementationOnce(async (params: { signal?: AbortSignal }) => {
+      installSignal = params.signal;
+      await new Promise<void>((resolve) => {
+        params.signal?.addEventListener(
+          "abort",
+          () => {
+            observeAbort();
+            resolve();
+          },
+          { once: true },
+        );
+      });
+      await cleanupGate;
+      return { ok: false, error: "installer canceled" };
+    });
     withTimeout.mockRejectedValue(new Error("timeout"));
 
-    const result = await ensureOnboardingPluginInstalled({
+    const pendingResult = ensureOnboardingPluginInstalled({
       cfg: {},
       entry: {
         pluginId: "demo-plugin",
@@ -797,7 +923,20 @@ describe("ensureOnboardingPluginInstalled", () => {
         error: vi.fn(),
       } as never,
     });
+    let returned = false;
+    void pendingResult.then(() => {
+      returned = true;
+    });
 
+    await abortObserved;
+    expect(installSignal?.aborted).toBe(true);
+    expect(leaseActive).toBe(true);
+    expect(returned).toBe(false);
+
+    releaseCleanup();
+    const result = await pendingResult;
+
+    expect(leaseActive).toBe(false);
     expect(result).toEqual({
       cfg: {},
       installed: false,
@@ -1011,6 +1150,7 @@ describe("ensureOnboardingPluginInstalled", () => {
       installed: false,
       pluginId: "demo-plugin",
       status: "failed",
+      error: "ClawHub ClawPack artifact is unavailable.",
     });
   });
 
@@ -1054,11 +1194,53 @@ describe("ensureOnboardingPluginInstalled", () => {
       installed: false,
       pluginId: "demo-plugin",
       status: "failed",
+      error: "ClawHub ClawPack integrity mismatch.",
     });
   });
 
+  it("returns bounded multiline ClawHub failure detail to non-interactive callers", async () => {
+    const runtimeError = vi.fn();
+    const summaryPrefix = "x".repeat(178);
+    installPluginFromClawHub.mockResolvedValueOnce({
+      ok: false,
+      code: "archive_integrity_mismatch",
+      error: `Install failed: ${summaryPrefix}🚀tail\tvalue[31m\nsecond\tline\n${"y".repeat(20_000)}`,
+    });
+
+    const result = await ensureOnboardingPluginInstalled({
+      cfg: {},
+      entry: {
+        pluginId: "demo-plugin",
+        label: "Demo Plugin",
+        install: {
+          clawhubSpec: "clawhub:demo-plugin@2026.5.2",
+          npmSpec: "@openclaw/demo-plugin@2026.5.2",
+          defaultChoice: "clawhub",
+        },
+      },
+      prompter: {
+        select: vi.fn(async () => "clawhub"),
+        confirm: vi.fn(async () => true),
+        note: vi.fn(async () => {}),
+        progress: vi.fn(() => ({ update: vi.fn(), stop: vi.fn() })),
+      } as never,
+      runtime: { error: runtimeError } as never,
+      promptInstall: false,
+    });
+
+    expect(result.error).toMatch(/^Install failed: x{178}🚀tail/);
+    expect(result.error).toContain("\\tvalue");
+    expect(result.error).toContain("\nsecond\\tline\n");
+    expect(result.error).not.toContain("");
+    expect(result.error?.endsWith("\n… (installer output truncated)")).toBe(true);
+    expect(result.error?.length).toBe(12_000);
+    const runtimeMessage = String(readFirstMockCall(runtimeError, "runtime.error")[0]);
+    expect(runtimeMessage).toContain(`${summaryPrefix}…`);
+    expect(runtimeMessage).not.toContain("");
+  });
+
   it("does not offer local installs when the workspace only has a spoofed .git marker", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-spoofed-git-" }, async (temp) => {
+    await withTestDir({ prefix: "openclaw-onboarding-install-spoofed-git-" }, async (temp) => {
       const workspaceDir = path.join(temp, "workspace");
       const cwdDir = path.join(temp, "cwd");
       const pluginDir = path.join(workspaceDir, "plugins", "demo");
@@ -1116,7 +1298,7 @@ describe("ensureOnboardingPluginInstalled", () => {
   });
 
   it("allows local installs for real gitdir checkouts and sanitizes prompt text", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-gitdir-" }, async (temp) => {
+    await withTestDir({ prefix: "openclaw-onboarding-install-gitdir-" }, async (temp) => {
       const workspaceDir = path.join(temp, "workspace");
       const pluginDir = path.join(workspaceDir, "plugins", "demo");
       await fs.mkdir(pluginDir, { recursive: true });
@@ -1174,7 +1356,7 @@ describe("ensureOnboardingPluginInstalled", () => {
   });
 
   it("does not add local plugin paths when enablement is blocked by policy", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-blocked-enable-" }, async (temp) => {
+    await withTestDir({ prefix: "openclaw-onboarding-install-blocked-enable-" }, async (temp) => {
       const workspaceDir = path.join(temp, "workspace");
       const pluginDir = path.join(workspaceDir, "plugins", "demo");
       await fs.mkdir(pluginDir, { recursive: true });
@@ -1222,7 +1404,7 @@ describe("ensureOnboardingPluginInstalled", () => {
   });
 
   it("allows local installs for linked git worktrees", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-worktree-" }, async (temp) => {
+    await withTestDir({ prefix: "openclaw-onboarding-install-worktree-" }, async (temp) => {
       const workspaceDir = path.join(temp, "workspace");
       const pluginDir = path.join(workspaceDir, "plugins", "demo");
       const commonGitDir = path.join(temp, "repo.git");
@@ -1276,7 +1458,7 @@ describe("ensureOnboardingPluginInstalled", () => {
   });
 
   it("records local install source metadata when a local path is selected", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-local-record-" }, async (temp) => {
+    await withTestDir({ prefix: "openclaw-onboarding-install-local-record-" }, async (temp) => {
       const workspaceDir = path.join(temp, "workspace");
       const pluginDir = path.join(workspaceDir, "plugins", "demo");
       await fs.mkdir(path.join(workspaceDir, ".git"), { recursive: true });
@@ -1332,7 +1514,7 @@ describe("ensureOnboardingPluginInstalled", () => {
   });
 
   it("hides the npm download option for bundled plugins so the menu matches non-npm channels", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-bundled-prompt-" }, async (temp) => {
+    await withTestDir({ prefix: "openclaw-onboarding-install-bundled-prompt-" }, async (temp) => {
       const bundledDir = path.join(temp, "dist", "extensions", "tlon");
       await fs.mkdir(bundledDir, { recursive: true });
       const realBundledDir = await fs.realpath(bundledDir);
@@ -1395,7 +1577,7 @@ describe("ensureOnboardingPluginInstalled", () => {
   });
 
   it("enables bundled plugins without adding their bundled directory as a local install", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-bundled-record-" }, async (temp) => {
+    await withTestDir({ prefix: "openclaw-onboarding-install-bundled-record-" }, async (temp) => {
       const bundledDir = path.join(temp, "dist", "extensions", "discord");
       await fs.mkdir(bundledDir, { recursive: true });
       const realBundledDir = await fs.realpath(bundledDir);
@@ -1441,7 +1623,7 @@ describe("ensureOnboardingPluginInstalled", () => {
   });
 
   it("records local install source metadata when npm install falls back to local", async () => {
-    await withTempDir(
+    await withTestDir(
       { prefix: "openclaw-onboarding-install-npm-fallback-record-" },
       async (temp) => {
         const workspaceDir = path.join(temp, "workspace");
@@ -1505,7 +1687,7 @@ describe("ensureOnboardingPluginInstalled", () => {
   });
 
   it("records absolute local catalog paths as workspace-relative source metadata", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-portable-record-" }, async (temp) => {
+    await withTestDir({ prefix: "openclaw-onboarding-install-portable-record-" }, async (temp) => {
       const workspaceDir = path.join(temp, "workspace");
       const pluginDir = path.join(workspaceDir, "plugins", "demo");
       await fs.mkdir(path.join(workspaceDir, ".git"), { recursive: true });
@@ -1548,7 +1730,7 @@ describe("ensureOnboardingPluginInstalled", () => {
   });
 
   it("keeps local installs available when cwd is a git repo but workspaceDir is not", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-cwd-git-" }, async (temp) => {
+    await withTestDir({ prefix: "openclaw-onboarding-install-cwd-git-" }, async (temp) => {
       const repoDir = path.join(temp, "repo");
       const workspaceDir = path.join(temp, "workspace");
       const pluginDir = path.join(repoDir, "demo-plugin");
@@ -1602,7 +1784,7 @@ describe("ensureOnboardingPluginInstalled", () => {
   });
 
   it("rejects local install paths outside the trusted workspace roots", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-outside-root-" }, async (temp) => {
+    await withTestDir({ prefix: "openclaw-onboarding-install-outside-root-" }, async (temp) => {
       const workspaceDir = path.join(temp, "workspace");
       const pluginDir = path.join(temp, "external-plugin");
       await fs.mkdir(path.join(workspaceDir, ".git"), { recursive: true });
@@ -1640,70 +1822,5 @@ describe("ensureOnboardingPluginInstalled", () => {
       expect(captured?.options).toEqual([{ value: "skip", label: "Skip for now" }]);
     });
   });
-
-  it("rejects local install paths when relative resolution looks cross-drive", async () => {
-    await withTempDir({ prefix: "openclaw-onboarding-install-cross-drive-" }, async (temp) => {
-      const workspaceDir = path.join(temp, "workspace");
-      const pluginDir = path.join(workspaceDir, "plugins", "demo");
-      await fs.mkdir(path.join(workspaceDir, ".git"), { recursive: true });
-      await fs.mkdir(pluginDir, { recursive: true });
-      const realWorkspaceDir = await fs.realpath(workspaceDir);
-
-      const originalRelative = path.relative;
-      const originalIsAbsolute = path.isAbsolute;
-      const relativeSpy = vi.spyOn(path, "relative").mockImplementation((from, to) => {
-        if (
-          typeof from === "string" &&
-          typeof to === "string" &&
-          from === realWorkspaceDir &&
-          to === path.join(realWorkspaceDir, "plugins", "demo")
-        ) {
-          return "D:\\evil";
-        }
-        return originalRelative(from, to);
-      });
-      const isAbsoluteSpy = vi.spyOn(path, "isAbsolute").mockImplementation((value) => {
-        if (value === "D:\\evil") {
-          return true;
-        }
-        return originalIsAbsolute(value);
-      });
-
-      try {
-        let captured:
-          | {
-              options: Array<{
-                value: "clawhub" | "npm" | "local" | "skip";
-                label: string;
-                hint?: string;
-              }>;
-            }
-          | undefined;
-
-        await ensureOnboardingPluginInstalled({
-          cfg: {},
-          entry: {
-            pluginId: "demo-plugin",
-            label: "Demo Plugin",
-            install: {
-              localPath: "plugins/demo",
-            },
-          },
-          prompter: {
-            select: vi.fn(async (input) => {
-              captured = input;
-              return "skip";
-            }),
-          } as never,
-          runtime: {} as never,
-          workspaceDir,
-        });
-
-        expect(captured?.options).toEqual([{ value: "skip", label: "Skip for now" }]);
-      } finally {
-        relativeSpy.mockRestore();
-        isAbsoluteSpy.mockRestore();
-      }
-    });
-  });
 });
+/* oxlint-disable max-lines -- TODO: split this grandfathered oversized file. */

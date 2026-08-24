@@ -5,6 +5,19 @@ import { createEmbeddedCallGateway } from "./embedded-gateway-stub.js";
 
 const runtime = vi.hoisted(() => ({
   getRuntimeConfig: vi.fn(() => ({ agents: { list: [{ id: "main", default: true }] } })),
+  resolveDefaultAgentId: vi.fn(() => "main"),
+  resolveSessionStoreKey: vi.fn(({ sessionKey }: { sessionKey: string }) =>
+    sessionKey === "main" ? "agent:main:main" : sessionKey,
+  ),
+  resolveStoredSessionKeyForAgentStore: vi.fn(
+    ({ agentId, sessionKey }: { agentId: string; sessionKey: string }) =>
+      sessionKey === "global" || sessionKey === "unknown"
+        ? sessionKey
+        : sessionKey.startsWith("agent:")
+          ? sessionKey
+          : `agent:${agentId}:${sessionKey}`,
+  ),
+  searchSessionTranscripts: vi.fn(() => ({ hits: [], indexing: false, truncated: false })),
   resolveSessionKeyFromResolveParams: vi.fn(),
   resolveSessionAgentId: vi.fn(() => "main"),
   loadSessionEntry: vi.fn(() => ({
@@ -36,8 +49,7 @@ const runtime = vi.hoisted(() => ({
     messages,
   })),
   capArrayByJsonBytes: vi.fn((items: unknown[]) => ({ items })),
-  enforceChatHistoryFinalBudget: vi.fn(({ messages }: { messages: unknown[] }) => ({ messages })),
-  loadCombinedSessionStoreForGateway: vi.fn(() => ({
+  loadCombinedSessionStoreForGatewayCore: vi.fn(() => ({
     storePath: "/tmp/openclaw-sessions.json",
     store: {},
   })),
@@ -59,7 +71,10 @@ describe("embedded gateway stub", () => {
     runtime.readSessionMessagesPageWithStatsAsync.mockClear();
     runtime.loadSessionEntry.mockClear();
     runtime.resolveSessionAgentId.mockClear();
-    runtime.loadCombinedSessionStoreForGateway.mockClear();
+    runtime.resolveSessionStoreKey.mockClear();
+    runtime.resolveStoredSessionKeyForAgentStore.mockClear();
+    runtime.searchSessionTranscripts.mockClear();
+    runtime.loadCombinedSessionStoreForGatewayCore.mockClear();
     runtime.listSessionsFromStoreAsync.mockClear();
   });
 
@@ -70,9 +85,9 @@ describe("embedded gateway stub", () => {
       params: { agentId: "work", includeGlobal: true, search: "global" },
     });
 
-    expect(runtime.loadCombinedSessionStoreForGateway).toHaveBeenCalledWith(
+    expect(runtime.loadCombinedSessionStoreForGatewayCore).toHaveBeenCalledWith(
       { agents: { list: [{ id: "main", default: true }] } },
-      { agentId: "work" },
+      { agentId: "work", projection: "list" },
     );
     expect(runtime.listSessionsFromStoreAsync).toHaveBeenCalledWith({
       cfg: { agents: { list: [{ id: "main", default: true }] } },
@@ -97,8 +112,26 @@ describe("embedded gateway stub", () => {
     expect(result).toEqual({ ok: true, key: "agent:main:main" });
     expect(runtime.resolveSessionKeyFromResolveParams).toHaveBeenCalledWith({
       cfg: { agents: { list: [{ id: "main", default: true }] } },
+      client: null,
       p: { sessionId: "sess-main", includeGlobal: true },
     });
+  });
+
+  it("preserves short-id ambiguity as a successful embedded response", async () => {
+    const candidates = [
+      { key: "agent:main:thread:12345678-0aaa-4000-8000-000000000001", displayName: "One" },
+      { key: "agent:main:thread:12345678-0bbb-4000-8000-000000000002", displayName: "Two" },
+    ];
+    runtime.resolveSessionKeyFromResolveParams.mockResolvedValueOnce({
+      ok: true,
+      ambiguous: true,
+      candidates,
+    });
+
+    const callGateway = createEmbeddedCallGateway();
+    await expect(
+      callGateway({ method: "sessions.resolve", params: { shortId: "12345678" } }),
+    ).resolves.toEqual({ ok: false, candidates });
   });
 
   it("throws resolver errors for unresolved sessions", async () => {
@@ -115,6 +148,77 @@ describe("embedded gateway stub", () => {
         params: { key: "missing" },
       }),
     ).rejects.toThrow("No session found: missing");
+  });
+
+  it("canonicalizes embedded session search filters", async () => {
+    const callGateway = createEmbeddedCallGateway();
+    await callGateway({
+      method: "sessions.search",
+      params: {
+        agentId: "main",
+        query: "needle",
+        sessionKeys: ["main", "agent:main:other"],
+        limit: 3,
+      },
+    });
+
+    expect(runtime.resolveStoredSessionKeyForAgentStore).toHaveBeenNthCalledWith(1, {
+      cfg: { agents: { list: [{ id: "main", default: true }] } },
+      agentId: "main",
+      sessionKey: "main",
+    });
+    expect(runtime.resolveStoredSessionKeyForAgentStore).toHaveBeenNthCalledWith(2, {
+      cfg: { agents: { list: [{ id: "main", default: true }] } },
+      agentId: "main",
+      sessionKey: "agent:main:other",
+    });
+    expect(runtime.searchSessionTranscripts).toHaveBeenCalledWith({
+      agentId: "main",
+      query: "needle",
+      limit: 3,
+      sessionKeys: ["agent:main:main", "agent:main:other"],
+    });
+  });
+
+  it("rejects empty session-key filters instead of widening the search", async () => {
+    const callGateway = createEmbeddedCallGateway();
+
+    await expect(
+      callGateway({ method: "sessions.search", params: { query: "needle", sessionKeys: [] } }),
+    ).rejects.toThrow("sessionKeys must be a non-empty array of session keys");
+    await expect(
+      callGateway({ method: "sessions.search", params: { query: "needle", sessionKeys: [7] } }),
+    ).rejects.toThrow("sessionKeys must be a non-empty array of session keys");
+    expect(runtime.searchSessionTranscripts).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized embedded session search queries", async () => {
+    const callGateway = createEmbeddedCallGateway();
+
+    await expect(
+      callGateway({ method: "sessions.search", params: { query: "x".repeat(4097) } }),
+    ).rejects.toThrow("query must not exceed 4096 characters");
+    expect(runtime.searchSessionTranscripts).not.toHaveBeenCalled();
+  });
+
+  it("rejects an explicit agent that conflicts with an unscoped store owner", async () => {
+    runtime.resolveSessionAgentId.mockImplementationOnce(() => {
+      throw new Error('The shared fixed-store row belongs to "ops", not "research".');
+    });
+    const callGateway = createEmbeddedCallGateway();
+
+    await expect(
+      callGateway({
+        method: "sessions.search",
+        params: { agentId: "research", query: "needle", sessionKeys: ["global"] },
+      }),
+    ).rejects.toThrow('belongs to "ops", not "research"');
+    expect(runtime.resolveSessionAgentId).toHaveBeenCalledWith({
+      sessionKey: "global",
+      config: { agents: { list: [{ id: "main", default: true }] } },
+      agentId: "research",
+    });
+    expect(runtime.searchSessionTranscripts).not.toHaveBeenCalled();
   });
 
   it("projects embedded chat history through the shared display projector", async () => {
@@ -420,7 +524,7 @@ describe("embedded gateway stub", () => {
       messages: rawMessages,
       totalMessages: 10,
     }));
-    runtime.enforceChatHistoryFinalBudget.mockReturnValueOnce({ messages: returnedMessages });
+    runtime.capArrayByJsonBytes.mockReturnValueOnce({ items: returnedMessages });
 
     const callGateway = createEmbeddedCallGateway();
     const result = await callGateway<{
@@ -504,6 +608,14 @@ describe("embedded gateway stub", () => {
         params: { sessionKey: "agent:main:main", offset: 1.5 },
       }),
     ).rejects.toThrow("offset must be a non-negative integer");
+    await expect(
+      callGateway({
+        method: "chat.history",
+        params: { sessionKey: "agent:main:main", offset: "1abc" },
+      }),
+    ).rejects.toThrow("offset must be a non-negative integer");
     expect(runtime.readSessionMessagesAsync).not.toHaveBeenCalled();
+    expect(runtime.readRecentSessionMessagesWithStatsAsync).not.toHaveBeenCalled();
+    expect(runtime.readSessionMessagesPageWithStatsAsync).not.toHaveBeenCalled();
   });
 });

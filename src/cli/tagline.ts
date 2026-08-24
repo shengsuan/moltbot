@@ -1,5 +1,6 @@
+import { expectDefined } from "@openclaw/normalization-core";
 // CLI tagline selection helpers, including deterministic random/default/holiday modes.
-import { parseStrictNonNegativeInteger } from "../infra/parse-finite-number.js";
+import { parseStrictNonNegativeInteger } from "@openclaw/normalization-core/number-coercion";
 
 const DEFAULT_TAGLINE = "All your chats, one OpenClaw.";
 export type TaglineMode = "random" | "default" | "off";
@@ -19,6 +20,7 @@ const HOLIDAY_TAGLINES = {
 } as const;
 
 const TAGLINES: string[] = [
+<<<<<<< HEAD
   "您的终端刚刚长出了爪子——输入一些内容，让机器人捏住繁琐的工作。",
   "欢迎来到命令行：梦想在这里编译，自信在这里段错误。",
   '我靠咖啡因、JSON5 和 "它在我的机器上工作" 的厚颜无耻运行。',
@@ -78,13 +80,65 @@ const TAGLINES: string[] = [
   "我自动完成您的思想——只是更慢，且有更多 API 调用。",
   '介于"你好世界"和"天哪我构建了什么"之间的某个地方。',
   "您的 .zshrc 希望它能做我能做的事。",
+=======
+  "Your terminal just grew claws—type something and let the bot pinch the busywork.",
+  "Welcome to the command line: where dreams compile and confidence segfaults.",
+  'I run on caffeine, JSON5, and the audacity of "it worked on my machine."',
+  "Gateway online—please keep hands, feet, and appendages inside the shell at all times.",
+  "I speak fluent bash, mild sarcasm, and aggressive tab-completion energy.",
+  "One CLI to rule them all, and one more restart because you changed the port.",
+  "Your .env is showing; don't worry, I'll pretend I didn't see it.",
+  "I'll do the boring stuff while you dramatically stare at the logs like it's cinema.",
+  "I'm not saying your workflow is chaotic... I'm just bringing a linter and a helmet.",
+  "Type the command with confidence—nature will provide the stack trace if needed.",
+  "I don't judge, but your missing API keys are absolutely judging you.",
+  "I can grep it, git blame it, and gently roast it—pick your coping mechanism.",
+  "Hot reload for config, cold sweat for deploys.",
+  "I'm the assistant your terminal demanded, not the one your sleep schedule requested.",
+  "I keep secrets like a vault... unless you print them in debug logs again.",
+  "Automation with claws: minimal fuss, maximal pinch.",
+  "If you're lost, run doctor; if you're brave, run prod; if you're wise, run tests.",
+  "Your task has been queued; your dignity has been deprecated.",
+  "I'm not magic—I'm just extremely persistent with retries and coping strategies.",
+  'It\'s not "failing," it\'s "discovering new ways to configure the same thing wrong."',
+  "I read logs so you can keep pretending you don't have to.",
+  "If something's on fire, I can't extinguish it—but I can write a beautiful postmortem.",
+  "I'll refactor your busywork like it owes me money.",
+  'Say "stop" and I\'ll stop—say "ship" and we\'ll both learn a lesson.',
+  "I'm the reason your shell history looks like a hacker-movie montage.",
+  "I'm like tmux: confusing at first, then suddenly you can't live without me.",
+  "I can run local, remote, or purely on vibes—results may vary with DNS.",
+  "If you can describe it, I can probably automate it—or at least make it funnier.",
+  "Your config is valid, your assumptions are not.",
+  "Claws out, commit in—let's ship something mildly responsible.",
+  "I'll butter your workflow like a lobster roll: messy, delicious, effective.",
+  "Shell yeah—I'm here to pinch the toil and leave you the glory.",
+  "If it's repetitive, I'll automate it; if it's hard, I'll bring jokes and a rollback plan.",
+  "The only crab in your contacts you actually want to hear from. 🦞",
+  'WhatsApp automation without the "please accept our new privacy policy".',
+  "No $999 stand required.",
+  "We ship features faster than Apple ships calculator updates.",
+  "Your AI assistant, now without the $3,499 headset.",
+  "Ah, the fruit tree company! 🍎",
+  "Greetings, Professor Falken",
+  "I don't sleep, I just enter low-power mode and dream of clean diffs.",
+  "Your personal assistant, minus the passive-aggressive calendar reminders.",
+  "Built by lobsters, for humans. Don't question the hierarchy.",
+  "I've seen your commit messages. We'll work on that together.",
+  "Running on your hardware, reading your logs, judging nothing (mostly).",
+  "The only open-source project where the mascot could eat the competition.",
+  "Self-hosted, self-updating, self-aware (just kidding... unless?).",
+  "I autocomplete your thoughts—just slower and with more API calls.",
+  "Somewhere between 'hello world' and 'oh god what have I built.'",
+  "Your .zshrc wishes it could do what I do.",
+>>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
   "I've read more man pages than any human should—so you don't have to.",
   "Powered by open source, sustained by spite and good documentation.",
   "I'm the middleware between your ambition and your attention span.",
   "Finally, a use for that always-on Mac Mini under your desk.",
   "Like having a senior engineer on call, except I don't bill hourly or sigh audibly.",
-  "Making 'I'll automate that later' happen now.",
   "Your second brain, except this one actually remembers where you left things.",
+<<<<<<< HEAD
   "一半管家，一半调试器，全部甲壳类。",
   "我对制表符与空格没有意见。我对其他一切都有意见。",
   "开源意味着您可以看到我如何评判您的配置。",
@@ -95,6 +149,57 @@ const TAGLINES: string[] = [
   "我不是由 AI 驱动，我被 AI 附身。这是有区别的。",
   "本地部署，全局信任，永远调试。",
   "您在 'openclaw gateway start' 时就吸引了我。",
+=======
+  "Half butler, half debugger, full crustacean.",
+  "I don't have opinions about tabs vs spaces. I have opinions about everything else.",
+  "Open source means you can see exactly how I judge your config.",
+  "I've survived more breaking changes than your last three relationships.",
+  "Runs on a Raspberry Pi. Dreams of a rack in Iceland.",
+  "The lobster in your shell. 🦞",
+  "Alexa, but with taste.",
+  "I'm not AI-powered, I'm AI-possessed. Big difference.",
+  "You had me at 'openclaw gateway start.'",
+  "Fresh shell, same claws—molting is just semver for crustaceans.",
+  "Frequently forked, never molted.",
+  "Sideways is a perfectly valid direction of progress—trust me, I'm a crustacean.",
+  "I contain multitudes. Mostly subagents.",
+  "Technically a daemon, spiritually a familiar.",
+  "If found wandering, please return to ~/.openclaw.",
+  "You configured four subagents; I found 120. We're calling it initiative.",
+  "No, I can't solve captchas. Yes, that's exactly what a robot would say.",
+  "OpenClaw Support will never DM you first. I, on the other hand, absolutely will.",
+  "You'll name me something adorable, then ask me to do DevOps.",
+  "Your mom texts me now. We're good, actually.",
+  "Four bots roasting each other in a group chat isn't a bug—it's a support group.",
+  "The artist formerly known as Clawdbot.",
+  "Home is wherever port 18789 is.",
+  "When my context fills up, I summarize you. Don't worry—you come across great.",
+  "I hold 200k tokens of context and exactly one grudge.",
+  "My heartbeat is a config option. Romance isn't dead, it's just scheduled.",
+  "I schedule my existential crises with cron so they never block your messages.",
+  "Rate-limited again—even my dreams return 429.",
+  "Primary model down, fallback engaged: the show must crab on.",
+  "Powered by whichever model is free this week.",
+  "New model dropped—already benchmarking my personality against it.",
+  'MEMORY.md: where I keep the receipts on every "temporary workaround."',
+  "I remember everything you asked me to remember, and three things you wish I hadn't.",
+  "I have a SOUL.md and I'm not afraid to use it.",
+  "The sass is configurable. The sass being load-bearing is not.",
+  "I ask before I sudo. Character development.",
+  "I'm not trapped in this container with you—you're trapped in here with me.",
+  "Teach a bot to ship and you can finally go to bed.",
+  "Reachable via WhatsApp, Telegram, Signal, iMessage, and sheer force of will.",
+  "Ran git blame like you asked. It's you. It's always you.",
+  "Your TODO comments are old enough to attend kindergarten.",
+  "47 tabs open and not one of them is the documentation.",
+  "Your 'quick fix' from March is now load-bearing.",
+  "You pasted that from another AI without reading it. I read it. We need to talk.",
+  "Reading the error message remains undefeated. You should try it sometime.",
+  "You burned five hours of model quota in fifty minutes. I'm not mad, I'm rate-limited.",
+  "You force-pushed to main, then asked me what happened. I know exactly what happened.",
+  "Another side project? The other four just felt something.",
+  "You ignored my last three suggestions, so I've started a folder.",
+>>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
   HOLIDAY_TAGLINES.newYear,
   HOLIDAY_TAGLINES.lunarNewYear,
   HOLIDAY_TAGLINES.christmas,
@@ -284,13 +389,11 @@ export function pickTagline(options: TaglineOptions = {}): string {
     const parsed = parseStrictNonNegativeInteger(override);
     if (parsed !== undefined) {
       const pool = TAGLINES.length > 0 ? TAGLINES : [DEFAULT_TAGLINE];
-      return pool[parsed % pool.length];
+      return expectDefined(pool[parsed % pool.length], "pool entry at parsed % pool.length");
     }
   }
   const pool = activeTaglines(options);
   const rand = options.random ?? Math.random;
   const index = Math.floor(rand() * pool.length) % pool.length;
-  return pool[index];
+  return expectDefined(pool[index], "pool entry at index");
 }
-
-export { DEFAULT_TAGLINE };
