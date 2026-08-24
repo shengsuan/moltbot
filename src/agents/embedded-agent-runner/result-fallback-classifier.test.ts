@@ -50,6 +50,62 @@ describe("classifyEmbeddedAgentRunResultForModelFallback", () => {
     });
   });
 
+  it("classifies structured provider upstream_error payloads as fallback-worthy", () => {
+    const rawError =
+      '{"error":{"message":"Upstream request failed","type":"upstream_error","param":"","code":null}}';
+
+    const result = classifyEmbeddedAgentRunResultForModelFallback({
+      provider: "openai-compatible",
+      model: "primary-model",
+      result: {
+        payloads: [
+          {
+            isError: true,
+            text: rawError,
+          },
+        ],
+        meta: {
+          durationMs: 42,
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      message: `openai-compatible/primary-model ended with a provider error: ${rawError}`,
+      reason: "server_error",
+      code: "embedded_error_payload",
+      rawError,
+    });
+  });
+
+  it("classifies structured provider overloaded_error payloads as fallback-worthy", () => {
+    const rawError =
+      '{"error":{"message":"Provider overloaded","type":"overloaded_error","param":"","code":null}}';
+
+    const result = classifyEmbeddedAgentRunResultForModelFallback({
+      provider: "openai-compatible",
+      model: "primary-model",
+      result: {
+        payloads: [
+          {
+            isError: true,
+            text: rawError,
+          },
+        ],
+        meta: {
+          durationMs: 42,
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      message: `openai-compatible/primary-model ended with a provider error: ${rawError}`,
+      reason: "overloaded",
+      code: "embedded_error_payload",
+      rawError,
+    });
+  });
+
   it("classifies generic external runner failure text as fallback-worthy", () => {
     const result = classifyEmbeddedAgentRunResultForModelFallback({
       provider: "claude-cli",
@@ -69,6 +125,37 @@ describe("classifyEmbeddedAgentRunResultForModelFallback", () => {
       reason: "format",
       code: "generic_external_run_failure",
       rawError: GENERIC_EXTERNAL_RUN_FAILURE_TEXT,
+    });
+  });
+
+  it("classifies Codex subscription usage-limit payloads as rate-limit fallback", () => {
+    const errorText =
+      "You've reached your Codex subscription usage limit. " +
+      "Next reset in 32 minutes, Jun 20 at 3:44 PM EDT. " +
+      "Wait until the reset time, use another Codex account if available, " +
+      "or switch to another configured model/provider.";
+
+    const result = classifyEmbeddedAgentRunResultForModelFallback({
+      provider: "openai",
+      model: "gpt-5.5",
+      result: {
+        payloads: [
+          {
+            isError: true,
+            text: errorText,
+          },
+        ],
+        meta: {
+          durationMs: 42,
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      message: "openai/gpt-5.5 ended with a provider error: " + errorText,
+      reason: "rate_limit",
+      code: "embedded_error_payload",
+      rawError: errorText,
     });
   });
 
