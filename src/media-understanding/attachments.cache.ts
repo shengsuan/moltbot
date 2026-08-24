@@ -11,10 +11,6 @@ import {
   isInboundPathAllowed,
   mergeInboundPathRoots,
 } from "@openclaw/media-core/inbound-path-policy";
-<<<<<<< HEAD
-import { detectMime } from "@openclaw/media-core/mime";
-=======
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import { MediaUnderstandingSkipError } from "../../packages/media-understanding-common/src/errors.js";
 import { resolveStateDir } from "../config/paths.js";
 import { logVerbose, shouldLogVerbose } from "../globals.js";

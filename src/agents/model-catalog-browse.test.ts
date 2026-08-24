@@ -5,17 +5,11 @@ import { MAX_TIMER_TIMEOUT_MS } from "@openclaw/normalization-core/number-coerci
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
-<<<<<<< HEAD
-import { MAX_TIMER_TIMEOUT_MS } from "../shared/number-coercion.js";
-import { loadModelCatalogForBrowse } from "./model-catalog-browse.js";
-import type { ModelCatalogEntry } from "./model-catalog.types.js";
-=======
 import {
   buildProviderConfigModelCatalogForBrowse,
   loadPreparedModelCatalogSnapshotForBrowse,
 } from "./model-catalog-browse.js";
 import type { ModelCatalogSnapshot } from "./model-catalog.types.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 
 const DEFAULT_MODEL_CATALOG_BROWSE_TIMEOUT_MS = 750;
 const readOnlyCatalog: ModelCatalogSnapshot = {

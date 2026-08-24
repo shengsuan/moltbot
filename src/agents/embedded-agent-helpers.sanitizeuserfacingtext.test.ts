@@ -172,13 +172,8 @@ describe("sanitizeUserFacingText", () => {
   });
 
   it("returns a friendly message for rate limit errors in Error: prefixed payloads", () => {
-<<<<<<< HEAD
-    expect(sanitizeUserFacingText("Error: 429 Rate limit exceeded", { errorContext: true })).toBe(
-      "⚠️ API 每分钟调用次数已达上限，请稍后再试。",
-=======
     expect(renderUserFacingText("Error: 429 Rate limit exceeded", { errorContext: true })).toBe(
       "⚠️ API rate limit reached. Please try again later.",
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
     );
   });
 

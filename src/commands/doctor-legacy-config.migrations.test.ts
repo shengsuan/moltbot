@@ -566,9 +566,6 @@ describe("normalizeCompatibilityConfigValues", () => {
             },
           },
         },
-<<<<<<< HEAD
-      } as unknown as OpenClawConfig);
-=======
       ]),
     );
 
@@ -657,7 +654,6 @@ describe("normalizeCompatibilityConfigValues", () => {
           },
         }),
       );
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
       const channel = (
         res.config.channels as Record<string, { accounts?: Record<string, unknown> }>
       )?.[channelId];

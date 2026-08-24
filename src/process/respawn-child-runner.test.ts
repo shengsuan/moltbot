@@ -48,8 +48,6 @@ describe("runRespawnChildWithSignalBridge", () => {
       env: { OPENCLAW_NODE_OPTIONS_READY: "1" },
       detached: process.platform !== "win32",
     });
-<<<<<<< HEAD
-=======
   });
 
   it.each([
@@ -80,7 +78,6 @@ describe("runRespawnChildWithSignalBridge", () => {
     child.emit("exit", null, testCase.signal);
 
     expect(exit).toHaveBeenCalledWith(testCase.exitCode);
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
   });
 
   it("signals detached respawn process groups after forwarded signal grace", () => {

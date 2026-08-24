@@ -99,11 +99,7 @@ import { telegramSetupWizard } from "./setup-surface.js";
 import { createTelegramPluginBase } from "./shared.js";
 import { withTelegramStartupProbeSlot } from "./startup-probe-limiter.js";
 import { collectTelegramStatusIssues } from "./status-issues.js";
-<<<<<<< HEAD
-import { parseTelegramTarget } from "./targets.js";
-=======
 import { normalizeTelegramChatId, parseTelegramTarget } from "./targets.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import {
   createTelegramThreadBindingManager,
   setTelegramThreadBindingIdleTimeoutBySessionKey,

@@ -1,13 +1,9 @@
 import type { FastMode } from "@openclaw/normalization-core/string-coerce";
 // Defines shared TUI state, backend, and event types.
-<<<<<<< HEAD
-import type { SessionGoal } from "../config/sessions/types.js";
-=======
 import type { SessionProjectionState } from "../../packages/gateway-client/src/session-projection.js";
 import type { SessionGoal } from "../config/sessions/types.js";
 import type { GatewayAgentRuntime } from "../shared/session-types.js";
 import type { TuiPendingSubmit } from "./tui-submit-state.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 
 export type TuiOptions = {
   local?: boolean;

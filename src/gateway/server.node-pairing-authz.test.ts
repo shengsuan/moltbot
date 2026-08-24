@@ -2,12 +2,6 @@
 // command scopes, and gateway enforcement around node client identity.
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
-<<<<<<< HEAD
-import { approveNodePairing, listNodePairing, requestNodePairing } from "../infra/node-pairing.js";
-import { createSuiteTempRootTracker } from "../test-helpers/temp-dir.js";
-import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
-import { callGateway } from "./call.js";
-=======
 import {
   type HelloOk,
   MIN_NODE_PROTOCOL_VERSION,
@@ -20,7 +14,6 @@ import {
 import { getPairedDevice, listDevicePairing } from "../infra/device-pairing.js";
 import { NODE_MCP_TOOLS_CALL_COMMAND } from "../infra/node-commands.js";
 import { resolveNodeIdFromNodeList } from "../shared/node-resolve.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import {
   GATEWAY_CLIENT_MODES,
   GATEWAY_CLIENT_NAMES,

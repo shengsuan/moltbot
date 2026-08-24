@@ -159,22 +159,4 @@ describe("usage-accumulator", () => {
       });
     });
   });
-<<<<<<< HEAD
-
-  describe("toLastCallUsage", () => {
-    it("returns the exact final call snapshot", () => {
-      const acc = createAccumulatorWithUsage(FIRST_USAGE, FINAL_USAGE);
-
-      expect(toLastCallUsage(acc)).toEqual({
-        input: 150,
-        output: 40,
-        reasoningTokens: 7,
-        cacheRead: 84_000,
-        cacheWrite: undefined,
-        total: 84_190,
-      });
-    });
-  });
-=======
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 });

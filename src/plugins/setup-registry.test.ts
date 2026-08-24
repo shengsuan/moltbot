@@ -1312,7 +1312,4 @@ describe("setup-registry module loader", () => {
     });
   });
 });
-<<<<<<< HEAD
-=======
 /* oxlint-disable max-lines -- TODO: split this grandfathered oversized file. */
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb

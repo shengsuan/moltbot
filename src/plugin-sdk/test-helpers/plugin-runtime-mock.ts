@@ -37,13 +37,8 @@ export const createTestInboundDebounceFlush: InboundDebounceFlushFactory = (para
   return { admission: completion, completion };
 };
 
-<<<<<<< HEAD
 const DEFAULT_PROVIDER = "shengsuanyun";
-const DEFAULT_MODEL = "anthropic/claude-opus-4.7";
-=======
-const DEFAULT_PROVIDER = "openai";
-const DEFAULT_MODEL = "gpt-5.6-sol";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
+const DEFAULT_MODEL = "anthropic/claude-opus-5";
 
 type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends (...args: never[]) => unknown

@@ -28,8 +28,6 @@ import {
 import { sortWebSearchProvidersForAutoDetect } from "../plugins/web-search-providers.shared.js";
 import { getActiveRuntimeWebToolsMetadataFromState } from "../secrets/runtime-web-tools-state.js";
 import type { RuntimeWebSearchMetadata } from "../secrets/runtime-web-tools.types.js";
-<<<<<<< HEAD
-=======
 import {
   hasWebProviderEntryCredential,
   providerRequiresCredential,
@@ -37,7 +35,6 @@ import {
   resolveWebProviderConfig,
 } from "../web/provider-runtime-shared.js";
 import { executeWebSearchCandidates } from "./runtime-execution.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import type {
   ResolveWebSearchDefinitionParams,
   RunWebSearchParams,

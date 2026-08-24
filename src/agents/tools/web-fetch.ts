@@ -23,10 +23,7 @@ import { wrapExternalContent, wrapWebContent } from "../../security/external-con
 import { createLazyImportLoader } from "../../shared/lazy-promise.js";
 import { isRecord } from "../../utils.js";
 import { extractReadableContent } from "../../web-fetch/content-extractors.runtime.js";
-<<<<<<< HEAD
-=======
 import { resolveWebProviderConfig } from "../../web/provider-runtime-shared.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import { stringEnum } from "../schema/string-enum.js";
 import { writePrivateTempFile } from "../sessions/tools/private-temp-file.js";
 import { formatFullOutputFooter } from "../sessions/tools/tool-contracts.js";

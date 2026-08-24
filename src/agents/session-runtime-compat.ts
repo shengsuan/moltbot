@@ -10,9 +10,6 @@ import { isDefaultAgentRuntimeId, normalizeOptionalAgentRuntimeId } from "./agen
 import { isCliRuntimeAliasForProvider } from "./model-runtime-aliases.js";
 
 /** Persisted runtime fields used to recover session runtime compatibility. */
-<<<<<<< HEAD
-type SessionRuntimeCompatEntry = Pick<SessionEntry, "agentHarnessId" | "agentRuntimeOverride">;
-=======
 type SessionRuntimeCompatEntry = Pick<
   SessionEntry,
   "agentHarnessId" | "agentRuntimeOverride" | "modelSelectionLocked"
@@ -30,7 +27,6 @@ type ManualCompactionRuntimeEntry = Pick<
   | "cliSessionIds"
   | "modelSelectionLocked"
 >;
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 
 type ManualCompactionCliTarget = {
   agentHarnessId?: string;

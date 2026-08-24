@@ -49,11 +49,7 @@ function copyWithExecCommand(text: string): boolean {
       window.setTimeout(() => {
         const activeElement = document.activeElement;
         if (previouslyFocused.isConnected && (!activeElement || activeElement === document.body)) {
-<<<<<<< HEAD:ui/src/ui/chat/clipboard.ts
-          previouslyFocused.focus();
-=======
           previouslyFocused.focus({ preventScroll: true });
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb:ui/src/lib/clipboard.ts
         }
       }, 0);
     }

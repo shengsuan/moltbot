@@ -506,28 +506,6 @@ describe("noteWorkspaceStatus", () => {
     }
   });
 
-<<<<<<< HEAD
-  const makeSkill = (
-    skillKey: string,
-    fields: { eligible: boolean; platformIncompatible: boolean },
-  ) =>
-    ({
-      skillKey,
-      disabled: false,
-      blockedByAllowlist: false,
-      eligible: fields.eligible,
-      platformIncompatible: fields.platformIncompatible,
-    }) as never;
-
-  async function runWithSkills(skills: unknown[]) {
-    mocks.resolveDefaultAgentId.mockReturnValue("default");
-    mocks.resolveAgentWorkspaceDir.mockReturnValue("/workspace");
-    mocks.buildWorkspaceSkillStatus.mockReturnValue({ skills });
-    mocks.buildPluginRegistrySnapshotReport.mockReturnValue({
-      workspaceDir: "/workspace",
-      ...createPluginLoadResult(),
-    });
-=======
   it("labels workspace diagnostics for the affected secondary agent", () => {
     mocks.buildPluginRegistrySnapshotReport.mockClear();
     mocks.listAgentIds.mockReturnValue(["default", "secondary"]);
@@ -542,7 +520,6 @@ describe("noteWorkspaceStatus", () => {
             : [],
       }),
     }));
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
     mocks.buildPluginCompatibilityWarnings.mockReturnValue([]);
     mocks.listTaskFlowRecords.mockReturnValue([]);
 

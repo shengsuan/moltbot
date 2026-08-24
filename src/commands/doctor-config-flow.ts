@@ -29,18 +29,6 @@ import {
   applyUnknownConfigKeyStep,
 } from "./doctor/shared/config-flow-steps.js";
 import {
-<<<<<<< HEAD
-  collectMissingDefaultAccountBindingWarnings,
-  collectMissingExplicitDefaultAccountWarnings,
-} from "./doctor/shared/default-account-warnings.js";
-import { normalizeCompatibilityConfigValues } from "./doctor/shared/legacy-config-core-migrate.js";
-
-function hasLegacyInternalHookHandlers(raw: unknown): boolean {
-  const handlers = (raw as { hooks?: { internal?: { handlers?: unknown } } })?.hooks?.internal
-    ?.handlers;
-  return Array.isArray(handlers) && handlers.length > 0;
-}
-=======
   applyDoctorConfigMutation,
   type DoctorConfigMutationResult,
   type DoctorConfigMutationState,
@@ -48,7 +36,6 @@ function hasLegacyInternalHookHandlers(raw: unknown): boolean {
 import { isSingleTopLevelIncludeMigration } from "./doctor/shared/include-migration-ownership.js";
 import { normalizeCompatibilityConfigValues } from "./doctor/shared/legacy-config-core-migrate.js";
 import type { DoctorPluginMetadataSnapshotState } from "./doctor/shared/plugin-metadata-snapshot-scope.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 
 function collectInvalidHookTransformsDirWarnings(
   cfg: OpenClawConfig,

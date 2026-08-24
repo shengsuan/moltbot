@@ -16,45 +16,7 @@ import {
   shouldSpawnWithShell,
 } from "./exec.js";
 
-<<<<<<< HEAD
-const spawnMock = vi.hoisted(() => vi.fn());
-const execFileMock = vi.hoisted(() => vi.fn());
-const execFilePromiseMock = vi.hoisted(() => vi.fn());
-
-let attachChildProcessBridge: typeof import("./child-process-bridge.js").attachChildProcessBridge;
-let resolveCommandEnv: typeof import("./exec.js").resolveCommandEnv;
-let resolveProcessExitCode: typeof import("./exec.js").resolveProcessExitCode;
-let runExec: typeof import("./exec.js").runExec;
-let runCommandWithTimeout: typeof import("./exec.js").runCommandWithTimeout;
-let shouldSpawnWithShell: typeof import("./exec.js").shouldSpawnWithShell;
-
-async function loadExecModules(options?: { mockSpawn?: boolean; mockExecFile?: boolean }) {
-  vi.resetModules();
-  if (options?.mockSpawn || options?.mockExecFile) {
-    vi.doMock("node:child_process", async () => {
-      const actual =
-        await vi.importActual<typeof import("node:child_process")>("node:child_process");
-      return {
-        ...actual,
-        spawn: options?.mockSpawn ? spawnMock : actual.spawn,
-        execFile: options?.mockExecFile ? execFileMock : actual.execFile,
-      };
-    });
-  } else {
-    vi.doUnmock("node:child_process");
-  }
-  ({ attachChildProcessBridge } = await import("./child-process-bridge.js"));
-  ({
-    resolveCommandEnv,
-    resolveProcessExitCode,
-    runCommandWithTimeout,
-    runExec,
-    shouldSpawnWithShell,
-  } = await import("./exec.js"));
-}
-=======
 const OPENCLAW_CLI_ENV_VALUE = "1";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 
 describe("runCommandWithTimeout", () => {
   it("never enables shell execution (Windows cmd.exe injection hardening)", () => {

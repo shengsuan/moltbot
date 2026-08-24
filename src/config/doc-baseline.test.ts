@@ -1,8 +1,4 @@
 // Verifies generated config documentation baselines stay stable.
-<<<<<<< HEAD
-import { describe, expect, it } from "vitest";
-import { collectConfigDocBaselineEntries, dedupeConfigDocBaselineEntries } from "./doc-baseline.js";
-=======
 import { describe, expect, it, vi } from "vitest";
 import { renderConfigDocBaselineArtifacts } from "./doc-baseline.js";
 
@@ -32,7 +28,6 @@ vi.mock("./doc-baseline.runtime.js", async (importOriginal) => {
     }),
   };
 });
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 
 describe("config doc baseline", () => {
   it("merges tuple item metadata through the public renderer", async () => {

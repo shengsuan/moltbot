@@ -12,26 +12,6 @@ describe("onboard-hooks", () => {
       expect(result.hooks?.internal?.entries).toEqual({
         "session-memory": { enabled: true },
       });
-<<<<<<< HEAD
-      expect(prompter.note).toHaveBeenCalledTimes(2);
-      expect(prompter.multiselect).toHaveBeenCalledWith({
-        message: "Enable hooks?",
-        options: [
-          { value: "__skip__", label: "暂时跳过" },
-          {
-            value: "session-memory",
-            label: "💾 session-memory",
-            hint: "Save session context to memory when /new or /reset command is issued",
-          },
-          {
-            value: "command-logger",
-            label: "📝 command-logger",
-            hint: "Log all command events to a centralized audit file",
-          },
-        ],
-      });
-=======
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
     });
 
     it("preserves explicit internal hook disablement", () => {

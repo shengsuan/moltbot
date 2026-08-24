@@ -48,13 +48,8 @@ export { resolveAdvertisedControlUiLinks, resolveControlUiLinks, resolveLocalCon
 /** Handles Clack cancellation by exiting through the runtime. */
 export function guardCancel<T>(value: T | symbol, runtime: RuntimeEnv, exitCode = 0): T {
   if (isCancel(value)) {
-<<<<<<< HEAD
-    cancel(stylePromptTitle("安装已取消。") ?? "安装已取消。");
-    runtime.exit(0);
-=======
     cancel(stylePromptTitle("Setup cancelled.") ?? "Setup cancelled.");
     runtime.exit(exitCode);
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
     throw new Error("unreachable");
   }
   return value;
@@ -234,18 +229,11 @@ export async function ensureWorkspaceAndSessions(
     ensureBootstrapFiles: !options?.skipBootstrap,
     skipOptionalBootstrapFiles: options?.skipOptionalBootstrapFiles,
   });
-<<<<<<< HEAD
-  runtime.log(`工作空间正常：${shortenHomePath(ws.dir)}`);
-  const sessionsDir = resolveSessionTranscriptsDirForAgent(options?.agentId);
-  await fs.mkdir(sessionsDir, { recursive: true });
-  runtime.log(`会话目录正常：${shortenHomePath(sessionsDir)}`);
-=======
   runtime.log(`Workspace OK: ${shortenHomePath(ws.dir)}`);
   const sessionsDir = resolveSessionTranscriptsDirForAgent(options.agentId);
   await fs.mkdir(sessionsDir, { recursive: true });
   runtime.log(`Sessions OK: ${shortenHomePath(sessionsDir)}`);
   return { bootstrapPending: ws.bootstrapPending === true };
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 }
 
 async function assertFullResetPreservesOnboardingLock(workspaceDir: string): Promise<void> {
@@ -263,43 +251,6 @@ async function assertFullResetPreservesOnboardingLock(workspaceDir: string): Pro
         "Choose a workspace outside the OpenClaw state migration directory or use a narrower reset scope.",
     );
   }
-<<<<<<< HEAD
-  try {
-    await fs.access(pathname);
-  } catch {
-    return;
-  }
-  try {
-    const targetPath = path.resolve(pathname);
-    const sourcePath = await resolveMoveToTrashSourcePath(targetPath);
-    await movePathToTrash(sourcePath, {
-      allowedRoots: await resolveMoveToTrashAllowedRoots(sourcePath),
-    });
-    runtime.log(`Moved to Trash: ${shortenHomePath(pathname)}`);
-  } catch {
-    runtime.log(`无法移至废纸篓（请手动删除）：${shortenHomePath(pathname)}`);
-  }
-}
-
-async function resolveMoveToTrashSourcePath(targetPath: string): Promise<string> {
-  return path.join(await fs.realpath(path.dirname(targetPath)), path.basename(targetPath));
-}
-
-async function resolveMoveToTrashAllowedRoots(targetPath: string): Promise<string[]> {
-  const allowedRoots = [path.dirname(targetPath)];
-  const stat = await fs.lstat(targetPath);
-  if (stat.isSymbolicLink()) {
-    try {
-      // fs-safe resolves valid symlinks before allow-root checks; include the
-      // resolved parent so deleting a configured symlink moves the link itself.
-      allowedRoots.push(path.dirname(await fs.realpath(targetPath)));
-    } catch {
-      // Broken symlinks are handled lexically by fs-safe.
-    }
-  }
-  return uniqueStrings(allowedRoots);
-=======
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 }
 
 /** Deletes onboarding-managed state according to the selected reset scope. */

@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-=======
 import { expectDefined } from "@openclaw/normalization-core";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import { isBlockedObjectKey } from "../infra/prototype-keys.js";
 // Resolves and classifies config paths for reads, writes, and metadata.
 import { isPlainObject } from "../utils.js";

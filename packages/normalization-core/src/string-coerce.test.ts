@@ -1,13 +1,9 @@
-<<<<<<< HEAD
-import { normalizeStringifiedEntries } from "@openclaw/normalization-core/string-coerce";
-=======
 import {
   normalizeBoundedOptionalString,
   normalizeStringifiedEntries,
   readNonBlankString,
   readNonEmptyStringPreservingWhitespace,
 } from "@openclaw/normalization-core/string-coerce";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 // Normalization Core tests cover string coerce behavior.
 import { describe, expect, it } from "vitest";
 

@@ -4,10 +4,7 @@ import type { BlockReplyChunking } from "../../agents/embedded-agent-block-chunk
 import type { ChannelId } from "../../channels/plugins/types.public.js";
 import type { SessionEntry, SessionScope } from "../../config/sessions.js";
 import type { OpenClawConfig } from "../../config/types.openclaw.js";
-<<<<<<< HEAD
-=======
 import type { PluginCommandContext } from "../../plugins/types.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import type { SkillCommandSpec } from "../../skills/types.js";
 import type { MsgContext } from "../templating.js";
 import type {

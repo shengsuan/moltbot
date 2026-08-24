@@ -1,9 +1,6 @@
 import type { FastMode } from "@openclaw/normalization-core/string-coerce";
 // Parses inline reply directives into typed execution and routing options.
-<<<<<<< HEAD
-=======
 import type { QueueMode } from "../../../packages/gateway-protocol/src/schema/logs-chat.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import type { ExecAsk, ExecSecurity, ExecTarget } from "../../infra/exec-approvals.js";
 import { extractModelDirective } from "../model.js";
 import { isSessionDefaultDirectiveValue } from "../thinking.js";

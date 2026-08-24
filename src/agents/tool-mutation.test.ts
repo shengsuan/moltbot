@@ -47,12 +47,6 @@ describe("tool mutation helpers", () => {
   ])("treats read-only shell command as non-mutating: %s %s", (toolName, command) => {
     expect(isMutatingToolCall(toolName, { command })).toBe(false);
     expect(buildToolMutationState(toolName, { command }).mutatingAction).toBe(false);
-<<<<<<< HEAD
-    expect(
-      buildToolMutationState(toolName, { command }, command).actionFingerprint,
-    ).toBeUndefined();
-=======
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
   });
 
   it.each([

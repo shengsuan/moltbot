@@ -939,29 +939,6 @@ function createOpenClawCodingToolsInternal(options?: OpenClawCodingToolsOptions)
       toolDenylist: pluginToolDenylist,
     }),
   });
-<<<<<<< HEAD
-  if (shouldInheritEffectiveToolAllowlist) {
-    replaceWithEffectiveToolAllowlist(inheritedToolAllowlist, subagentFiltered);
-  }
-  if (shouldCaptureCronCreatorToolAllowlist) {
-    replaceWithEffectiveCronCreatorToolAllowlist(
-      cronCreatorToolAllowlist,
-      subagentFiltered,
-      (tool) => getPluginToolMeta(tool),
-    );
-  }
-  options?.recordToolPrepStage?.("authorization-policy");
-  // Always normalize tool JSON Schemas before handing them to OpenClaw model runtime.
-  // Without this, some providers (notably OpenAI) will reject root-level union schemas.
-  // Provider-specific cleaning: Gemini needs constraint keywords stripped, but Anthropic expects them.
-  // console.log(subagentFiltered.length,"---------------subagentFiltered--------------")
-  const normalized = subagentFiltered.map((tool) =>
-    normalizeToolParameters(tool, {
-      modelProvider: options?.modelProvider,
-      modelId: options?.modelId,
-      modelCompat: options?.modelCompat,
-    }),
-=======
   // Host-bound ring-zero tools carry their own authority checks. Agent policy
   // must not deadlock setup, but the tools still receive schema/hook wrappers.
   const authorizedTools = applyDelegationCapability(
@@ -971,7 +948,6 @@ function createOpenClawCodingToolsInternal(options?: OpenClawCodingToolsOptions)
     (tool) =>
       !options?.swarmCollector ||
       (tool.name !== "ask_user" && tool.name !== "sessions_send" && tool.name !== "sessions_yield"),
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
   );
   if (
     swarmStructuredOutputTool &&

@@ -997,13 +997,8 @@ setInterval(() => {}, 1000);
       process.execPath,
       [scriptPath, grandchildPidPath, grandchildReadyPath],
       {
-<<<<<<< HEAD
-        timeoutKillGraceMs: 2_000,
-        timeoutMs: 1_500,
-=======
         timeoutKillGraceMs: 100,
         timeoutMs: 100,
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
       },
     );
     const runErrorPromise = runPromise.then(

@@ -72,13 +72,9 @@ function clampProgressLabel(label: string, columns: number | undefined): string 
 // converts the generic wizard prompt contract into styled Clack prompts.
 function guardCancel<T>(value: T | symbol, output: NodeJS.WriteStream, signal?: AbortSignal): T {
   if (isCancel(value)) {
-<<<<<<< HEAD
-    cancel(stylePromptTitle("设置已取消。") ?? "设置已取消。");
-=======
     if (!signal?.aborted) {
       cancel(stylePromptTitle("Setup cancelled.") ?? "Setup cancelled.", { output });
     }
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
     throw new WizardCancelledError();
   }
   return value;

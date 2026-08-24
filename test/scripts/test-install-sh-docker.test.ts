@@ -1,8 +1,5 @@
 // Test Install Sh Docker tests cover test install sh docker script behavior.
 import { spawn, spawnSync } from "node:child_process";
-<<<<<<< HEAD
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-=======
 import {
   chmodSync,
   existsSync,
@@ -13,7 +10,6 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import { tmpdir } from "node:os";
 import path, { join } from "node:path";
 import { runInNewContext } from "node:vm";

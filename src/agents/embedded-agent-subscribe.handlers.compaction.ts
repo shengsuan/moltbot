@@ -217,33 +217,3 @@ export function handleCompactionEnd(
     runBestEffortCompactionHook(ctx, "after");
   }
 }
-<<<<<<< HEAD
-
-/** Lazily reconciles persisted compaction count after a successful compaction. */
-async function reconcileSessionStoreCompactionCountAfterSuccess(params: {
-  sessionKey?: string;
-  agentId?: string;
-  configStore?: string;
-  observedCompactionCount: number;
-  now?: number;
-}): Promise<number | undefined> {
-  const { default: reconcile } =
-    await import("./embedded-agent-subscribe.handlers.compaction.runtime.js");
-  return reconcile(params);
-}
-
-function clearStaleAssistantUsageOnSessionMessages(ctx: EmbeddedAgentSubscribeContext): void {
-  const messages = ctx.params.session.messages;
-  if (!Array.isArray(messages)) {
-    return;
-  }
-  // Marker-free final compaction has no fresh boundary to compare against.
-  // Clear all assistant usage or stale pre-compaction totals keep driving the
-  // context counter after cleanup.
-  stripStaleAssistantUsageBeforeLatestCompaction(messages, {
-    mutate: true,
-    whenMissingCompactionSummary: "zeroAssistantUsage",
-  });
-}
-=======
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb

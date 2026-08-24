@@ -38,13 +38,8 @@ import {
   resolveMergedSafeBinProfileFixtures,
 } from "../infra/exec-safe-bin-runtime-policy.js";
 import { listRiskyConfiguredSafeBins } from "../infra/exec-safe-bin-semantics.js";
-<<<<<<< HEAD
-import { normalizeTrustedSafeBinDirs } from "../infra/exec-safe-bin-trust.js";
-import { DEFAULT_AGENT_ID } from "../routing/session-key.js";
-=======
 import { resolvePluginControlPlaneWorkspace } from "../plugins/control-plane-workspace.js";
 import { createLazyRuntimeModule } from "../shared/lazy-runtime.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import { collectDeepCodeSafetyFindings } from "./audit-deep-code-safety.js";
 import { collectDeepProbeFindings } from "./audit-deep-probe-findings.js";
 import {

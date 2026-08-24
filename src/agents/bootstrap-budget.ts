@@ -183,100 +183,12 @@ export function analyzeBootstrapBudget(params: {
   };
 }
 
-<<<<<<< HEAD
-/** Builds a stable signature for once-per-truncation warning suppression. */
-function buildBootstrapTruncationSignature(analysis: BootstrapBudgetAnalysis): string | undefined {
-  if (!analysis.hasTruncation) {
-    return undefined;
-  }
-  const files = analysis.truncatedFiles
-    .map((file) => ({
-      path: file.path || file.name,
-      rawChars: file.rawChars,
-      injectedChars: file.injectedChars,
-      causes: [...file.causes].toSorted(),
-    }))
-    .toSorted((a, b) => {
-      const pathCmp = a.path.localeCompare(b.path);
-      if (pathCmp !== 0) {
-        return pathCmp;
-      }
-      if (a.rawChars !== b.rawChars) {
-        return a.rawChars - b.rawChars;
-      }
-      if (a.injectedChars !== b.injectedChars) {
-        return a.injectedChars - b.injectedChars;
-      }
-      return a.causes.join("+").localeCompare(b.causes.join("+"));
-    });
-  return JSON.stringify({
-    bootstrapMaxChars: analysis.totals.bootstrapMaxChars,
-    bootstrapTotalMaxChars: analysis.totals.bootstrapTotalMaxChars,
-    files,
-  });
-}
-
-/** Formats human-readable warning lines for the most important truncated files. */
-function formatBootstrapTruncationWarningLines(params: {
-  analysis: BootstrapBudgetAnalysis;
-  maxFiles?: number;
-}): string[] {
-  if (!params.analysis.hasTruncation) {
-    return [];
-  }
-  const maxFiles =
-    typeof params.maxFiles === "number" && Number.isFinite(params.maxFiles) && params.maxFiles > 0
-      ? Math.floor(params.maxFiles)
-      : DEFAULT_BOOTSTRAP_PROMPT_WARNING_MAX_FILES;
-  const lines: string[] = [];
-  const duplicateNameCounts = params.analysis.truncatedFiles.reduce((acc, file) => {
-    acc.set(file.name, (acc.get(file.name) ?? 0) + 1);
-    return acc;
-  }, new Map<string, number>());
-  const topFiles = params.analysis.truncatedFiles.slice(0, maxFiles);
-  for (const file of topFiles) {
-    const pct =
-      file.rawChars > 0
-        ? Math.round(((file.rawChars - file.injectedChars) / file.rawChars) * 100)
-        : 0;
-    const causeText =
-      file.causes.length > 0
-        ? file.causes.map((cause) => formatWarningCause(cause)).join(", ")
-        : "";
-    const nameLabel =
-      (duplicateNameCounts.get(file.name) ?? 0) > 1 && file.path.trim().length > 0
-        ? `${file.name} (${file.path})`
-        : file.name;
-    lines.push(
-      `${nameLabel}: ${file.rawChars} raw -> ${file.injectedChars} injected (~${Math.max(0, pct)}% removed${causeText ? `; ${causeText}` : ""}).`,
-    );
-  }
-  if (params.analysis.truncatedFiles.length > topFiles.length) {
-    lines.push(
-      `+${params.analysis.truncatedFiles.length - topFiles.length} more truncated file(s).`,
-    );
-  }
-  if (params.analysis.truncatedFiles.some((file) => isAgentsBootstrapName(file.name))) {
-    lines.push("AGENTS.md was truncated; read the full AGENTS.md before relying on scoped policy.");
-  }
-  lines.push(
-    "If unintentional, raise agents.defaults.bootstrapMaxChars and/or agents.defaults.bootstrapTotalMaxChars.",
-  );
-  return lines;
-}
-
-/** Decides whether to show a prompt warning and returns the updated dedupe state. */
-export function buildBootstrapPromptWarning(params: {
-  analysis: BootstrapBudgetAnalysis;
-  mode: BootstrapPromptWarningMode;
-=======
 /** Builds the canonical bootstrap budget diagnosis after caller-owned routing. */
 export function buildBootstrapBudgetState(params: {
   config?: OpenClawConfig;
   agentId?: string | null;
   bootstrapFiles: WorkspaceBootstrapFile[];
   injectedFiles: EmbeddedContextFile[];
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
   previousSignature?: string;
   seenSignatures?: string[];
 }) {

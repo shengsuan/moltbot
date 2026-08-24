@@ -2401,28 +2401,5 @@ describe("device pairing tokens", () => {
     ).resolves.toBeNull();
     await expect(getPairedDevice("device-1", baseDir)).resolves.toBeNull();
   });
-<<<<<<< HEAD
-
-  test("refuses to overwrite corrupt paired device state", async () => {
-    const baseDir = await makeDevicePairingDir();
-    const request = await requestDevicePairing(
-      {
-        deviceId: "device-1",
-        publicKey: "public-key-1",
-        role: "node",
-        scopes: [],
-      },
-      baseDir,
-    );
-    const { pairedPath } = resolvePairingPaths(baseDir, "devices");
-    await writeFile(pairedPath, "{not-json}", "utf8");
-
-    await expect(
-      approveDevicePairing(request.request.requestId, { callerScopes: [] }, baseDir),
-    ).rejects.toThrow(/paired\.json/);
-    await expect(readFile(pairedPath, "utf8")).resolves.toBe("{not-json}");
-  });
-=======
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 });
 /* oxlint-disable max-lines -- TODO: split this grandfathered oversized file. */

@@ -230,11 +230,7 @@ function resolveRuntimeManifestCatalogPluginIds(
     if (!plugin.modelCatalog?.providers) {
       continue;
     }
-<<<<<<< HEAD
-    const plan = planManifestModelCatalogRows({ registry: { plugins: [plugin] } });
-=======
     const plan = planEffectiveModelCatalogRows({ registry: { plugins: [plugin] }, config });
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
     if (
       plan.entries.some(
         (entry) => entry.discovery === "runtime" || entry.discovery === "refreshable",

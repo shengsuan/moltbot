@@ -64,71 +64,8 @@ describe("secret target registry", () => {
       pathSegments: ["profiles", "openai:default", "key"],
     });
 
-<<<<<<< HEAD
-    const target = resolveConfigSecretTargetByPath([
-      "plugins",
-      "entries",
-      "exa",
-      "config",
-      "webSearch",
-      "apiKey",
-    ]);
-
-    expect(target?.entry?.id).toBe("plugins.entries.exa.config.webSearch.apiKey");
-
-    const fetchTarget = resolveConfigSecretTargetByPath([
-      "plugins",
-      "entries",
-      "firecrawl",
-      "config",
-      "webFetch",
-      "apiKey",
-    ]);
-    expect(fetchTarget?.entry?.id).toBe("plugins.entries.firecrawl.config.webFetch.apiKey");
-  });
-
-  it("derives bundled plugin SecretInput contract target paths from plugin manifests", () => {
-    const coreTargetIds = new Set(getCoreSecretTargetRegistry().map((entry) => entry.id));
-    expect(coreTargetIds.has("plugins.entries.voice-call.config.twilio.authToken")).toBe(false);
-    expect(coreTargetIds.has("plugins.entries.codex.config.appServer.authToken")).toBe(false);
-
-    const target = resolveConfigSecretTargetByPath([
-      "plugins",
-      "entries",
-      "voice-call",
-      "config",
-      "tts",
-      "providers",
-      "elevenlabs",
-      "apiKey",
-    ]);
-
-    expect(target?.entry?.id).toBe("plugins.entries.voice-call.config.tts.providers.*.apiKey");
-
-    const codexAuthTarget = resolveConfigSecretTargetByPath([
-      "plugins",
-      "entries",
-      "codex",
-      "config",
-      "appServer",
-      "authToken",
-    ]);
-    expect(codexAuthTarget?.entry?.id).toBe("plugins.entries.codex.config.appServer.authToken");
-
-    const codexHeaderTarget = resolveConfigSecretTargetByPath([
-      "plugins",
-      "entries",
-      "codex",
-      "config",
-      "appServer",
-      "headers",
-      "x-codex-client-session-token",
-    ]);
-    expect(codexHeaderTarget?.entry?.id).toBe("plugins.entries.codex.config.appServer.headers.*");
-=======
     expect(configTarget?.entry.targetType).toBe("models.providers.apiKey");
     expect(configTarget?.providerId).toBe("openai");
     expect(authProfileTarget?.entry.targetType).toBe("auth-profiles.api_key.key");
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
   });
 });

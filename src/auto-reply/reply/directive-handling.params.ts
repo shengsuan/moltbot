@@ -1,9 +1,5 @@
 import type { FastMode } from "@openclaw/normalization-core/string-coerce";
-<<<<<<< HEAD
-/** Parameter contracts shared by directive-only and fast-lane directive handlers. */
-=======
 /** Parameter contracts for the canonical directive transaction handler. */
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import type { ModelCatalogEntry } from "../../agents/model-catalog.js";
 import type { ModelAliasIndex } from "../../agents/model-selection.js";
 import type { SessionEntry } from "../../config/sessions.js";

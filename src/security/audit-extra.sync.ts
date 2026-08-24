@@ -6,12 +6,8 @@ import {
   normalizeStringifiedOptionalString,
 } from "@openclaw/normalization-core/string-coerce";
 import { normalizeUniqueStringEntries } from "@openclaw/normalization-core/string-normalization";
-<<<<<<< HEAD
-import { pickSandboxToolPolicy } from "../agents/sandbox-tool-policy.js";
-=======
 import { listAgentEntries } from "../agents/agent-scope-config.js";
 import { resolveConfiguredToolPolicies } from "../agents/agent-tools.policy.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import { resolveSandboxConfigForAgent } from "../agents/sandbox/config.js";
 import { isDangerousNetworkMode, normalizeNetworkMode } from "../agents/sandbox/network-mode.js";
 import { getBlockedBindReason } from "../agents/sandbox/validate-sandbox-security.js";
@@ -31,10 +27,7 @@ import {
 } from "../gateway/node-command-policy.js";
 import { listEffectiveGroupRouteBindings } from "../routing/resolve-route.js";
 import { collectAuditModelRefs } from "./audit-model-refs.js";
-<<<<<<< HEAD
-=======
 import { GATEWAY_CONTROL_PLANE_TOOLS } from "./dangerous-tools.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 
 /**
  * Synchronous security audit collector functions.
