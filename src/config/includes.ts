@@ -16,12 +16,8 @@ import path from "node:path";
 import { expectDefined } from "@openclaw/normalization-core";
 import { canUseRootFileOpen, openRootFileSync } from "../infra/boundary-file-read.js";
 import { resolvePathViaExistingAncestorSync } from "../infra/boundary-path.js";
-<<<<<<< HEAD
-import { isBlockedObjectKey } from "../infra/prototype-keys.js";
-=======
 import { mergeDeep as mergeDeepValues } from "../infra/deep-merge.js";
 import { isMissingPathError } from "../infra/errno.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import { isPathInside } from "../security/scan-paths.js";
 import { isPlainObject } from "../utils.js";
 import { parseJsonWithJson5Fallback } from "../utils/parse-json-compat.js";

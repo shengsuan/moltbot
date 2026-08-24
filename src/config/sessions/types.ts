@@ -5,16 +5,12 @@ import type {
   SessionAcpIdentity,
   SessionAcpMeta,
 } from "@openclaw/acp-core/types";
-<<<<<<< HEAD
-import { normalizeOptionalString, type FastMode } from "@openclaw/normalization-core/string-coerce";
-=======
 import { asNonNegativeFiniteNumber } from "@openclaw/normalization-core/number-coercion";
 import { normalizeOptionalString, type FastMode } from "@openclaw/normalization-core/string-coerce";
 import type { SessionRow, SessionRunStatus } from "../../../packages/gateway-protocol/src/index.js";
 import type { QueueMode } from "../../../packages/gateway-protocol/src/schema/logs-chat.js";
 import type { SessionObserverDigest } from "../../../packages/gateway-protocol/src/schema/sessions.js";
 import type { SessionAgentStatus } from "../../../packages/gateway-protocol/src/session-agent-status.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import type { ChatType } from "../../channels/chat-type.js";
 import type {
   CronScheduledToolCallerOrigin,

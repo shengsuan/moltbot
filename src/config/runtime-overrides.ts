@@ -1,16 +1,10 @@
-<<<<<<< HEAD
-=======
 import { err, ok, type Result } from "@openclaw/normalization-core/result";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import { isBlockedObjectKey } from "../infra/prototype-keys.js";
 // Applies runtime-only config overrides without mutating persisted config.
 import { isPlainObject } from "../utils.js";
 import { attachAgentListProjection } from "./agent-list-projection.js";
 import { parseConfigPath, setConfigValueAtPath, unsetConfigValueAtPath } from "./config-paths.js";
-<<<<<<< HEAD
-=======
 import { inheritLegacyDefaultAgentId } from "./legacy.default-agent-owner.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import type { OpenClawConfig } from "./types.js";
 
 type OverrideTree = Record<string, unknown>;

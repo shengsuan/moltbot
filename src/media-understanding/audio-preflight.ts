@@ -4,10 +4,7 @@ import type { ActiveMediaModel } from "../../packages/media-understanding-common
 import type { RuntimeMsgContext as MsgContext } from "../auto-reply/templating.js";
 import type { OpenClawConfig } from "../config/types.js";
 import { logVerbose, shouldLogVerbose } from "../globals.js";
-<<<<<<< HEAD
-=======
 import { normalizeMediaFacts } from "../media/media-facts.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import { isAudioAttachment } from "./attachments.js";
 import { runAudioTranscription } from "./audio-transcription-runner.js";
 import { DEFAULT_ECHO_TRANSCRIPT_FORMAT, sendTranscriptEcho } from "./echo-transcript.js";

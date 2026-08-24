@@ -799,14 +799,6 @@ class DebugProxyCaptureStoreImpl {
           )
           .get(...sessionIds) as { count: number }
       ).count ?? 0;
-<<<<<<< HEAD
-    this.db
-      .prepare(`DELETE FROM capture_events WHERE session_id IN (${placeholders})`)
-      .run(...sessionIds);
-    this.db
-      .prepare(`DELETE FROM capture_sessions WHERE id IN (${placeholders})`)
-      .run(...sessionIds);
-=======
     runSqliteImmediateTransactionSync(this.db, () => {
       this.db
         .prepare(`DELETE FROM capture_events WHERE session_id IN (${placeholders})`)
@@ -815,7 +807,6 @@ class DebugProxyCaptureStoreImpl {
         .prepare(`DELETE FROM capture_sessions WHERE id IN (${placeholders})`)
         .run(...sessionIds);
     });
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
     const candidateBlobIds = blobRows
       .map((row) => row.blobId?.trim())
       .filter((blobId): blobId is string => Boolean(blobId));
