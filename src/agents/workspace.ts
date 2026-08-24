@@ -29,14 +29,10 @@ import { isCronSessionKey, isSubagentSessionKey } from "../routing/session-key.j
 import { deriveSessionChatTypeFromKey } from "../sessions/session-chat-type-shared.js";
 import type { OpenClawStateDatabaseOptions } from "../state/openclaw-state-db.js";
 import { resolveUserPath } from "../utils.js";
-<<<<<<< HEAD
-import { log } from "./embedded-agent-runner/logger.ts";
-=======
 import {
   MAX_WORKSPACE_BOOTSTRAP_FILE_BYTES,
   readWorkspaceBootstrapFile,
 } from "./workspace-bootstrap-read.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import { DEFAULT_AGENT_WORKSPACE_DIR } from "./workspace-default.js";
 import {
   assertNoUnmigratedWorkspaceState,

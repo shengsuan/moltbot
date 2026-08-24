@@ -1,26 +1,11 @@
 import { resolveTimerTimeoutMs } from "@openclaw/normalization-core/number-coercion";
 // Exec helpers run subprocesses with normalized output, timeout, and abort handling.
 import { danger, shouldLogVerbose } from "../globals.js";
-<<<<<<< HEAD
-import { markOpenClawExecEnv } from "../infra/openclaw-exec-env.js";
-=======
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 import {
   decodeWindowsOutputBuffer,
   resolveWindowsConsoleEncoding,
 } from "../infra/windows-encoding.js";
 import { logDebug, logError } from "../logger.js";
-<<<<<<< HEAD
-import { resolveTimerTimeoutMs } from "../shared/number-coercion.js";
-import { killProcessTree as terminateProcessTree } from "./kill-tree.js";
-import { resolveCommandStdio } from "./spawn-utils.js";
-import {
-  buildWindowsCmdExeCommandLine,
-  isWindowsBatchCommand,
-  resolveTrustedWindowsCmdExe,
-  resolveWindowsCommandShim,
-} from "./windows-command.js";
-=======
 import { releaseChildProcessOutputAfterExit } from "./child-process.js";
 import { resolveMaxOutputBytes, type CommandOutputStream } from "./exec-output.js";
 import { runCommandWithTimeout } from "./exec-runner.js";
@@ -30,7 +15,6 @@ export type { CommandOptions } from "./exec-runner.js";
 export { isPlainCommandExitFailure, resolveProcessExitCode } from "./exec-result.js";
 export type { SpawnResult } from "./exec-result.js";
 export { resolveCommandEnv, shouldSpawnWithShell, spawnCommand } from "./exec-spawn.js";
->>>>>>> 17abdfc78c89ec69e972abf7979462757f2402fb
 
 const DEFAULT_EXEC_MAX_BUFFER_BYTES = 1024 * 1024;
 
