@@ -67,7 +67,12 @@ ARG OPENCLAW_DOCKER_BUILD_SKIP_DTS
 # Copy pinned Bun binary from the official image instead of fetching via curl.
 COPY --from=bun-binary /usr/local/bin/bun /usr/local/bin/bun
 
-RUN corepack enable
+RUN corepack enable && \
+    for attempt in 1 2 3 4 5; do \
+      if corepack prepare pnpm@11.15.1 --activate; then break; fi; \
+      echo "Corepack download failed, retrying ($attempt/5)..."; \
+      sleep $((attempt * 2)); \
+    done
 
 WORKDIR /app
 
@@ -259,8 +264,6 @@ RUN npm install --global npm@latest && \
     npm update --prefix "$npm_dir" --omit=dev --ignore-scripts --no-audit --no-fund && \
     mv /tmp/npm-package.json "$npm_dir/package.json" && \
     npm cache clean --force
-
-RUN chown node:node /app
 
 COPY --from=runtime-assets /app/dist ./dist
 COPY --from=runtime-assets /app/node_modules ./node_modules
