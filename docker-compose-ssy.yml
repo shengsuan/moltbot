@@ -20,7 +20,7 @@ services:
 
         - SSH_ROOT_PASSWORD=${SSH_ROOT_PASSWORD:-}
         - SSH_AUTHORIZED_KEYS=${SSH_AUTHORIZED_KEYS:-}
-      dockerfile: Dockerfile.ssy
+      # dockerfile: Dockerfile
 
       platforms:
         - "linux/amd64"
