@@ -1,11 +1,7 @@
 {
-  "meta": {
-    "lastTouchedVersion": "2026.4.14",
-    "lastTouchedAt": "2026-04-16T03:15:44.218Z"
-  },
   "wizard": {
-    "lastRunAt": "2026-04-14T03:04:39.215Z",
-    "lastRunVersion": "2026.4.14",
+    "lastRunAt": "2026-08-01T03:04:39.215Z",
+    "lastRunVersion": "2026.8.1",
     "lastRunCommand": "onboard",
     "lastRunMode": "local"
   },
@@ -39,6 +35,8 @@
         "shengsuanyun/ali/qwen3.5-4b": {},
         "shengsuanyun/ali/qwen3.5-9b": {},
         "shengsuanyun/ali/qwen3.5-flash": {},
+        "shengsuanyun/ali/qwen3.5-omni-flash": {},
+        "shengsuanyun/ali/qwen3.5-omni-plus": {},
         "shengsuanyun/ali/qwen3.5-plus": {},
         "shengsuanyun/ali/qwen3.6-27b": {},
         "shengsuanyun/ali/qwen3.6-35b-a3b": {},
@@ -48,6 +46,7 @@
         "shengsuanyun/ali/qwen3.7-max": {},
         "shengsuanyun/ali/qwen3.7-plus": {},
         "shengsuanyun/ali/qwen3.8-27b": {},
+        "shengsuanyun/ali/qwen3.8-flash": {},
         "shengsuanyun/ali/qwen3.8-max": {},
         "shengsuanyun/anthropic/claude-3.5-haiku": {},
         "shengsuanyun/anthropic/claude-3.7-sonnet:thinking": {},
@@ -89,6 +88,7 @@
         "shengsuanyun/bigmodel/glm-5.1": {},
         "shengsuanyun/bigmodel/glm-5.2": {},
         "shengsuanyun/bigmodel/glm-5.3": {},
+        "shengsuanyun/bigmodel/glm-5.3-flash": {},
         "shengsuanyun/bigmodel/glm-5v-turbo": {},
         "shengsuanyun/bigmodel/glm-z1-airx": {},
         "shengsuanyun/bytedance/doubao-pro-256k": {},
@@ -196,15 +196,6 @@
         "shengsuanyun/xiaomi/mimo-v2.5": {},
         "shengsuanyun/xiaomi/mimo-v2.5-pro": {}
       },
-      "imageGenerationModel": {
-        "primary": "shengsuanyun/openai/gpt-image-2",
-        "fallbacks": [
-          "shengsuanyun/google/gemini-3.1-flash-image-preview",
-          "shengsuanyun/google/gemini-3-pro-image-preview",
-          "shengsuanyun/openai/gpt-image-1.5"
-        ],
-        "timeoutMs": 800000
-      },
       "workspace": "${OPENCLAW_HOME}/.openclaw/workspace",
       "model": {
         "primary": "shengsuanyun/anthropic/claude-haiku-4.5"
@@ -218,9 +209,6 @@
         "provider": "shengsuanyun",
         "mode": "api_key"
       }
-    },
-    "cooldowns": {
-      "failureWindowHours": 0.1
     }
   },
   "gateway": {
