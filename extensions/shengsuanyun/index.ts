@@ -1,8 +1,7 @@
 import { defineSingleProviderPluginEntry } from "openclaw/plugin-sdk/provider-entry";
-import { normalizeLowercaseStringOrEmpty } from "openclaw/plugin-sdk/text-runtime";
 import { buildShengSuanYunImageGenerationProvider } from "./image-generation-provider.js";
-import { applyShengSuanYunConfig, SHENGSUANYUN_DEFAULT_MODEL_REF } from "./onboard.ts";
-import { buildShengSuanYunProvider } from "./provider-catalog.js";
+import { applyShengSuanYunConfig, SHENGSUANYUN_DEFAULT_MODEL_REF } from "./onboard.js";
+import { runShengSuanYunCatalog, runShengSuanYunStaticCatalog } from "./provider-discovery.js";
 const PROVIDER_ID = "shengsuanyun";
 
 export default defineSingleProviderPluginEntry({
@@ -34,20 +33,12 @@ export default defineSingleProviderPluginEntry({
     ],
     catalog: {
       order: "profile",
-      run: async (ctx) => {
-        const authResult = ctx.resolveProviderAuth(PROVIDER_ID);
-        const { apiKey } = authResult;
-        if (!apiKey) {
-          return null;
-        }
-        const provider = await buildShengSuanYunProvider();
-        return {
-          provider: {
-            ...provider,
-            apiKey,
-          },
-        };
-      },
+      // Canonical catalog gate lives in provider-discovery.ts (the manifest's
+      // providerCatalogEntry): /models listing is public, key optional.
+      // staticRun serves the cached snapshot so mandatory startup (entries-only
+      // discovery) keeps provider facts without network.
+      run: runShengSuanYunCatalog,
+      staticRun: () => runShengSuanYunStaticCatalog(),
     },
   },
   register(api) {

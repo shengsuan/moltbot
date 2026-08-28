@@ -137,6 +137,7 @@ EXTRA_MOUNTS = os.environ.get("OPENCLAW_EXTRA_MOUNTS", "")
 HOME_VOLUME_NAME = os.environ.get("OPENCLAW_HOME_VOLUME", "")
 RAW_SANDBOX = os.environ.get("OPENCLAW_SANDBOX", "")
 DOCKER_SOCKET_PATH = os.environ.get("OPENCLAW_DOCKER_SOCKET", "")
+SHENGSUANYUN_API_KEY = os.environ.get("SHENGSUANYUN_API_KEY", "")
 
 require_cmd("docker")
 if subprocess.run(["docker", "compose", "version"], capture_output=True).returncode != 0:

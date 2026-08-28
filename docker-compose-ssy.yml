@@ -22,11 +22,14 @@ services:
         - SSH_AUTHORIZED_KEYS=${SSH_AUTHORIZED_KEYS:-}
       # dockerfile: Dockerfile
 
-      platforms:
-        - "linux/amd64"
-    # image: ${OPENCLAW_IMAGE:-openclaw:latest}
-    image: registry-ali.shengsuanyun.com/system/openclaw:v2026.6.2
+      # platforms:
+      #   - "linux/amd64"
+    image: ${OPENCLAW_IMAGE:-openclaw:latest}
+    # image: registry-ali.shengsuanyun.com/system/openclaw:v2026.6.2
     container_name: openclaw-gateway
+    # 显式从仓库根 .env 注入密钥，避免依赖 docker compose 插值的工作目录/--env-file 差异。
+    env_file:
+      - .env
     environment:
       OPENCLAW_TIMEZONE: ${OPENCLAW_TIMEZONE:-Asia/Shanghai}
       OPENCLAW_HOME: ${OPENCLAW_HOME:-/home/node}

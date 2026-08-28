@@ -5,11 +5,14 @@ import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-s
 import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
 import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
 
+// The public catalog and OpenAI-compatible routes are versioned under /api/v1.
+// Anthropic transport removes the trailing /v1 before appending /v1/messages.
 export const SHENGSUANYUN_BASE_URL = "https://router.shengsuanyun.com/api/v1";
 export const SHENGSUANYUN_MODALITIES_BASE_URL = "https://api.shengsuanyun.com/modelrouter";
 
 const log = createSubsystemLogger("models");
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const SSY_MODELS_CACHE_KEY = "ssy_models";
 
 function getCachePath(name: string) {
   const stateDir = resolveStateDir();
@@ -18,14 +21,28 @@ function getCachePath(name: string) {
 
 type CacheWrap<T> = { timestamp: number; data: T };
 
+// saveCache is the only writer; validating the envelope instead of asserting it
+// lets corrupt or foreign cache files degrade to a cache miss.
+function isCacheEnvelope<T>(value: unknown): value is CacheWrap<T> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "timestamp" in value &&
+    typeof value.timestamp === "number" &&
+    "data" in value
+  );
+}
+
 function loadCache<T>(name: string): T | null {
   try {
     const p = getCachePath(name);
     if (!fs.existsSync(p)) {
       return null;
     }
-    const raw = fs.readFileSync(p, "utf-8");
-    const parsed = JSON.parse(raw) as CacheWrap<T>;
+    const parsed: unknown = JSON.parse(fs.readFileSync(p, "utf-8"));
+    if (!isCacheEnvelope<T>(parsed)) {
+      return null;
+    }
     if (Date.now() - parsed.timestamp > CACHE_TTL_MS) {
       return null;
     }
@@ -127,7 +144,7 @@ export async function discoverShengSuanYunModels(): Promise<ModelDefinitionConfi
     });
     await tryRes(res);
 
-    const json = (await res.json()) as ShengSuanYunModelsResponse;
+    const json: ShengSuanYunModelsResponse = await res.json();
     if (!json.success || !Array.isArray(json.data)) {
       throw new Error("invalid response");
     }
@@ -178,7 +195,7 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
       { signal: AbortSignal.timeout(30000) },
     );
     await tryRes(res);
-    const json = (await res.json()) as ShengSuanYunModalitiesResponse;
+    const json: ShengSuanYunModalitiesResponse = await res.json();
     if (json.code !== 0 || !Array.isArray(json.data?.infos)) {
       throw new Error("invalid");
     }
@@ -198,7 +215,7 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
             if (!r.ok) {
               return null;
             }
-            const j = await r.json();
+            const j: { code: number; data?: MModel } = await r.json();
             return j.code === 0 && j.data ? j.data : null;
           } catch {
             return null;
@@ -206,7 +223,7 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
         }),
       );
 
-      results.push(...(items.filter(Boolean) as MModel[]));
+      results.push(...items.filter((item): item is MModel => item !== null));
       if (i + 10 < ids.length) {
         await new Promise((r) => setTimeout(r, 500));
       }
@@ -222,8 +239,7 @@ export async function getShengSuanYunModalityModels(): Promise<MModel[]> {
   }
 }
 
-export async function buildShengSuanYunProvider(): Promise<ModelProviderConfig> {
-  const models = await discoverShengSuanYunModels();
+function buildShengSuanYunProviderFromModels(models: ModelDefinitionConfig[]): ModelProviderConfig {
   return {
     baseUrl: SHENGSUANYUN_BASE_URL,
     api: "anthropic-messages",
@@ -233,6 +249,22 @@ export async function buildShengSuanYunProvider(): Promise<ModelProviderConfig> 
       "X-Title": "OpenClaw",
     },
   };
+}
+
+export async function buildShengSuanYunProvider(): Promise<ModelProviderConfig> {
+  return buildShengSuanYunProviderFromModels(await discoverShengSuanYunModels());
+}
+
+/**
+ * Static startup facts: cached live-catalog snapshot only, never network.
+ * Mandatory startup runs entries-only discovery, which skips providers whose
+ * facts would require a live fetch — without this cached surface the gateway
+ * boots with zero shengsuanyun models and fails its inference probes.
+ */
+export async function buildCachedShengSuanYunProvider(): Promise<ModelProviderConfig> {
+  return buildShengSuanYunProviderFromModels(
+    loadCache<ModelDefinitionConfig[]>(SSY_MODELS_CACHE_KEY) ?? [],
+  );
 }
 
 async function tryRes(res: Response) {

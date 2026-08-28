@@ -17,6 +17,7 @@ describe("ModelsConfigSchema", () => {
     "novitaai",
     "ollama-cloud",
     "qwen-token-plan",
+    "shengsuanyun",
     "x-ai",
     "z.ai",
     "z-ai",

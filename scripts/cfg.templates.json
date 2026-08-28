@@ -203,6 +203,14 @@
       "userTimezone": "${OPENCLAW_TIMEZONE}"
     }
   },
+  "models": {
+    "providers": {
+      "shengsuanyun": {
+        "api": "anthropic-messages",
+        "baseUrl": "https://router.shengsuanyun.com/api/v1"
+      }
+    }
+  },
   "auth": {
     "profiles": {
       "shengsuanyun:default": {
@@ -229,20 +237,7 @@
     "port": 18789,
     "bind": "${OPENCLAW_GATEWAY_BIND}",
     "tailscale": {
-      "mode": "off",
-      "resetOnExit": false
-    },
-    "nodes": {
-      "denyCommands": [
-        "camera.snap",
-        "camera.clip",
-        "screen.record",
-        "contacts.add",
-        "calendar.add",
-        "reminders.add",
-        "sms.send",
-        "sms.search"
-      ]
+      "mode": "off"
     }
   },
   "session": {
@@ -274,9 +269,6 @@
       "shengsuanyun": {
         "enabled": true
       },
-      "openclaw-weixin": {
-        "enabled": true
-      },
       "browser": {
         "enabled": true
       }
@@ -284,8 +276,7 @@
     "allow": [
       "shengsuanyun",
       "browser",
-      "memory-core",
-      "openclaw-weixin"
+      "memory-core"
     ]
   },
   "browser": {
@@ -295,13 +286,6 @@
     "attachOnly": false,
     "ssrfPolicy": {
       "dangerouslyAllowPrivateNetwork": true,
-      "hostnameAllowlist": [
-        "*.com",
-        "*.net",
-        "*.org",
-        "*.io",
-        "localhost"
-      ],
       "allowedHostnames": [
         "*"
       ]

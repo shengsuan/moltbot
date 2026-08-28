@@ -3,7 +3,7 @@ import {
   type OpenClawConfig,
 } from "openclaw/plugin-sdk/provider-onboard";
 
-export const SHENGSUANYUN_DEFAULT_MODEL_REF = "shengsuanyun/anthropic/claude-opus-4.6";
+export const SHENGSUANYUN_DEFAULT_MODEL_REF = "shengsuanyun/anthropic/claude-opus-5";
 
 export function applyShengSuanYunProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
   const models = { ...cfg.agents?.defaults?.models };

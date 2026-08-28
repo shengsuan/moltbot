@@ -1055,8 +1055,6 @@ export async function ensureAgentWorkspace(params?: {
   const shouldWriteBootstrapFile = (fileName: string): boolean =>
     !OPTIONAL_BOOTSTRAP_FILENAMES.has(fileName) || !skipOptionalBootstrapFiles.has(fileName);
 
-  log.error(`Writing bootstrap files for workspace: ${heartbeatTemplate}`);
-
   await writeFileIfMissing(agentsPath, agentsTemplate);
   if (shouldWriteBootstrapFile(DEFAULT_SOUL_FILENAME)) {
     await writeFileIfMissing(soulPath, soulTemplate);

@@ -1,15 +1,25 @@
 {
   "id": "shengsuanyun",
+  "activation": {
+    "onStartup": false
+  },
+  "enabledByDefault": true,
   "providers": ["shengsuanyun"],
-  "providerDiscoveryEntry": "./provider-discovery.ts",
-  "providerAuthEnvVars": {
-    "shengsuanyun": ["SHENGSUANYUN_API_KEY"]
+  "providerCatalogEntry": "./provider-discovery.ts",
+  "setup": {
+    "providers": [
+      {
+        "id": "shengsuanyun",
+        "envVars": ["SHENGSUANYUN_API_KEY"]
+      }
+    ]
   },
   "providerAuthChoices": [
     {
       "provider": "shengsuanyun",
       "method": "api-key",
       "choiceId": "shengsuanyun-api-key",
+      "appGuidedSecret": true,
       "choiceLabel": "胜算云 API key",
       "groupId": "shengsuanyun",
       "groupLabel": "胜算云",

@@ -19,17 +19,16 @@ export function normalizeConfig(params: {
     const trimmed = providerConfig.baseUrl.trim().replace(/\/+$/, "");
     const expectedBase = "https://router.shengsuanyun.com/api/v1";
 
-    // If it's the shengsuanyun domain but wrong path, correct it
+    // Config normalization can strip the public /api/v1 suffix; restore it.
+    // (Both matched variants differ from expectedBase, so the correction always fires.)
     if (
       trimmed === "https://router.shengsuanyun.com/v1" ||
       trimmed === "https://router.shengsuanyun.com"
     ) {
-      if (trimmed !== expectedBase) {
-        return {
-          ...providerConfig,
-          baseUrl: expectedBase,
-        };
-      }
+      return {
+        ...providerConfig,
+        baseUrl: expectedBase,
+      };
     }
   }
 

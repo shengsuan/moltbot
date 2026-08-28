@@ -619,6 +619,16 @@ describe("bundled plugin metadata", () => {
     expect(entry?.manifest.activation?.onCommands).toStrictEqual(["codex"]);
   });
 
+  it("keeps shengsuanyun env-var auth metadata on the bundled manifest", () => {
+    const entry = listRepoBundledPluginManifests().find(
+      ({ manifest }) => manifest.id === "shengsuanyun",
+    );
+
+    expect(entry?.manifest.setup?.providers).toEqual([
+      { id: "shengsuanyun", envVars: ["SHENGSUANYUN_API_KEY"] },
+    ]);
+  });
+
   it("keeps empty-config Gateway startup narrower than declared startup sidecars", () => {
     const manifestRegistry = createRepoBundledManifestRegistry();
     const index = createInstalledPluginIndexForManifests(manifestRegistry);
