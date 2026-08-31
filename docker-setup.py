@@ -49,12 +49,12 @@ def fetch_and_update_models() -> None:
         with open(templates_file, "r", encoding="utf-8") as f:
             config = json.load(f)
 
-        if "agents" not in config:
-            config["agents"] = {}
-        if "defaults" not in config["agents"]:
-            config["agents"]["defaults"] = {}
+        if "models" not in config:
+            config["models"] = {}
+        if "providers" not in config["models"]:
+            config["models"]["providers"] = {}
 
-        config["agents"]["defaults"]["models"] = {"shengsuanyun/"+model_id: {} for model_id in model_ids}
+        config["models"]["providers"]["shengsuanyun"]["models"] = [{"id":id, "name":id} for id in model_ids]
         with open(templates_file, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
             f.write("\n")

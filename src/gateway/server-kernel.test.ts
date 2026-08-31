@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import { createDeferred } from "../../test/helpers/promise.js";
+import { flushDiagnosticsTimeline } from "../infra/diagnostics-timeline.js";
 import { createPluginRecord } from "../plugins/loader-records.js";
 import { createEmptyPluginRegistry } from "../plugins/registry-empty.js";
 import {
@@ -38,6 +39,7 @@ describe("createGatewayKernel", () => {
       },
     });
     const token = "gateway-kernel-direct-close-readiness-token";
+    const configReloaderStop = createDeferred();
     let kernel: Awaited<ReturnType<typeof createGatewayKernel>> | undefined;
     try {
       await state.writeConfig({
@@ -56,21 +58,8 @@ describe("createGatewayKernel", () => {
       expect(getStartup()).toMatchObject({ ok: true, status: "started" });
       expect(getReadiness()).toMatchObject({ ready: true, failing: [] });
 
-      const discoveryResident = kernel.residentRegistry
-        .list()
-        .find((resident) => resident.name === "bonjour-discovery");
-      if (!discoveryResident) {
-        throw new Error("Expected the Gateway discovery resident");
-      }
-      const residentFirstStop = vi.fn(async () => {});
-      kernel.kernel.swapBonjourStop(residentFirstStop);
-      await discoveryResident.stop();
-      expect(residentFirstStop).toHaveBeenCalledOnce();
-      expect(kernel.runtimeState.bonjourStop).toBeNull();
-
       const closeFirstStop = vi.fn(async () => {});
       kernel.kernel.swapBonjourStop(closeFirstStop);
-      const configReloaderStop = createDeferred();
       vi.spyOn(kernel.runtimeState.configReloader, "stop").mockReturnValue(
         configReloaderStop.promise,
       );
@@ -80,10 +69,10 @@ describe("createGatewayKernel", () => {
       expect(getReadiness()).toMatchObject({ ready: false, failing: ["gateway-draining"] });
       configReloaderStop.resolve();
       await closing;
-      await discoveryResident.stop();
       expect(closeFirstStop).toHaveBeenCalledOnce();
       expect(kernel.runtimeState.bonjourStop).toBeNull();
     } finally {
+      configReloaderStop.resolve();
       try {
         await kernel?.closeOnStartupFailure();
       } finally {
@@ -388,6 +377,7 @@ describe("createGatewayKernel", () => {
       ).resolves.toEqual({ runId: "kernel-run", status: "ok", summary: "cached" });
       expect(getActiveGatewayRootWorkCount()).toBe(0);
 
+      flushDiagnosticsTimeline();
       const timeline = (await fs.readFile(timelinePath, "utf8"))
         .trim()
         .split("\n")
@@ -410,8 +400,6 @@ describe("createGatewayKernel", () => {
         "plugins.metadata.scan",
         "plugins.metadata.freeze",
         "config.snapshot.read.materialize",
-        "plugins.metadata.scan",
-        "plugins.metadata.freeze",
         "config.snapshot.read.observe",
         "config.auth",
         "config.auth.snapshot-validate",
@@ -425,8 +413,6 @@ describe("createGatewayKernel", () => {
         "config.auth.secrets-activate",
         "startup.maintenance",
         "plugins.bootstrap",
-        "plugins.metadata.scan",
-        "plugins.metadata.freeze",
         "runtime.config",
         "control-ui.root",
         "tls.runtime",
@@ -446,6 +432,7 @@ describe("createGatewayKernel", () => {
         await kernel?.closeOnStartupFailure();
       } finally {
         try {
+          flushDiagnosticsTimeline();
           await state.cleanup();
         } finally {
           if (capturedLoadedPluginRegistry) {

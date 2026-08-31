@@ -21,6 +21,7 @@ start_gateway() {
     for i in {1..300}; do
         if curl -sf http://127.0.0.1:18789/healthz >/dev/null 2>&1; then
             echo "[INFO] 网关已就绪（${i}s)"
+            node dist/index.js onboard --non-interactive --accept-risk --skip-health 
             return 0
         fi
         sleep 1

@@ -155,6 +155,7 @@ export function resolveStrictSetupAuthProfileError(params: {
     config: params.plan.config,
     externalCliProviderIds: [params.plan.provider],
   });
+  console.log("[debug] setup auth profile lookup", { profileId, availableProfileIds: Object.keys(store.profiles) });  
   const credential = store.profiles[profileId];
   if (!credential) {
     return `No credentials found for the configured setup profile "${profileId}".`;
