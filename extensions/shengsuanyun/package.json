@@ -1,6 +1,6 @@
 {
   "name": "@openclaw/shengsuanyun-provider",
-  "version": "2026.4.30",
+  "version": "2026.08.01",
   "private": true,
   "description": "OpenClaw 胜算云模型提供插件",
   "type": "module",

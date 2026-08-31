@@ -8,6 +8,8 @@
   "agents": {
     "defaults": {
       "models": {
+        "shengsuanyun/agnes/agnes-2.0-flash": {},
+        "shengsuanyun/agnes/agnes-2.5-flash": {},
         "shengsuanyun/ali/qvq-plus": {},
         "shengsuanyun/ali/qwen-plus-latest": {},
         "shengsuanyun/ali/qwen-plus-latest:thinking": {},
@@ -193,6 +195,7 @@
         "shengsuanyun/tencent/hunyuan-turbos-vision": {},
         "shengsuanyun/tencent/hy3": {},
         "shengsuanyun/tencent/hy3-preview": {},
+        "shengsuanyun/tencent/hy4-preview": {},
         "shengsuanyun/xiaomi/mimo-v2.5": {},
         "shengsuanyun/xiaomi/mimo-v2.5-pro": {}
       },
@@ -271,12 +274,25 @@
       },
       "browser": {
         "enabled": true
+      },
+      "feishu": {
+        "enabled": true
+      },
+      "openclaw-qqbot": {
+        "enabled": true
+      },
+      "wecom-openclaw-plugin": {
+        "enabled": true
       }
     },
     "allow": [
       "shengsuanyun",
       "browser",
-      "memory-core"
+      "memory-core",
+      "feishu",
+      "wecom-openclaw-plugin",
+      "openclaw-weixin",
+      "openclaw-qqbot"
     ]
   },
   "browser": {

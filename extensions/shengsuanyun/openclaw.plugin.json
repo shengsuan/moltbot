@@ -1,5 +1,6 @@
 {
   "id": "shengsuanyun",
+  "icon": "./assets/logo.svg",
   "activation": {
     "onStartup": false
   },
@@ -17,6 +18,7 @@
   "providerAuthChoices": [
     {
       "provider": "shengsuanyun",
+      "icon": "./assets/logo.svg",
       "method": "api-key",
       "choiceId": "shengsuanyun-api-key",
       "appGuidedSecret": true,
